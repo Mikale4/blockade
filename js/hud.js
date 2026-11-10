@@ -72,8 +72,11 @@
     const a = G.player; if (!a) return;
     U.$('dmgVignette').style.opacity = 0.7; H.vigT = 0.6;
     if (!dir) return;
-    const ang = Math.atan2(dir.x, dir.z) - a.yaw;   // where the shot came from, relative to view
-    const arc = $('div', { class: 'arc' }); arc.style.transform = 'translate(-50%,-50%) rotate(' + (-ang * 180 / Math.PI + 180) + 'deg)';
+    // dir is the way the hit travelled, so it came from -dir. Its angle from where you face
+    // (0 ahead, positive to your left) turns the arc, which sits at the top of its ring when
+    // unrotated: ahead shows at the top, behind at the bottom, left on the left
+    const ang = U.wrap(Math.atan2(dir.x, dir.z) - a.yaw);
+    const arc = $('div', { class: 'arc' }); arc.style.transform = 'translate(-50%,-50%) rotate(' + (-ang * 180 / Math.PI) + 'deg)';
     H.el.hurt.append(arc); setTimeout(() => arc.remove(), 900);
   };
   H.flash = function (k) { const f = U.$('flash'); f.style.transition = 'none'; f.style.opacity = Math.min(1, k * 1.2); H.flashT = 4.5 * k; };

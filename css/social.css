@@ -146,7 +146,10 @@
 .roomset .seg2 b { font: 700 14px var(--f); letter-spacing: 0.08em; }
 .roomchat { display: flex; flex-direction: column; gap: 6px; }
 .roomchat .chatlog { min-height: 180px; max-height: 260px; }
-.roomacts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+/* the room scrolls as a whole (panels never squash), and the ready / start buttons stay pinned
+   to the bottom of the screen however long the settings and map list get */
+.roomgrid > * { flex-shrink: 0; }
+.roomacts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; position: sticky; bottom: 0; z-index: 3; overflow: visible; box-shadow: 0 -10px 24px rgba(0,0,0,0.55); }
 .chalform { display: flex; flex-direction: column; gap: 10px; }
 
 /* friends & messages */
