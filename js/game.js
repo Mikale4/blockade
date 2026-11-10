@@ -1,0 +1,418 @@
+/* game.js -- the match: rounds, prep/action phases, Bomb / Secure Area / Hostage,
+   spawning, objectives, reinforcement, barricades, interactions, noise & intel. */
+(function () {
+  'use strict';
+  const { M, MAT, OPS, GADGETS, WEAPONS } = DATA;
+  const V = () => new THREE.Vector3();
+  const PREP = 45, ACTION = 180, PLANT = 7, DISABLE = 7, DEFUSE = 45, SECURE = 10, POST = 7;
+
+  const GAME = {
+    mode: 'bomb', mapId: 'roadhouse', phase: 'none', timer: 0, round: 0, score: [0, 0], startSide: 'atk',
+    obj: {}, reinforced: [], pool: {}, feed: [], siteRooms: [], playerChoice: null, active: false, sandbox: false,
+    net: false, client: false, myTeam: 0,
+  };
+  GAME.sideOf = team => {
+    if (GAME.client) return (NP.sides && NP.sides[team]) || 'atk';
+    const s0 = (G.settings.swapEveryRound ? GAME.round % 2 === 0 : GAME.round < G.settings.roundsToWin - 1 || GAME.round % 2 === 0) ? GAME.startSide : (GAME.startSide === 'atk' ? 'def' : 'atk');
+    return team === 0 ? s0 : (s0 === 'atk' ? 'def' : 'atk');
+  };
+  GAME.playerSide = () => GAME.sideOf(GAME.myTeam);
+  GAME.atkTeam = () => GAME.sideOf(0) === 'atk' ? 0 : 1;
+  const mine = () => GAME.score[GAME.myTeam], theirs = () => GAME.score[1 - GAME.myTeam];
+  GAME.mine = mine; GAME.theirs = theirs;
+
+  /* ------------------------------------------------------------- match flow */
+  GAME.startMatch = function (cfg) {
+    GAME.mode = cfg.mode; GAME.mapId = cfg.map;
+    GAME.startSide = cfg.side === 'random' ? (Math.random() < 0.5 ? 'atk' : 'def') : cfg.side;
+    GAME.round = 0; GAME.score = [0, 0]; GAME.sandbox = false; GAME.active = true;
+    GAME.stats = new Map();
+    if (!cfg.online) { GAME.net = false; GAME.client = false; GAME.myTeam = 0; }
+    MAIN.loadMap(cfg.map);
+    if (GAME.net && NP.host) NP.hookWorld();
+    if (window.Net && Auth.user && !GAME.net) Net.setStatus('play', 'Playing ' + DATA.MODES[cfg.mode].name + ' against bots');
+    GAME.prepareRound();
+  };
+  /* choose the objective and open operator select */
+  GAME.prepareRound = function () {
+    GAME.phase = 'select';
+    const map = G.map;
+    if (GAME.mode === 'bomb') { const pair = U.pick(map.bombs); GAME.siteNames = pair; }
+    else if (GAME.mode === 'secure') GAME.siteNames = [U.pick(map.secure)];
+    else GAME.siteNames = [U.pick(map.hostage)];
+    if (GAME.net) NP.select();
+    MENU.opSelect({
+      side: GAME.playerSide(), round: GAME.round, score: [mine(), theirs()], mode: GAME.mode, sites: GAME.siteNames, map, online: GAME.net,
+      onReady: choice => { GAME.playerChoice = choice; if (GAME.net) NP.myPick(choice); else GAME.startRound(); },
+    });
+  };
+  GAME.startRound = function () {
+    const ch = GAME.playerChoice, map = G.map;
+    if (GAME.net) { G.mode = 'match'; MENU.hide(); HUD.show(true); }
+    MAIN.resetWorld();
+    GAME.reinforced = []; GAME.feed = []; GAME.obj = {}; G.actors = []; G.player = null;
+    GAME.siteRooms = GAME.siteNames.map(n => map.roomByName[n][0]);
+    GAME.obj.rooms = GAME.siteRooms;
+    // ---- operators: the humans, then bots to fill each team to five
+    const pick = (side, taken, n) => U.shuffle(OPS.filter(o => o.side === side && !taken.includes(o.id))).slice(0, Math.max(0, n));
+    const mkBot = (op, team, side) => {
+      const lo = { primary: U.pick(op.primaries), secondary: U.pick(op.secondaries), gadget: U.pick(op.gadgets) };
+      const a = new Actor({ name: op.name, team, side, op, loadout: lo });
+      AI.attach(a); return a;
+    };
+    const humans = GAME.net ? NP.humanPicks() : [{ team: 0, op: ch.op, loadout: ch.loadout, spawn: ch.spawn, name: ch.op.name, local: true }];
+    const teams = [[], []];
+    for (const h of humans) {
+      const a = new Actor({ name: h.name, team: h.team, side: GAME.sideOf(h.team), op: h.op, loadout: h.loadout, isPlayer: !!h.local });
+      if (!h.local) { a.remote = true; a.net = h.peer; }
+      a.spawnPick = h.spawn; teams[h.team].push(a);
+      if (h.local) G.player = a;
+    }
+    const fill = GAME.net ? NP.room.bots : true;
+    for (const t of [0, 1]) {
+      const side = GAME.sideOf(t), taken = teams[t].map(a => a.op.id);
+      for (const op of pick(side, taken, fill ? 5 - teams[t].length : 0)) teams[t].push(mkBot(op, t, side));
+    }
+    G.actors = [...teams[0], ...teams[1]];
+    for (const a of G.actors) {
+      a.addTo(G.scene);
+      const key = (a.isPlayer || a.net ? 'h:' + a.name : a.op.id) + ':' + a.team;
+      const s = GAME.stats.get(key) || { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: a.team, human: !!(a.isPlayer || a.net), me: !!a.isPlayer, op: a.op.id };
+      s.op = a.op.id; a.match = s; GAME.stats.set(key, s);
+    }
+    // ---- spawn
+    const atk = GAME.atkTeam(), atkTeam = teams[atk], defTeam = teams[1 - atk];
+    const lead = atkTeam.find(a => a.isPlayer || a.net);
+    const leadSpawn = lead && lead.spawnPick != null ? lead.spawnPick : U.rndi(0, map.spawns.length - 1);
+    atkTeam.forEach((a, i) => {
+      const si = (a.isPlayer || a.net) && a.spawnPick != null ? a.spawnPick : (Math.random() < 0.6 ? leadSpawn : U.rndi(0, map.spawns.length - 1));
+      const s = map.spawns[si] || map.spawns[0];
+      const ang = i * 1.3, r = i ? 1.5 : 0;
+      a.pos.set(s.x + Math.cos(ang) * r, s.y, s.z + Math.sin(ang) * r);
+      const b = map.buildings[0]; a.yaw = U.yawTo(a.pos, V().set((b.x0 + b.x1) / 8, 0, (b.z0 + b.z1) / 8));
+    });
+    defTeam.forEach(a => { const r = U.pick(GAME.siteRooms); const p = NAV.randomIn(r); a.pos.copy(p); a.yaw = Math.random() * 6.28; });
+    // ---- objective things
+    if (GAME.mode === 'bomb' && atkTeam.length) { const c = U.pick(atkTeam); c.carry = 'defuser'; GAME.obj.carrier = c; }
+    if (GAME.mode === 'secure') { const r = GAME.siteRooms[0]; GAME.obj.bio = new GAD.Biohazard(V().set(r.cx, r.fy, r.cz)); GAME.obj.prog = 0; GAME.obj.overtime = 0; }
+    if (GAME.mode === 'hostage') {
+      const r = GAME.siteRooms[0];
+      const h = new Actor({ name: 'HOSTAGE', team: -1, side: 'none', op: MD.HOSTAGE_OP, hostage: true });
+      h.pos.copy(NAV.randomIn(r)); h.stance = 1; h.addTo(G.scene);
+      G.actors.push(h); GAME.obj.hostage = h;
+    }
+    // ---- cameras
+    const defT = 1 - atk;
+    for (const c of map.cams) new GAD.Cam(V().set(c.x, c.y, c.z), c.yaw, c.pitch, defT, c.name, false);
+    GAME.pool = {}; GAME.pool[defT] = 10 + defTeam.filter(a => a.op.id === 'brick').length * 2; GAME.pool[atk] = 0;
+    GAME.phase = 'prep'; GAME.timer = PREP; GAME.planted = false;
+    AI.roundStart();
+    PLAYER.roundStart();
+    HUD.roundStart();
+    SFX.voice('start');
+    HUD.banner('ROUND ' + (GAME.round + 1), (GAME.playerSide() === 'atk' ? 'ATTACK' : 'DEFENSE') + ' · PREPARATION PHASE', 2.5);
+    if (GAME.net) NP.roundStarted();
+  };
+
+  GAME.update = function (dt) {
+    if (!GAME.active) return;
+    if (GAME.client) { if (GAME.phase === 'prep' || GAME.phase === 'action' || GAME.phase === 'post') GAME.timer = Math.max(0, GAME.timer - dt); return; }
+    if (GAME.phase === 'prep' || GAME.phase === 'action') {
+      GAME.timer -= dt;
+      for (const a of G.actors) GAME.updateInteract(a, dt);
+      updateHostage(dt);
+      if (GAME.phase === 'prep' && GAME.timer <= 0) GAME.beginAction();
+      else if (GAME.phase === 'action') checkRound(dt);
+      // defenders' cameras feed team intel
+      GAME.camT = (GAME.camT || 0) - dt;
+      if (GAME.camT <= 0) { GAME.camT = 1.5; camIntel(); }
+    } else if (GAME.phase === 'post') {
+      GAME.timer -= dt;
+      if (GAME.timer <= 0) {
+        if (GAME.score[0] >= G.settings.roundsToWin || GAME.score[1] >= G.settings.roundsToWin) GAME.endMatch();
+        else { GAME.round++; GAME.prepareRound(); }
+      }
+    }
+  };
+  GAME.beginAction = function () {
+    GAME.phase = 'action'; GAME.timer = ACTION;
+    AI.lateDefense(); AI.actionStart();
+    PLAYER.actionStart();
+    if (GAME.net) NP.actionStart();
+    HUD.banner('ACTION PHASE', GAME.mode === 'bomb' ? 'Bomb · ' + GAME.siteNames.join(' / ') : MODE_LINE(), 2);
+    SFX.voice('start');
+  };
+  const MODE_LINE = () => (GAME.mode === 'secure' ? 'Secure Area · ' : 'Hostage · ') + GAME.siteNames[0];
+  function teamOut(team) { return G.actors.filter(a => a.team === team && !a.hostage).every(a => a.state !== 'alive'); }
+  function checkRound(dt) {
+    const atk = GAME.atkTeam(), def = 1 - atk, o = GAME.obj;
+    const atkOut = teamOut(atk), defOut = teamOut(def);
+    if (GAME.mode === 'bomb') {
+      if (o.defuser && o.defuser.alive) {
+        if (o.defuser.left <= 0) return GAME.endRound(atk, 'Defuser completed');
+        if (defOut) return GAME.endRound(atk, 'Defenders eliminated');
+        return;
+      }
+      if (defOut) return GAME.endRound(atk, 'Defenders eliminated');
+      if (atkOut) return GAME.endRound(def, 'Attackers eliminated');
+      if (GAME.timer <= 0) return GAME.endRound(def, 'Time ran out');
+    } else if (GAME.mode === 'secure') {
+      if (defOut) return GAME.endRound(atk, 'Defenders eliminated');
+      if (atkOut) return GAME.endRound(def, 'Attackers eliminated');
+      const r = GAME.siteRooms[0];
+      const inRoom = t => G.actors.filter(a => a.team === t && a.alive && G.map.roomAt(a.pos) === r).length;
+      const ai = inRoom(atk), di = inRoom(def);
+      o.contested = ai > 0 && di > 0;
+      if (ai && !di) o.prog += dt; else if (di && !ai) o.prog = Math.max(0, o.prog - dt * 2);
+      if (o.prog >= SECURE) return GAME.endRound(atk, 'Area secured');
+      if (GAME.timer <= 0) {
+        if (ai > 0 && (o.overtime += dt) < 15) return;
+        return GAME.endRound(def, 'Time ran out');
+      }
+    } else {
+      const h = o.hostage;
+      if (h.state === 'dead') { const k = h.killer; const loser = k ? k.team : atk; return GAME.endRound(1 - loser, 'The hostage was killed'); }
+      if (defOut) return GAME.endRound(atk, 'Defenders eliminated');
+      if (atkOut) return GAME.endRound(def, 'Attackers eliminated');
+      if (h.followTarget) { const ex = GAME.nearestExtract(h.pos); if (U.dist2(ex, h.pos) < 3) return GAME.endRound(atk, 'Hostage extracted'); }
+      if (GAME.timer <= 0) return GAME.endRound(def, 'Time ran out');
+    }
+  }
+  GAME.endRound = function (winner, reason) {
+    if (GAME.phase !== 'action' && GAME.phase !== 'prep') return;
+    GAME.phase = 'post'; GAME.timer = POST;
+    GAME.score[winner]++;
+    for (const a of G.actors) { a.trigger = false; if (a.team === winner && a.match) a.match.s += 50; }
+    const won = winner === GAME.myTeam;
+    SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won);
+    HUD.banner(won ? 'ROUND WON' : 'ROUND LOST', reason + '  ·  ' + mine() + ' – ' + theirs(), POST - 0.5, won ? 'win' : 'lose');
+    PLAYER.leaveDrone(); PLAYER.leaveCams();
+    NP.push({ k: 'rend', w: winner, r: reason });
+  };
+  GAME.endMatch = function () {
+    GAME.phase = 'end'; GAME.active = false;
+    PLAYER.release();
+    if (GAME.net) {
+      const stats = NP.matchEnd(), mt = GAME.myTeam, score = GAME.score.slice();
+      NP.stop();
+      MENU.matchOver(score, null, { online: true, stats, myTeam: mt, host: true });
+      Online.matchEnded();
+    } else MENU.matchOver(GAME.score, GAME.stats);
+  };
+  GAME.quit = function () { GAME.active = false; GAME.phase = 'none'; SFX.stopAll(); if (window.NP && NP.active) NP.stop(); };
+
+  /* ------------------------------------------------------------------ hostage */
+  function updateHostage(dt) {
+    const h = GAME.obj.hostage; if (!h || h.state !== 'alive') return;
+    const c = h.followTarget;
+    if (!c || c.state !== 'alive') { h.followTarget = null; h.mf = h.mr = 0; return; }
+    const d = U.dist2(h.pos, c.pos);
+    h.yaw = U.yawTo(h.pos, c.pos);
+    if (d > 1.4) {
+      h.pathT = (h.pathT || 0) - dt;
+      if (h.pathT <= 0 || !h.hpath) { h.pathT = 0.8; h.hpath = NAV.path(h.pos, c.pos, { partial: true }); h.hpi = 0; }
+      if (h.hpath && h.hpath.length) {
+        let n = h.hpath[Math.min(h.hpi, h.hpath.length - 1)];
+        if (U.dist2(h.pos, n) < 0.35 && h.hpi < h.hpath.length - 1) { h.hpi++; n = h.hpath[h.hpi]; }
+        const yaw = U.yawTo(h.pos, n); h.yaw = yaw; h.mf = 1; h.mr = 0;
+      } else { h.mf = 1; }
+      if (d > 12) { h.pos.copy(c.pos).add(V().set(Math.sin(c.yaw) * 1.2, 0, Math.cos(c.yaw) * 1.2)); }
+    } else { h.mf = h.mr = 0; }
+    h.stance = c.stance === 2 ? 1 : c.stance;
+  }
+  GAME.nearestExtract = function (p) {
+    let best = null, bd = 1e9;
+    for (const s of G.map.spawns) { const d = U.dist2(p, s); if (d < bd) { bd = d; best = s; } }
+    return V().set(best.x, best.y, best.z);
+  };
+
+  /* ------------------------------------------------------- kills & feed */
+  GAME.onKill = function (v, k, head) {
+    if (v.hostage) { v.killer = k; GAME.addFeed(k, v, head, 'killed the hostage'); return; }
+    if (v.match) v.match.d++;
+    if (k && k !== v && k.match && k.team !== v.team) { k.match.k++; k.match.s += head ? 120 : 100; }
+    for (const [src] of v.dmgBy) if (src !== k && src.team !== v.team && src.match) { src.match.a++; src.match.s += 50; }
+    GAME.addFeed(k, v, head);
+    if (v.isPlayer) PLAYER.onDeath(k);
+    if (k && v.team !== k.team) GAD.tell(k, (head ? 'HEADSHOT  ' : '') + v.op.name + ' eliminated', 'kill');
+    if (k && head && k.match && k.team !== v.team) k.match.hs = (k.match.hs || 0) + 1;
+  };
+  GAME.onDown = function (v, k) {
+    if (v.hostage) { GAME.addFeed(k, v, false, 'downed'); return; }
+    GAME.addFeed(k, v, false, 'downed');
+    GAD.tell(v, 'YOU ARE DOWN · wait for a revive', 'warn');
+  };
+  GAME.onRevive = function (v, by) { if (by && by.match) by.match.s += 50; GAME.addFeed(by, v, false, 'revived'); };
+  GAME.addFeed = function (k, v, head, verb) {
+    GAME.feed.unshift({ k: k ? k.op.name : '', kt: k ? k.team : -1, v: v.hostage ? 'HOSTAGE' : v.op.name, vt: v.team, head, verb: verb || '', t: G.time });
+    if (GAME.feed.length > 6) GAME.feed.pop();
+    HUD.feedDirty = true;
+  };
+
+  /* --------------------------------------------------------- noise & intel */
+  GAME.noise = function (p, r, src, type, fake) {
+    if (!r) return;
+    for (const a of G.actors) {
+      if (!a.bot || a.state !== 'alive') continue;
+      if (src && a.team === src.team && !fake) continue;
+      if (fake && src && a.team === src.team) continue;
+      const d = U.dist3(a.pos, p);
+      if (d > r) continue;
+      AI.hear(a, p, type, src, fake);
+    }
+  };
+  /* reveal an actor to a team */
+  GAME.mark = function (t, team, dur, announce) {
+    if (!t.marks) t.marks = {};
+    t.marks[team] = Math.max(t.marks[team] || 0, G.time + dur);
+    if (announce) for (const a of G.actors) if (a.bot && a.team === team && a.state === 'alive' && !a.bot.target) { a.bot.lastSeen = t.pos.clone(); a.bot.lastSeenT = G.time - 1.3; }
+  };
+  GAME.marked = (t, team) => t.marks && t.marks[team] > G.time;
+  /* a bot callout: teammate bots learn roughly where an enemy is, but nothing is drawn on
+     anyone's screen (only deliberate pings and spotting gadgets show markers) */
+  GAME.intel = function (t, team, range) {
+    for (const a of G.actors) {
+      if (!a.bot || a.team !== team || a.state !== 'alive' || a.bot.target) continue;
+      if (U.dist3(a.pos, t.pos) > (range || 30)) continue;
+      a.bot.lastSeen = t.pos.clone(); a.bot.lastSeenT = G.time - 1.3;
+    }
+  };
+  function camIntel() {
+    if (GAME.phase !== 'action') return;
+    const atk = GAME.atkTeam(), def = 1 - atk;
+    for (const c of GAD.cams(def)) {
+      for (const a of G.actors) {
+        if (a.team !== atk || a.state !== 'alive' || a.hostage) continue;
+        if (U.dist3(c.pos, a.pos) > 22) continue;
+        const e = a.eye(V());
+        const to = e.clone().sub(c.pos).normalize(), f = V().set(-Math.sin(c.yaw), 0, -Math.cos(c.yaw));
+        if (to.dot(f) < -0.1) continue;
+        if (!G.world.los(c.pos, e) || FX.smokeBlocks(c.pos, e)) continue;
+        if (Math.random() < 0.35) GAME.intel(a, def, 40);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------ reinforcement */
+  const isSoftWall = m => m && MAT[m].wall && !MAT[m].reinf && m !== M.BRICK || m === M.BRICK || m === M.LOGWALL || m === M.SIDING || m === M.STUCCO || m === M.FACADE || m === M.CORRUGATE;
+  GAME.reinforcePanel = function (p, by) {
+    const team = by.team;
+    if ((GAME.pool[team] || 0) <= 0) return false;
+    const W = G.world; let n = 0;
+    for (let y = p.y0; y <= p.y1; y++) for (let a = p.a0; a <= p.a1; a++) {
+      const x = p.axis === 'z' ? a : p.line, z = p.axis === 'z' ? p.line : a;
+      const m = W.get(x, y, z);
+      if (isSoftWall(m)) { W.set(x, y, z, M.REINF); n++; }
+    }
+    if (!n) return false;
+    GAME.pool[team]--; GAME.reinforced.push(p); G.emit('reinforce');
+    SFX.metal(p.look || V().set((p.axis === 'z' ? (p.a0 + p.a1) / 2 : p.line) * 0.25, p.y0 * 0.25 + 1, (p.axis === 'z' ? p.line : (p.a0 + p.a1) / 2) * 0.25));
+    return true;
+  };
+  GAME.reinforceHatch = function (h, by) {
+    if ((GAME.pool[by.team] || 0) <= 0) return false;
+    let n = 0;
+    for (let z = h.z; z < h.z + 4; z++) for (let x = h.x; x < h.x + 4; x++) if (G.world.get(x, h.y, z) === M.HATCH) { G.world.set(x, h.y, z, M.RHATCH); n++; }
+    if (!n) return false;
+    G.emit('reinforce');
+    GAME.pool[by.team]--; SFX.metal(V().set((h.x + 2) * 0.25, h.y * 0.25, (h.z + 2) * 0.25)); return true;
+  };
+  /* the wall panel the actor is looking at, if reinforceable */
+  GAME.panelAt = function (a) {
+    const h = GAD.aim(a, 2.0); if (!h) return null;
+    if (h.m === M.HATCH) {
+      const hz = G.map.hatches.find(q => h.y === q.y && h.x >= q.x && h.x < q.x + 4 && h.z >= q.z && h.z < q.z + 4);
+      return hz ? { hatch: hz } : null;
+    }
+    if (!isSoftWall(h.m) || Math.abs(h.ny) > 0.5) return null;
+    const y0 = Math.round(a.pos.y * 4), axis = Math.abs(h.nx) > 0.5 ? 'x' : 'z';
+    const line = axis === 'x' ? h.x : h.z, c = axis === 'x' ? h.z : h.x;
+    const p = { axis, line, a0: c - 3, a1: c + 3, y0, y1: y0 + 10 };
+    let soft = 0, n = 0;
+    for (let y = p.y0; y <= p.y1; y += 2) for (let k = p.a0; k <= p.a1; k++) { n++; if (isSoftWall(axis === 'x' ? G.world.get(line, y, k) : G.world.get(k, y, line))) soft++; }
+    if (soft < n * 0.55) return null;
+    p.room = G.map.roomAt(a.pos); p.look = V().set(h.px, h.py, h.pz); p.stand = a.pos.clone();
+    return p;
+  };
+
+  /* ---------------------------------------------------------- interaction */
+  GAME.interactions = function (a) {
+    const out = [], side = a.side, e = a.eye(V()), o = GAME.obj, phase = GAME.phase;
+    if (a.state !== 'alive') return out;
+    // revive
+    for (const t of G.actors) if (t !== a && t.team === a.team && t.state === 'dbno' && !t.hostage && U.dist3(t.pos, a.pos) < 1.6) { out.push({ kind: 'revive', label: 'REVIVE ' + t.op.name, time: 4.5, target: t, ok: () => t.state === 'dbno' && U.dist3(t.pos, a.pos) < 2, run: () => t.revive(a) }); break; }
+    if (GAME.mode === 'bomb' && phase === 'action') {
+      if (a.carry === 'defuser') { const r = G.map.roomAt(a.pos); if (r && GAME.siteRooms.includes(r)) out.push({ kind: 'plant', label: 'PLANT DEFUSER', time: PLANT, ok: () => a.carry === 'defuser' && G.map.roomAt(a.pos) === r, run: () => GAME.plant(a, r) }); }
+      if (o.defuser && o.defuser.alive && side === 'def' && U.dist3(o.defuser.pos, a.pos) < 1.8) out.push({ kind: 'disable', label: 'DISABLE DEFUSER', time: DISABLE, ok: () => o.defuser && o.defuser.alive && U.dist3(o.defuser.pos, a.pos) < 2.2, run: () => GAME.disable(a) });
+      if (o.dropped && o.dropped.alive && side === 'atk' && U.dist3(o.dropped.pos, a.pos) < 1.6) out.push({ kind: 'pickup', label: 'PICK UP DEFUSER', time: 0.3, ok: () => o.dropped && o.dropped.alive, run: () => { o.dropped.destroy('silent'); o.dropped = null; a.carry = 'defuser'; o.carrier = a; SFX.ui(); } });
+    }
+    if (GAME.mode === 'hostage' && o.hostage && side === 'atk' && phase === 'action') {
+      const h = o.hostage;
+      if (h.state === 'alive' && !h.followTarget && U.dist3(h.pos, a.pos) < 1.8) out.push({ kind: 'hostage', label: 'ESCORT HOSTAGE', time: 1.2, ok: () => !h.followTarget, run: () => { h.followTarget = a; a.carry = h; if (a.cur === 0 && a.w[1]) WPN.swap(a, 1); SFX.ui(); } });
+      if (h.state === 'dbno' && U.dist3(h.pos, a.pos) < 1.8) out.push({ kind: 'revive', label: 'REVIVE HOSTAGE', time: 4, ok: () => h.state === 'dbno', run: () => h.revive(a) });
+    }
+    // gadget pickups / uses
+    for (const g of G.ents) {
+      if (!g.alive || U.dist3(g.pos, a.pos) > 2) continue;
+      if (g.type === 'medstation' && g.team === a.team && g.uses > 0 && !g.used.has(a)) { out.push({ kind: 'med', label: 'USE MED STATION (+40)', time: 0.5, ok: () => g.alive, run: () => g.use(a) }); break; }
+      if (g.type === 'pshield' && g.owner === a) { out.push({ kind: 'shield', label: 'PICK UP SHIELD', time: 0.6, ok: () => g.alive, run: () => GAD.ability(a) }); break; }
+      if (a.ability && a.ability.id === 'scanner' && a.ability.on && g.team !== a.team && g.team >= 0 && GAD.TRAPS.has(g.type)) { out.push({ kind: 'disarm', label: 'DISARM ' + g.type.toUpperCase(), time: 1.2, ok: () => g.alive, run: () => { g.destroy('silent'); SFX.zap(g.pos); } }); break; }
+    }
+    if (side === 'def' && (phase === 'prep' || phase === 'action')) {
+      const op = GAD.findOpening(a, 2.2);
+      if (op && op.kind !== 'shutter') { const st = GAD.opState(op); if (st.air >= st.total * 0.7 && st.barr === 0) out.push({ kind: 'barricade', label: 'BARRICADE', time: 1.3, ok: () => true, run: () => { GAD.barricade(op); SFX.wood(GAD.opCenter(op)); } }); }
+      if ((GAME.pool[a.team] || 0) > 0) {
+        const p = GAME.panelAt(a);
+        if (p) out.push({ kind: 'reinforce', label: p.hatch ? 'REINFORCE HATCH' : 'REINFORCE WALL', time: a.op.id === 'brick' ? 1.8 : 3.4, ok: () => !!GAME.panelAt(a), run: () => p.hatch ? GAME.reinforceHatch(p.hatch, a) : GAME.reinforcePanel(p, a) });
+      }
+    }
+    return out;
+  };
+  GAME.beginInteract = function (a, it) { a.interact = { it, t: 0, from: a.pos.clone() }; if (it.time <= 0.31) { a.interact = null; it.run(); } };
+  GAME.updateInteract = function (a, dt) {
+    const I = a.interact; if (!I) return;
+    const holding = a.isPlayer ? PLAYER.interactHeld() : a.remote ? !!a.netHold : !(a.bot && a.bot.target);
+    if (!holding || a.state !== 'alive' || U.dist2(a.pos, I.from) > 0.5 || !I.it.ok()) { a.interact = null; return; }
+    a.mf = a.mr = 0; a.trigger = false;
+    I.t += dt;
+    if (I.it.kind === 'reinforce' && Math.random() < dt * 3) SFX.impact(a.pos, false);
+    if (I.it.kind === 'barricade' && Math.random() < dt * 4) SFX.wood(a.pos);
+    if (I.it.kind === 'plant' && Math.random() < dt * 2) GAME.noise(a.pos, 12, a, 'plant');
+    if (I.t >= I.it.time) { a.interact = null; I.it.run(); }
+  };
+  /* bots: start an interaction of a kind if possible */
+  GAME.tryInteract = function (a, kind) {
+    if (a.interact) return;
+    const it = GAME.interactions(a).find(i => i.kind === kind);
+    if (it) GAME.beginInteract(a, it);
+  };
+
+  /* --------------------------------------------------------------- bomb */
+  GAME.plant = function (a, room) {
+    a.carry = null;
+    const d = new GAD.Defuser(a, V().set(a.pos.x, a.pos.y + 0.01, a.pos.z), room);
+    d.siteRoom = room; d.left = DEFUSE;
+    GAME.obj.defuser = d; GAME.planted = true;
+    SFX.plant(d.pos);
+    if (a.match) a.match.s += 100;
+    GAME.timer = Math.max(GAME.timer, 0);
+    HUD.banner('DEFUSER PLANTED', room.name, 2, a.team === GAME.myTeam ? 'win' : 'lose');
+    NP.push({ k: 'plant', tm: a.team, r: room.name });
+    GAME.noise(d.pos, 60, a, 'plant');
+    for (const b of G.actors) if (b.bot && b.side === 'def') { b.bot.lastSeen = d.pos.clone(); b.bot.lastSeenT = G.time; }
+  };
+  GAME.disable = function (a) {
+    const d = GAME.obj.defuser; if (!d) return;
+    d.destroy('silent'); GAME.obj.defuser = null;
+    if (a.match) a.match.s += 100;
+    GAME.endRound(a.team, 'Defuser disabled');
+  };
+  GAME.dropDefuser = function (a) {
+    a.carry = null;
+    GAME.obj.dropped = new GAD.Dropped(V().set(a.pos.x, a.pos.y + 0.05, a.pos.z));
+    GAME.obj.carrier = null;
+    GAD.tellTeam(GAME.atkTeam(), 'The defuser was dropped');
+  };
+
+  window.GAME = GAME;
+})();

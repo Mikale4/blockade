@@ -1,0 +1,286 @@
+/* data.js -- every table in the game: voxel materials, weapons, gadgets, operators, units, modes.
+   All operators, units, weapons and places are original to BLOCKADE. */
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------ materials --
+     hp   : bullet hits to destroy one voxel (255 = bullets never break it)
+     pen  : damage kept by a bullet passing through one voxel (0 = stops it)
+     xp   : destroyed by explosions        hb : destroyed by a hard breach
+     see  : rendered see-through (glass)   glow : unlit
+     melee: broken by a melee strike       pat : colour pattern            */
+  const MAT = [];
+  const M = {};
+  let nid = 0;
+  function mat(key, c, o) {
+    const id = nid++;
+    M[key] = id;
+    MAT[id] = Object.assign({ id, key, c, hp: 255, pen: 0, xp: false, hb: false, see: false, glow: false, melee: false, pat: null, solid: true, elec: false }, o || {});
+  }
+  const SOFTW = { hp: 3, pen: 0.72, xp: true, hb: true, melee: true, wall: true };
+  mat('AIR', 0x000000, { solid: false });
+  mat('CONCRETE', 0x8d8b85, { pat: 'block' });
+  mat('BRICK', 0x9a5240, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'brick', wall: true });
+  mat('DRY_WHITE', 0xd9d4c7, SOFTW);
+  mat('DRY_BEIGE', 0xcdb68f, SOFTW);
+  mat('DRY_SAGE', 0x9db498, SOFTW);
+  mat('DRY_BLUE', 0x8ea5bf, SOFTW);
+  mat('DRY_RED', 0xa5685b, SOFTW);
+  mat('DRY_GREY', 0xaaaaa4, SOFTW);
+  mat('WOODFLOOR', 0x8a6240, { hp: 40, pen: 0.5, xp: true, hb: true, pat: 'planks', floor: true });
+  mat('TILE', 0xcac8c0, { hp: 40, pen: 0.45, xp: true, hb: true, pat: 'checker', floor: true });
+  mat('CARPET', 0x6b2f3a, { hp: 40, pen: 0.5, xp: true, hb: true, pat: 'noise', floor: true });
+  mat('CARPET2', 0x3b4a60, { hp: 40, pen: 0.5, xp: true, hb: true, pat: 'noise', floor: true });
+  mat('REINF', 0x5c6670, { hb: true, pat: 'plates', reinf: true });
+  mat('BARR', 0xa47b48, { hp: 1, pen: 0.9, xp: true, hb: true, melee: true, pat: 'plank' });
+  mat('GLASS', 0x9fd6ea, { hp: 1, pen: 0.95, xp: true, hb: true, see: true, melee: true });
+  mat('METAL', 0x70767c, {});
+  mat('WOOD', 0x7a5634, { hp: 4, pen: 0.6, xp: true, hb: true, melee: true, pat: 'grain' });
+  mat('GRASS', 0x5b8a3a, { pat: 'noise' });
+  mat('DIRT', 0x6b4f35, { pat: 'noise' });
+  mat('ASPHALT', 0x3a3c3f, { pat: 'noise' });
+  mat('ROOF', 0x58534e, { hp: 40, pen: 0.4, xp: true, hb: true, pat: 'noise', floor: true });
+  mat('HATCH', 0xa07d50, { hp: 6, pen: 0.6, xp: true, hb: true, melee: true, pat: 'planks', hatch: true });
+  mat('RHATCH', 0x58626c, { hb: true, pat: 'plates', reinf: true });
+  mat('STAIR', 0x6c5844, { pat: 'grain' });
+  mat('SHUTTER', 0x7e8891, { hp: 5, pen: 0.6, xp: true, hb: true, pat: 'ribs' });
+  mat('FAB_RED', 0x8c3030, { hp: 3, pen: 0.8, xp: true, hb: true, melee: true, pat: 'noise' });
+  mat('FAB_BLUE', 0x2f4f8c, { hp: 3, pen: 0.8, xp: true, hb: true, melee: true, pat: 'noise' });
+  mat('PAPER', 0xd9cfb0, { hp: 2, pen: 0.85, xp: true, hb: true, melee: true, pat: 'noise' });
+  mat('DARK', 0x2a2c30, {});
+  mat('WHITE', 0xe8e8e2, {});
+  mat('LINE', 0xd8b52a, {});
+  mat('SERVER', 0x23272c, { hp: 8, pen: 0.3, xp: true, hb: true, pat: 'ribs' });
+  mat('LED_G', 0x46ff7a, { glow: true, hp: 8, pen: 0.3, xp: true, hb: true });
+  mat('CONT_R', 0xa0362c, { pat: 'ribs' });
+  mat('CONT_B', 0x2d5f8f, { pat: 'ribs' });
+  mat('CONT_G', 0x3f7d4a, { pat: 'ribs' });
+  mat('CAR_W', 0xcfd3d6, {});
+  mat('CAR_K', 0x2b2e33, {});
+  mat('CAR_R', 0x9b2a26, {});
+  mat('TIRE', 0x1b1b1c, {});
+  mat('LEAF', 0x3f6e2c, { hp: 1, pen: 0.95, xp: true, hb: true, pat: 'noise', melee: true });
+  mat('BARK', 0x5a4028, {});
+  mat('RAIL', 0x3a3f45, {});
+  mat('LAMP', 0xfff1b0, { glow: true });
+  mat('BEDROCK', 0x3a3530, {});
+  mat('DOCK', 0x9c968a, { pat: 'block' });
+  mat('SANDBAG', 0xb3a27a, { pat: 'noise' });
+  mat('SCREEN', 0x6ad0ff, { glow: true, hp: 1, pen: 0.9, xp: true, hb: true, melee: true });
+  mat('TRIM', 0x4a3424, { hp: 4, pen: 0.6, xp: true, hb: true, melee: true });
+  mat('BOILER', 0x7c3b2b, { pat: 'ribs' });
+  mat('PIPE', 0x8a8f94, {});
+  mat('CRATE', 0xa88a55, { hp: 5, pen: 0.55, xp: true, hb: true, melee: true, pat: 'planks' });
+  mat('FRIDGE', 0xdfe3e6, { hp: 10, pen: 0.3, xp: true, hb: true });
+  mat('COUNTER', 0x55504a, {});
+  mat('POT', 0x8a4b2a, { hp: 2, pen: 0.8, xp: true, hb: true, melee: true });
+  mat('FENCE', 0x7a7f85, {});
+  mat('GRAVEL', 0x77746e, { pat: 'noise' });
+  mat('CONC_DARK', 0x6d6c68, { pat: 'block' });
+  mat('SAND', 0xc8b68a, { pat: 'noise' });
+  mat('TARGET', 0xe9e2cf, { hp: 255, pen: 0 });
+  mat('RED_PAINT', 0xb33a32, {});
+  mat('BLUE_PAINT', 0x2f6db3, {});
+  mat('LAMP_R', 0xff5a3a, { glow: true });
+  mat('BOOKS', 0x6a4a8a, { hp: 2, pen: 0.8, xp: true, hb: true, melee: true, pat: 'books' });
+  // map themes
+  mat('SNOW', 0xeef2f5, { pat: 'noise' });
+  mat('LOGWALL', 0x8a5a32, { hp: 6, pen: 0.5, xp: true, hb: true, pat: 'logs', wall: true });
+  mat('STONE', 0x84807a, { pat: 'stone' });
+  mat('LAB_WHITE', 0xe6eaee, SOFTW);
+  mat('LAB_FLOOR', 0xb9c2c9, { hp: 40, pen: 0.45, xp: true, hb: true, pat: 'checker', floor: true });
+  mat('HAY', 0xd2b45a, { hp: 2, pen: 0.85, xp: true, hb: true, melee: true, pat: 'noise' });
+  mat('CORRUGATE', 0x8f8a7c, { hp: 5, pen: 0.55, xp: true, hb: true, pat: 'ribs', wall: true });
+  mat('NEON_B', 0x5ad8ff, { glow: true });
+  mat('NEON_P', 0xff5ad0, { glow: true });
+  mat('SIDING', 0xb8b2a0, { hp: 7, pen: 0.45, xp: true, hb: true, pat: 'siding', wall: true });
+  mat('PANEL_DARK', 0x3a4048, { hp: 3, pen: 0.72, xp: true, hb: true, melee: true, wall: true });
+  mat('ICE', 0xcfe8f2, { pat: 'noise' });
+  mat('RUST', 0x7a4a2e, { pat: 'ribs' });
+  mat('STUCCO', 0xc9b48a, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'noise', wall: true });
+  mat('FACADE', 0xd5dbe0, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'siding', wall: true });
+  mat('FELT', 0x2f6b45, {});
+  // a voxel id beyond the table means "outside the world": solid, never drawn
+  const OOB = 255;
+
+  /* --------------------------------------------------------------- weapons --
+     dmg per bullet, rpm, mag, mags (spare), reload (s), reloadE (empty),
+     rv/rh recoil per shot (deg), hip/ads spread (deg), adsT (s),
+     f0..f1 falloff range (m) down to fmin, destr (wall damage per hit),
+     pellets, sight ('iron','red','holo','acog'), mob (move-speed factor)  */
+  const WEAPONS = {
+    vkr5:    { name: 'VKR-5', type: 'AR', cls: 'Assault Rifle', dmg: 41, rpm: 760, mag: 30, mags: 5, reload: 2.4, reloadE: 3.0, rv: 0.55, rh: 0.3, hip: 2.6, ads: 0.18, adsT: 0.26, f0: 25, f1: 40, fmin: 0.62, destr: 1, sight: 'red', auto: true, mob: 1.0 },
+    halberd: { name: 'HALBERD', type: 'AR', cls: 'Battle Rifle', dmg: 47, rpm: 640, mag: 25, mags: 5, reload: 2.6, reloadE: 3.3, rv: 0.75, rh: 0.36, hip: 2.8, ads: 0.16, adsT: 0.3, f0: 28, f1: 45, fmin: 0.65, destr: 1, sight: 'holo', auto: true, mob: 0.96 },
+    k77:     { name: 'K-77', type: 'AR', cls: 'Carbine', dmg: 37, rpm: 840, mag: 30, mags: 5, reload: 2.2, reloadE: 2.8, rv: 0.48, rh: 0.28, hip: 2.4, ads: 0.2, adsT: 0.22, f0: 22, f1: 38, fmin: 0.6, destr: 1, sight: 'red', auto: true, mob: 1.02 },
+    salvo9:  { name: 'SALVO-9', type: 'SMG', cls: 'Submachine Gun', dmg: 31, rpm: 900, mag: 30, mags: 6, reload: 2.0, reloadE: 2.6, rv: 0.42, rh: 0.3, hip: 2.0, ads: 0.24, adsT: 0.2, f0: 15, f1: 28, fmin: 0.55, destr: 1, sight: 'red', auto: true, mob: 1.05 },
+    strider: { name: 'STRIDER', type: 'SMG', cls: 'Submachine Gun', dmg: 35, rpm: 780, mag: 25, mags: 6, reload: 2.1, reloadE: 2.7, rv: 0.5, rh: 0.28, hip: 2.1, ads: 0.22, adsT: 0.21, f0: 16, f1: 30, fmin: 0.55, destr: 1, sight: 'holo', auto: true, mob: 1.05 },
+    gale12:  { name: 'GALE 12', type: 'SG', cls: 'Pump Shotgun', dmg: 24, pellets: 8, rpm: 72, mag: 7, mags: 4, shell: 0.55, rv: 3.2, rh: 0.6, hip: 5.5, ads: 4.2, adsT: 0.24, f0: 6, f1: 18, fmin: 0.2, destr: 2, sight: 'iron', auto: false, mob: 1.0, headMul: 2.2 },
+    torrent: { name: 'TORRENT', type: 'SG', cls: 'Auto Shotgun', dmg: 17, pellets: 8, rpm: 280, mag: 10, mags: 4, reload: 2.9, reloadE: 3.4, rv: 2.2, rh: 0.7, hip: 6.0, ads: 4.6, adsT: 0.26, f0: 5, f1: 16, fmin: 0.2, destr: 2, sight: 'iron', auto: true, mob: 0.98, headMul: 2.2 },
+    lancet:  { name: 'LANCET', type: 'DMR', cls: 'Marksman Rifle', dmg: 68, rpm: 380, mag: 10, mags: 6, reload: 2.5, reloadE: 3.0, rv: 1.6, rh: 0.4, hip: 3.4, ads: 0.06, adsT: 0.34, f0: 40, f1: 60, fmin: 0.75, destr: 1, sight: 'acog', auto: false, mob: 0.96 },
+    tallow:  { name: 'TALLOW', type: 'LMG', cls: 'Light Machine Gun', dmg: 45, rpm: 650, mag: 80, mags: 2, reload: 5.2, reloadE: 5.8, rv: 0.44, rh: 0.42, hip: 3.4, ads: 0.24, adsT: 0.4, f0: 30, f1: 45, fmin: 0.65, destr: 1, sight: 'holo', auto: true, mob: 0.9 },
+    p10:     { name: 'P-10', type: 'PISTOL', cls: 'Handgun', dmg: 42, rpm: 420, mag: 15, mags: 4, reload: 1.8, reloadE: 2.2, rv: 1.1, rh: 0.3, hip: 1.9, ads: 0.3, adsT: 0.15, f0: 15, f1: 25, fmin: 0.55, destr: 1, sight: 'iron', auto: false, mob: 1.0, sec: true },
+    maul:    { name: 'MAUL .44', type: 'PISTOL', cls: 'Revolver', dmg: 64, rpm: 190, mag: 6, mags: 5, reload: 2.6, reloadE: 2.6, rv: 2.4, rh: 0.5, hip: 2.4, ads: 0.25, adsT: 0.18, f0: 18, f1: 30, fmin: 0.6, destr: 1, sight: 'iron', auto: false, mob: 1.0, sec: true },
+    hornet:  { name: 'HORNET', type: 'MP', cls: 'Machine Pistol', dmg: 27, rpm: 1000, mag: 20, mags: 5, reload: 1.9, reloadE: 2.3, rv: 0.6, rh: 0.45, hip: 2.4, ads: 0.5, adsT: 0.16, f0: 10, f1: 20, fmin: 0.5, destr: 1, sight: 'red', auto: true, mob: 1.0, sec: true },
+    stub:    { name: 'STUB', type: 'SG', cls: 'Breaching Shotgun', dmg: 20, pellets: 10, rpm: 150, mag: 2, mags: 8, reload: 2.2, reloadE: 2.2, rv: 4.0, rh: 1.0, hip: 7.5, ads: 6, adsT: 0.18, f0: 3, f1: 10, fmin: 0.15, destr: 5, sight: 'iron', auto: false, mob: 1.0, sec: true, headMul: 1.6 },
+    shield:  { name: 'BULWARK', type: 'SHIELD', cls: 'Ballistic Shield', shield: true, mob: 0.92 },
+  };
+  for (const k in WEAPONS) { WEAPONS[k].id = k; if (!WEAPONS[k].pellets) WEAPONS[k].pellets = 1; }
+
+  /* ---------------------------------------------------- secondary gadgets -- */
+  const GADGETS = {
+    frag:     { name: 'FRAG GRENADE', count: 2, side: 'atk', icon: '✸', desc: 'Lethal blast around where it lands. Cooks while you hold the throw.' },
+    smoke:    { name: 'SMOKE GRENADE', count: 2, side: 'atk', icon: '☁', desc: 'A thick cloud that blocks every line of sight for 12 seconds.' },
+    stun:     { name: 'STUN GRENADE', count: 3, side: 'atk', icon: '✦', desc: 'Blinds and deafens anyone with eyes on it.' },
+    breach:   { name: 'BREACH CHARGE', count: 3, side: 'atk', icon: '▣', desc: 'Stick it to a soft wall, floor or barricade and blow a hole. Press again to detonate.' },
+    claymore: { name: 'TRIP CLAYMORE', count: 1, side: 'atk', icon: '◭', desc: 'Watches your back: detonates when a defender walks into its beam.' },
+    wire:     { name: 'RAZOR WIRE', count: 2, side: 'def', icon: '⌇', desc: 'Slows and gives away anyone walking through it.' },
+    dshield:  { name: 'DEPLOYABLE COVER', count: 1, side: 'def', icon: '▬', desc: 'Waist-high bulletproof cover. Explosives destroy it.' },
+    c4:       { name: 'DETONATOR PACK', count: 1, side: 'def', icon: '✹', desc: 'Throw it, it sticks; press again to set it off. Very lethal.' },
+    impact:   { name: 'IMPACT GRENADE', count: 2, side: 'def', icon: '✺', desc: 'Bursts on contact. Opens soft walls and floors for rotations.' },
+  };
+
+  /* -------------------------------------------------------------- units -- */
+  const UNITS = {
+    aegis:     { name: 'AEGIS', full: 'Aegis Rapid Response Group', color: '#4f86c6', desc: 'Close-protection and hostage-rescue specialists drawn from coast-guard and police tactical teams.' },
+    northwatch:{ name: 'NORTHWATCH', full: 'Northwatch Arctic Detachment', color: '#c9d3c4', desc: 'Cold-weather recon and rescue operators who learned to fight in whiteouts.' },
+    vanta:     { name: 'VANTA', full: 'Vanta Signals Division', color: '#8e6bd6', desc: 'Electronic-warfare unit: if it beeps, glows or transmits, Vanta owns it.' },
+    cinder:    { name: 'CINDER', full: 'Cinder Urban Demolition Brigade', color: '#e0782f', desc: 'Firefighters turned breachers. They open buildings for a living.' },
+    tidebreak: { name: 'TIDEBREAK', full: 'Tidebreak Maritime Interdiction', color: '#2fb3a6', desc: 'Ship-boarding specialists who fight corridor to corridor.' },
+    ironveil:  { name: 'IRONVEIL', full: 'Ironveil Border Rangers', color: '#b0523f', desc: 'SEASON 1 · Operation Cold Iron. A two-operator expansion squad.' },
+  };
+
+  /* ----------------------------------------------------------- operators --
+     armor 1..3 (more HP, slower) · speed 3..1                                 */
+  const OPS = [
+    // ---------------- attackers
+    { id: 'kiln', name: 'KILN', real: 'Ines Varga', side: 'atk', unit: 'cinder', role: 'Hard Breacher', armor: 2, speed: 2,
+      primaries: ['vkr5', 'gale12'], secondaries: ['p10', 'maul'], gadgets: ['stun', 'claymore'],
+      ability: { id: 'bore', name: 'PLASMA BORE', count: 2, desc: 'A sticky thermal lance that cuts a doorway through ANY wall, even reinforced ones. Takes 4 s to burn; dampeners and scramblers make it fizzle.' },
+      look: { head: 'visor', helmet: 0xd06a2a, vest: 0x34322f, cloth: 0x4a4440, accent: 0xff9a3c, skin: 0xa7735a, hair: 0x221a14 },
+      bio: 'Ex-foundry engineer. Kiln will tell you that walls are just a suggestion with a melting point.' },
+    { id: 'torque', name: 'TORQUE', real: 'Dmitri Halloran', side: 'atk', unit: 'cinder', role: 'Area Clear', armor: 2, speed: 2,
+      primaries: ['halberd', 'tallow'], secondaries: ['p10', 'hornet'], gadgets: ['breach', 'stun'],
+      ability: { id: 'spike', name: 'CONCUSSION SPIKE', count: 3, desc: 'Drill a spike through a soft wall or floor. It punches through and bursts on the far side: stuns, wounds and wrecks defender gadgets.' },
+      look: { head: 'gasmask', helmet: 0x3b3936, vest: 0x5a4a3a, cloth: 0x45403a, accent: 0xe0782f, skin: 0xd0a080, hair: 0x6b4a2a },
+      bio: 'Torque cleared collapsed buildings for twelve years. He listens to walls before he drills them.' },
+    { id: 'rivet', name: 'RIVET', real: 'Mara Quell', side: 'atk', unit: 'tidebreak', role: 'Soft Breacher', armor: 1, speed: 3,
+      primaries: ['k77', 'strider'], secondaries: ['p10', 'stub'], gadgets: ['breach', 'claymore'],
+      ability: { id: 'rivet', name: 'RIVET GUN', count: 3, desc: 'Fires a shaped charge up to 35 m that blows a hole through soft walls, floors and barricades. Useless against reinforcement.' },
+      look: { head: 'beanie', helmet: 0x1f5a5a, vest: 0x2a3b45, cloth: 0x2b4a52, accent: 0x2fb3a6, skin: 0xe2b89a, hair: 0xb06b2a },
+      bio: 'A ship\'s welder who discovered that the fastest way between two compartments is straight through.' },
+    { id: 'glare', name: 'GLARE', real: 'Tomas Ruelle', side: 'atk', unit: 'tidebreak', role: 'Flash Support', armor: 1, speed: 3,
+      primaries: ['k77', 'gale12'], secondaries: ['p10', 'hornet'], gadgets: ['smoke', 'frag'],
+      ability: { id: 'photon', name: 'PHOTON MINES', count: 3, desc: 'Sticky light traps. When a defender comes into view within 6 m, the mine pops and blinds them.' },
+      look: { head: 'cap', helmet: 0x1d2a44, vest: 0x2f3d55, cloth: 0x27324a, accent: 0xfff27a, skin: 0x8a5a3c, hair: 0x111111 },
+      bio: 'Glare used to light stadium shows. Now he lights rooms, briefly and painfully.' },
+    { id: 'crag', name: 'CRAG', real: 'Henrik Aalto', side: 'atk', unit: 'aegis', role: 'Shield', armor: 3, speed: 1,
+      primaries: ['shield'], secondaries: ['p10', 'maul'], gadgets: ['smoke', 'stun'],
+      ability: { id: 'plant', name: 'BULWARK PLANT', count: 99, desc: 'Carries a full-height ballistic shield. Press the ability to plant it as cover, and interact to pick it back up.' },
+      look: { head: 'helmet', helmet: 0x3c4a5c, vest: 0x2e3846, cloth: 0x3a4554, accent: 0x4f86c6, skin: 0xe8c0a0, hair: 0xcfae7a },
+      bio: 'Six foot five and patient. Crag has never lost a corridor he walked into first.' },
+    { id: 'marlow', name: 'MARLOW', real: 'Clara Marlow', side: 'atk', unit: 'aegis', role: 'Marksman', armor: 1, speed: 3,
+      primaries: ['lancet', 'vkr5'], secondaries: ['p10', 'maul'], gadgets: ['frag', 'claymore'],
+      ability: { id: 'spotter', name: 'SPOTTER SCOPE', count: 99, desc: 'Every defender under her scope is marked for the whole team for 6 s. The ability toggles a 4x zoom.' },
+      look: { head: 'boonie', helmet: 0x55634a, vest: 0x3d4a3a, cloth: 0x4a5442, accent: 0x4f86c6, skin: 0xf0c8a8, hair: 0xd8b070 },
+      bio: 'Former Olympic biathlete. Breathes out, waits, and then you are marked.' },
+    { id: 'halcyon', name: 'HALCYON', real: 'Seo-yun Park', side: 'atk', unit: 'northwatch', role: 'Support', armor: 2, speed: 2,
+      primaries: ['halberd', 'strider'], secondaries: ['p10', 'hornet'], gadgets: ['smoke', 'frag'],
+      ability: { id: 'beacon', name: 'FIELD BEACON', count: 1, desc: 'A deployable beacon that heals allies around it, overheals up to +20 and revives downed allies in its field.' },
+      look: { head: 'hood', helmet: 0xd8ddd2, vest: 0x5d6a4e, cloth: 0xc9d0c2, accent: 0x7ce0a0, skin: 0xf2d0b0, hair: 0x14110f },
+      bio: 'Arctic flight medic. Her beacon has pulled more people out of the snow than any helicopter.' },
+    { id: 'vesper', name: 'VESPER', real: 'Aleksi Norrback', side: 'atk', unit: 'northwatch', role: 'Intel', armor: 2, speed: 2,
+      primaries: ['vkr5', 'torrent'], secondaries: ['p10', 'maul'], gadgets: ['stun', 'breach'],
+      ability: { id: 'sonar', name: 'SONAR PULSE', count: 99, cd: 20, desc: 'Sends a pulse through walls: every defender within 18 m is revealed to the team for 3 s. Recharges in 20 s.' },
+      look: { head: 'balaclava', helmet: 0xe6e8e2, vest: 0x6a705e, cloth: 0xd8dccf, accent: 0x9ad8ff, skin: 0xf0d0b8, hair: 0xeeeeee },
+      bio: 'Submarine sonar operator. To Vesper, a building is just a very noisy ocean.' },
+    { id: 'static', name: 'STATIC', real: 'Jun Ito-Brandt', side: 'atk', unit: 'vanta', role: 'Anti-Gadget', armor: 2, speed: 2,
+      primaries: ['k77', 'torrent'], secondaries: ['p10', 'hornet'], gadgets: ['breach', 'claymore'],
+      ability: { id: 'surge', name: 'SURGE DRONE', count: 3, desc: 'Static\'s drones carry arc emitters: fire while piloting to fry every defender electronic within 3.5 m. Three zaps per round.' },
+      look: { head: 'hood', helmet: 0x1b1a22, vest: 0x2a2633, cloth: 0x221f2a, accent: 0xb07cff, skin: 0xe8c8a8, hair: 0x101010 },
+      bio: 'Static builds drones out of what other people throw away, and then throws them at you.' },
+    { id: 'quill', name: 'QUILL', real: 'Noor Haddad', side: 'atk', unit: 'vanta', role: 'Trap Hunter', armor: 1, speed: 3,
+      primaries: ['halberd', 'strider'], secondaries: ['p10', 'maul'], gadgets: ['frag', 'breach'],
+      ability: { id: 'scanner', name: 'GADGET SCANNER', count: 99, desc: 'Raise the scanner to see every defender gadget within 25 m through walls. Hold interact on a trap within 2 m to disarm it.' },
+      look: { head: 'bandana', helmet: 0x2b2533, vest: 0x352d40, cloth: 0x2e2838, accent: 0xb07cff, skin: 0xb07a58, hair: 0x1a1210 },
+      bio: 'Quill cut her teeth defusing car bombs. Tripwires do not impress her.' },
+    { id: 'pike', name: 'PIKE', real: 'Owen Pike', side: 'atk', unit: 'ironveil', role: 'Area Denial', armor: 2, speed: 2, season: 1,
+      primaries: ['vkr5', 'tallow'], secondaries: ['p10', 'stub'], gadgets: ['stun', 'frag'],
+      ability: { id: 'smokegl', name: 'SMOKE LAUNCHER', count: 4, desc: 'An underbarrel launcher with four long-burning smoke canisters. Blocks sight lines and cameras around a plant.' },
+      look: { head: 'beret', helmet: 0x6a2a24, vest: 0x5a5040, cloth: 0x6b604c, accent: 0xb0523f, skin: 0xd8a888, hair: 0x5a3a20 },
+      bio: 'Season 1. A border ranger who believes the best cover is the cover you bring with you.' },
+    // ---------------- defenders
+    { id: 'anvil', name: 'ANVIL', real: 'Gregor Sand', side: 'def', unit: 'tidebreak', role: 'Anti-Breach', armor: 3, speed: 1,
+      primaries: ['torrent', 'tallow'], secondaries: ['p10', 'maul'], gadgets: ['wire', 'dshield'],
+      ability: { id: 'dampener', name: 'DAMPENER', count: 2, desc: 'Mount it on a wall. Any plasma bore, rivet charge or concussion spike within 2.5 m fizzles. One bullet kills it.' },
+      look: { head: 'helmet', helmet: 0x26404a, vest: 0x1f3038, cloth: 0x2a3d44, accent: 0x2fb3a6, skin: 0x6e4a34, hair: 0x111111 },
+      bio: 'Anvil sat in front of a ship\'s reactor door for three days once. Nobody got in.' },
+    { id: 'okafor', name: 'OKAFOR', real: 'Chidi Okafor', side: 'def', unit: 'tidebreak', role: 'Anti-Projectile', armor: 2, speed: 2,
+      primaries: ['salvo9', 'gale12'], secondaries: ['p10', 'hornet'], gadgets: ['wire', 'c4'],
+      ability: { id: 'seeker', name: 'HUNTER SEEKER', count: 2, desc: 'A launcher box that fires micro-seekers at drones and thrown projectiles within 9 m. Three seekers per box.' },
+      look: { head: 'cap', helmet: 0x264a50, vest: 0x2c3a3e, cloth: 0x33464a, accent: 0x2fb3a6, skin: 0x5a3a28, hair: 0x0e0e0e },
+      bio: 'Naval air-defence officer. Considers every flying object a personal insult.' },
+    { id: 'brick', name: 'BRICK', real: 'Rosa Brickell', side: 'def', unit: 'aegis', role: 'Anchor', armor: 3, speed: 1,
+      primaries: ['gale12', 'strider'], secondaries: ['p10', 'maul'], gadgets: ['dshield', 'impact'],
+      ability: { id: 'bunker', name: 'BUNKER PLATES', count: 2, desc: 'Seal an open doorway with steel plates (only a hard breach gets through). Also brings two extra reinforcements and reinforces twice as fast.' },
+      look: { head: 'helmet', helmet: 0x384656, vest: 0x2a3440, cloth: 0x404a58, accent: 0x4f86c6, skin: 0xd8a888, hair: 0x3a2418 },
+      bio: 'A structural engineer with a riot-control past. Builds her own walls when she does not like yours.' },
+    { id: 'tamsin', name: 'TAMSIN', real: 'Tamsin Reyes', side: 'def', unit: 'aegis', role: 'Medic', armor: 2, speed: 2,
+      primaries: ['salvo9', 'torrent'], secondaries: ['p10', 'hornet'], gadgets: ['wire', 'impact'],
+      ability: { id: 'medstation', name: 'MED STATION', count: 1, desc: 'A trauma crate: each defender can grab a +40 HP overheal once, and it slowly heals anyone standing beside it.' },
+      look: { head: 'cap', helmet: 0x8a2a2a, vest: 0x34404e, cloth: 0x3d4858, accent: 0xff6a6a, skin: 0xc89070, hair: 0x2a1810 },
+      bio: 'ER nurse turned tactical medic. Will patch you up and then tell you what you did wrong.' },
+    { id: 'sable', name: 'SABLE', real: 'Ingrid Solberg', side: 'def', unit: 'northwatch', role: 'Trapper', armor: 2, speed: 2,
+      primaries: ['strider', 'gale12'], secondaries: ['p10', 'maul'], gadgets: ['c4', 'dshield'],
+      ability: { id: 'snare', name: 'SNARE LINE', count: 4, desc: 'A laser tether across a door or window. The first attacker through is rooted for 2.5 s and revealed to your team.' },
+      look: { head: 'beanie', helmet: 0xe2e4dc, vest: 0x5a6250, cloth: 0xcfd4c6, accent: 0x7ce0a0, skin: 0xf2d6c0, hair: 0xe8d090 },
+      bio: 'Trapper from the far north. Sable thinks of doorways as places where people stop moving.' },
+    { id: 'kestrel', name: 'KESTREL', real: 'Ada Lindgren', side: 'def', unit: 'northwatch', role: 'Intel', armor: 1, speed: 3,
+      primaries: ['salvo9', 'gale12'], secondaries: ['p10', 'hornet'], gadgets: ['wire', 'impact'],
+      ability: { id: 'bpcam', name: 'ARMORED CAMS', count: 2, desc: 'Bulletproof cameras you mount anywhere and watch from the camera network. Only explosives and surges take them out.' },
+      look: { head: 'hood', helmet: 0xdadfd6, vest: 0x5d6656, cloth: 0xc4ccbc, accent: 0x9ad8ff, skin: 0xf0d2bc, hair: 0x8a5a30 },
+      bio: 'Wildlife photographer turned surveillance specialist. Patient enough to watch a doorway for an hour.' },
+    { id: 'morrow', name: 'MORROW', real: 'Felix Morrow', side: 'def', unit: 'vanta', role: 'Anti-Electronics', armor: 2, speed: 2,
+      primaries: ['strider', 'torrent'], secondaries: ['p10', 'maul'], gadgets: ['wire', 'dshield'],
+      ability: { id: 'scrambler', name: 'SIGNAL SCRAMBLER', count: 4, desc: 'Jams everything electronic within 2.5 m: drones die, breach charges will not fire, plasma bores fizzle.' },
+      look: { head: 'balaclava', helmet: 0x1e1c26, vest: 0x2c2838, cloth: 0x24212e, accent: 0xb07cff, skin: 0xe0c0a0, hair: 0x222222 },
+      bio: 'Morrow once took down a city\'s traffic lights by accident. Now he does it on purpose, very locally.' },
+    { id: 'juno', name: 'JUNO', real: 'Juno Achterberg', side: 'def', unit: 'vanta', role: 'Early Warning', armor: 1, speed: 3,
+      primaries: ['salvo9', 'gale12'], secondaries: ['p10', 'hornet'], gadgets: ['c4', 'impact'],
+      ability: { id: 'sensor', name: 'PROXIMITY SENSOR', count: 5, desc: 'Sticky motion sensors. When an attacker comes within 4 m, even through a wall, the whole team sees them for 3 s.' },
+      look: { head: 'visor', helmet: 0x2a2436, vest: 0x332c40, cloth: 0x2b2638, accent: 0xb07cff, skin: 0xf4dcc8, hair: 0xd04a8a },
+      bio: 'Juno wires buildings so they can tell on you.' },
+    { id: 'hollis', name: 'HOLLIS', real: 'Wade Hollis', side: 'def', unit: 'cinder', role: 'Area Denial', armor: 2, speed: 2,
+      primaries: ['torrent', 'strider'], secondaries: ['p10', 'maul'], gadgets: ['wire', 'c4'],
+      ability: { id: 'incendiary', name: 'INCENDIARY POT', count: 3, desc: 'Throw a pot of gel fuel: a 2.5 m pool of fire burns for 10 s, hurting anyone who stands in it.' },
+      look: { head: 'gasmask', helmet: 0x3a332c, vest: 0x4a3a2c, cloth: 0x3d342b, accent: 0xff7a2a, skin: 0xd0a080, hair: 0x2a1a10 },
+      bio: 'Wildland firefighter. Knows exactly how fire moves, and where you will not want to be.' },
+    { id: 'rhea', name: 'RHEA', real: 'Rhea Castellanos', side: 'def', unit: 'cinder', role: 'Rotation', armor: 2, speed: 2,
+      primaries: ['salvo9', 'gale12'], secondaries: ['p10', 'hornet'], gadgets: ['dshield', 'impact'],
+      ability: { id: 'rcharge', name: 'ROTATION CHARGE', count: 3, desc: 'Sticky remote charges. Throw with the ability, HOLD the ability to set them all off: opens soft walls and floors, deadly up close.' },
+      look: { head: 'bandana', helmet: 0x4a2c22, vest: 0x3d3028, cloth: 0x4a3a30, accent: 0xff7a2a, skin: 0xb88060, hair: 0x1a0e08 },
+      bio: 'Rhea opens new hallways where the architect forgot to put them.' },
+    { id: 'lark', name: 'LARK', real: 'Ezra Lindqvist', side: 'def', unit: 'ironveil', role: 'Roamer', armor: 1, speed: 3, season: 1,
+      primaries: ['strider', 'gale12'], secondaries: ['p10', 'maul'], gadgets: ['c4', 'wire'],
+      ability: { id: 'decoy', name: 'DECOY EMITTER', count: 2, desc: 'Throws a speaker that fakes footsteps and gunfire for 20 s. Lark\'s own footsteps are near silent.' },
+      look: { head: 'hood', helmet: 0x4a2a26, vest: 0x40382c, cloth: 0x50463a, accent: 0xb0523f, skin: 0xe8c4a4, hair: 0x6a3a1a },
+      bio: 'Season 1. Border tracker who learned to walk on dry leaves without a sound.' },
+  ];
+  const OPMAP = {}; OPS.forEach(o => OPMAP[o.id] = o);
+
+  const ARMOR_HP = { 1: 100, 2: 115, 3: 130 };
+  const SPEED = { 1: { walk: 2.75, run: 4.6 }, 2: { walk: 3.05, run: 5.05 }, 3: { walk: 3.35, run: 5.5 } };
+
+  const MODES = {
+    bomb:    { name: 'BOMB', desc: 'Attackers plant a defuser on one of two bomb sites. Defenders stop the plant or disable the defuser.' },
+    secure:  { name: 'SECURE AREA', desc: 'Attackers must hold the biohazard room with no defenders inside long enough to secure it.' },
+    hostage: { name: 'HOSTAGE', desc: 'Attackers must reach the hostage and escort them to an extraction zone. Whoever harms the hostage loses.' },
+  };
+
+  const DIFFS = [
+    { name: 'RECRUIT', react: 0.75, aimErr: 3.4, head: 0.08, track: 3.5 },
+    { name: 'NORMAL', react: 0.5, aimErr: 2.2, head: 0.15, track: 5.5 },
+    { name: 'REALISTIC', react: 0.32, aimErr: 1.3, head: 0.25, track: 8.0 },
+  ];
+
+  window.DATA = { MAT, M, OOB, WEAPONS, GADGETS, UNITS, OPS, OPMAP, ARMOR_HP, SPEED, MODES, DIFFS };
+})();

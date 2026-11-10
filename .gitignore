@@ -1,0 +1,11 @@
+# local music and sound-effect libraries (not part of the game; see audio/playlist.js and sound effects/sfx.js)
+audio/*.mp3
+audio/*.ogg
+audio/*.wav
+audio/*.m4a
+sound effects/*.mp3
+sound effects/*.ogg
+sound effects/*.wav
+sound effects/*.m4a
+*.log
+.DS_Store
