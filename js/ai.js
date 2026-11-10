@@ -41,7 +41,9 @@
     const b = a.bot;
     if (b.goal && b.path && U.dist3(b.goal, p) < 0.6 && b.goalKind === kind) return true;
     b.goal = p.clone(); b.goalKind = kind; b.repathT = 0;
-    b.path = NAV.path(a.pos, p, Object.assign({ partial: true }, opts || {}));
+    // defenders in the preparation phase may not leave the building: plan routes that stay in
+    const indoors = a.side === 'def' && GAME.phase === 'prep' && G.mode === 'match' && Actor.indoors(a.pos.x, a.pos.y, a.pos.z);
+    b.path = NAV.path(a.pos, p, Object.assign({ partial: true, indoors }, opts || {}));
     b.pi = 0;
     return !!b.path;
   };
@@ -138,6 +140,7 @@
     if (!best && a.wpn && a.side === 'atk' || !best && a.side === 'def') {
       for (const g of G.ents) {
         if (!g.alive || g.team === a.team || g.team < 0 || g.bulletproof || !GAD.TRAPS.has(g.type) && g.type !== 'drone' && g.type !== 'photon' && g.type !== 'beacon' && g.type !== 'claymore') continue;
+        if (b.entIgnore && b.entIgnore.get(g) > G.time) continue;   // already tried and missed it
         if (g.type === 'drone' && a.side === 'atk') continue;
         const d = U.dist3(e, g.pos); if (d > 14) continue;
         const to = g.pos.clone().sub(e).normalize(); if (to.dot(a.fwd(V())) < 0.5) continue;
@@ -213,9 +216,18 @@
   function runTask(a, dt) {
     const b = a.bot, tk = b.task;
     if (!tk) return false;
-    if (tk.at && U.dist2(a.pos, tk.at) > (tk.r || 0.45)) {
+    if (tk.at && (U.dist2(a.pos, tk.at) > (tk.r || 0.45) || Math.abs(a.pos.y - tk.at.y) > 1.2)) {
       if (!b.goal || b.goalKind !== 'task' || U.dist3(b.goal, tk.at) > 0.3) { if (!AI.moveTo(a, tk.at, 'task')) { b.task = null; return false; } }
       follow(a, dt);
+      // the route ran out short of the spot (it's inside furniture, or walled off): if we're
+      // beside it, do the job from here; otherwise drop it rather than stand waiting
+      if (!b.path || b.pi >= b.path.length) {
+        tk.stall = (tk.stall || 0) + dt;
+        if (tk.stall > 0.8) {
+          if (U.dist3(a.pos, tk.at) < 1.8 && Math.abs(a.pos.y - tk.at.y) < 1.2) { tk.at = null; a.mf = a.mr = 0; return true; }
+          b.task = null; return false;
+        }
+      }
       a.sprint = GAME.phase === 'prep' || U.dist2(a.pos, tk.at) > 8;
       tk.travel = (tk.travel || 0) + dt;
       if (tk.travel > 25) { b.task = null; }
@@ -255,6 +267,13 @@
     a.sprint = false;
     // shoot gadgets
     if (b.entTarget && b.entTarget.alive) {
+      // a small gadget (a snare's anchor is 0.1 m across) can soak a whole magazine at range:
+      // give it three seconds, then leave it and get on with the job rather than freeze here
+      if (b.entShot !== b.entTarget) { b.entShot = b.entTarget; b.entT = 0; }
+      b.entT += dt;
+      if (b.entT > 3) { (b.entIgnore || (b.entIgnore = new Map())).set(b.entTarget, G.time + 30); b.entTarget = null; b.entShot = null; }
+    }
+    if (b.entTarget && b.entTarget.alive) {
       const off = faceTo(a, b.entTarget.pos, dt, 7);
       a.mf = a.mr = 0;
       if (off < 0.06) a.trigger = true;
@@ -286,7 +305,9 @@
       if (follow(a, dt)) { b.heard = null; b.deafUntil = G.time + 3; }
       return;
     }
-    if (b.heard && a.side === 'def' && b.role !== 'roam' && G.time - b.heard.t < 3) { faceTo(a, b.heard.pos.clone().setY(a.pos.y + 1.5), dt, 4); a.mf = a.mr = 0; return; }
+    // a defender freezes to listen only once in position: stopping mid-walk for every noise kept
+    // anchors standing in the open under steady gunfire
+    if (b.heard && a.side === 'def' && b.role !== 'roam' && G.time - b.heard.t < 3 && (!b.hold || U.dist2(a.pos, b.hold) < 1)) { faceTo(a, b.heard.pos.clone().setY(a.pos.y + 1.5), dt, 4); a.mf = a.mr = 0; return; }
     // last seen enemy: attackers push it, defenders recheck it if roaming
     if (b.lastSeen && G.time - b.lastSeenT < 8 && G.time - b.lastSeenT > 1.2 && !a.carry && (a.side === 'atk' || b.role === 'roam')) {
       if (!b.goal || b.goalKind !== 'last') AI.moveTo(a, b.lastSeen, 'last');
@@ -300,6 +321,12 @@
       if (!close) {
         if (!b.goal || U.dist3(b.goal, goal.pos) > 0.6 || b.goalKind !== goal.kind) AI.moveTo(a, goal.pos, goal.kind);
         b.repathT += dt; if (b.repathT > 5) { b.goal = null; }
+        // the route ended short of the goal (it can't be reached from here): choose another spot
+        // rather than stand at the end of a partial path until a timer runs out
+        if (!b.path || b.pi >= b.path.length) {
+          b.shortT = (b.shortT || 0) + dt;
+          if (b.shortT > 1.5) { b.shortT = 0; b.goal = null; if (goal.kind === 'roam') b.roamGoal = null; if (goal.kind === 'hold') { b.hold = null; b.holdRoom = null; } }
+        } else b.shortT = 0;
         follow(a, dt);
         a.sprint = !!goal.sprint && !b.alert;
         if (b.alert > 0 && a.side === 'atk') a.sprint = false;

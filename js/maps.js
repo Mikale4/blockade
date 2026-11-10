@@ -15,7 +15,7 @@
       this.w = new VW.World(W, H, D);
       this.W = W; this.H = H; this.D = D;
       this.meta = {
-        id, name, rooms: [], openings: [], hatches: [], spawns: [], cams: [],
+        id, name, rooms: [], openings: [], hatches: [], spawns: [], cams: [], flights: [],
         bombs: [], secure: [], hostage: [], buildings: [], theme: {}, desc: '',
       };
     }
@@ -161,6 +161,8 @@
     /* 12 steps from level L to L+1, climbing toward dir, `n` wide */
     stairs(L, lx0, lz0, dir, n) {
       const W = this.W, base = L * 12;
+      const run = (dir === '+x' ? [11, 0] : dir === '-x' ? [-11, 0] : dir === '+z' ? [0, 11] : [0, -11]);
+      this.B.meta.flights.push({ L, dir, n, x: this.X(lx0), z: this.Z(lz0), ex: this.X(lx0 + run[0]), ez: this.Z(lz0 + run[1]) });
       for (let i = 0; i < 12; i++) {
         for (let k = 0; k < n; k++) {
           let lx, lz;
@@ -331,7 +333,7 @@
     for (const [x, z] of [[84, 20], [100, 20], [84, 28], [100, 28]]) B.obox(x, z, x, z, 0, 11, M.PIPE);
     B.truck(160, 70, 'z', M.CAR_W); B.container(176, 104, 'z', M.CONT_R, true); B.dumpster(156, 124);
     B.dumpster(36, 126); B.fence(30, 130, 30, 160, M.TRIM); B.fence(30, 160, 170, 160, M.TRIM);
-    for (const [x, z] of [[10, 30], [16, 60], [8, 92], [20, 120], [12, 150], [60, 150], [90, 148], [130, 152], [188, 20], [190, 60], [184, 150], [6, 6]]) B.tree(x, z, 20 + (x % 5), true);
+    for (const [x, z] of [[10, 30], [16, 60], [4, 106], [20, 120], [12, 150], [60, 150], [90, 148], [130, 152], [188, 20], [190, 60], [184, 150], [6, 6]]) B.tree(x, z, 20 + (x % 5), true);
     B.lamp(30, 44); B.lamp(150, 44); B.lamp(170, 120);
     B.spawn('Parking Lot', 100, 12, 0); B.spawn('Pine Woods', 12, 86, -90); B.spawn('Loading Yard', 190, 96, 90); B.spawn('Back Road', 110, 150, 180);
     B.meta.bombs = [['Brewery', 'Cold Storage'], ['Kitchen', 'Back Office'], ['Living Room', 'Bedroom']];
@@ -371,20 +373,21 @@
     b.room(2, 'Bunk Room', 36, 44, 60, 71, { wall: M.DRY_BEIGE });
     b.room(2, 'Office', 60, 30, 95, 71, { wall: M.DRY_SAGE, floor: M.CARPET2 });
     // stairs
-    b.stairs(1, 37, 22, '+z', 6); b.rail(2, 43, 21, 43, 33); b.rail(2, 37, 21, 42, 21);
-    b.stairs(1, 62, 50, '+z', 5); b.rail(2, 67, 49, 67, 61); b.rail(2, 62, 49, 66, 49);
+    // both flights start 5 voxels clear of the south wall, so there's room to line up and climb
+    b.stairs(1, 37, 26, '+z', 6); b.rail(2, 43, 25, 43, 37); b.rail(2, 37, 25, 42, 25);
+    b.stairs(1, 62, 53, '+z', 5); b.rail(2, 67, 52, 67, 64); b.rail(2, 62, 52, 66, 52);
     b.stairs(0, 85, 66, '-z', 5); b.rail(1, 84, 55, 84, 66); b.rail(1, 90, 55, 90, 66); b.rail(1, 84, 67, 90, 67);
     // doors B
     b.doorX(0, 48, 14); b.doorZ(0, 36, 20); b.doorZ(0, 36, 64); b.doorZ(0, 36, 80); b.doorX(0, 48, 52);
     b.cellar('e', 44);
     // doors 1F
-    b.doorZ(1, 0, 44, 8); b.doorX(1, 36, 6); b.doorX(1, 36, 30); b.doorX(1, 60, 8); b.doorZ(1, 20, 44, 8); b.doorZ(1, 44, 12); b.doorZ(1, 44, 50);
-    b.doorZ(1, 28, 70); b.doorX(1, 60, 36); b.doorZ(1, 48, 72); b.doorX(1, 60, 62); b.doorX(1, 32, 56); b.doorZ(1, 71, 76); b.doorX(1, 95, 52); b.doorX(1, 0, 22);
+    b.doorZ(1, 0, 44, 8); b.doorX(1, 36, 6); b.doorX(1, 36, 38); b.doorX(1, 60, 8); b.doorZ(1, 20, 44, 8); b.doorZ(1, 44, 12); b.doorZ(1, 44, 50);
+    b.doorZ(1, 28, 70); b.doorX(1, 60, 36); b.doorZ(1, 48, 72); b.doorX(1, 60, 65); b.doorX(1, 32, 56); b.doorZ(1, 71, 76); b.doorX(1, 95, 52); b.doorX(1, 0, 22);
     b.winZ(1, 0, 6, 6); b.winZ(1, 0, 22, 8); b.winZ(1, 0, 66, 6); b.winZ(1, 0, 82, 6);
     b.winX(1, 95, 8, 5); b.winX(1, 95, 18, 5); b.winX(1, 95, 34, 5); b.winX(1, 0, 4, 5); b.winX(1, 0, 32, 5); b.winX(1, 0, 52, 5); b.winX(1, 0, 62, 5);
     b.winZ(1, 71, 8, 5); b.winZ(1, 71, 20, 5); b.winZ(1, 71, 40, 5); b.winZ(1, 71, 50, 5);
     // doors 2F
-    b.doorX(2, 36, 8); b.doorX(2, 36, 26); b.doorZ(2, 20, 46); b.doorX(2, 60, 8); b.doorX(2, 60, 24); b.doorX(2, 36, 38); b.doorZ(2, 44, 48);
+    b.doorX(2, 36, 8); b.doorX(2, 36, 21); b.doorZ(2, 20, 46); b.doorX(2, 60, 8); b.doorX(2, 60, 24); b.doorX(2, 36, 38); b.doorZ(2, 44, 48);
     b.doorX(2, 60, 34); b.doorX(2, 60, 64); b.doorZ(2, 36, 16); b.doorX(2, 36, 58);
     b.winZ(2, 0, 8, 5); b.winZ(2, 0, 22, 5); b.winZ(2, 0, 44, 5); b.winZ(2, 0, 70, 5); b.winZ(2, 0, 84, 5);
     b.winX(2, 95, 10, 5); b.winX(2, 95, 44, 5); b.winX(2, 95, 60, 5); b.winX(2, 0, 48, 5); b.winX(2, 0, 12, 5);
@@ -557,8 +560,9 @@
     // furniture
     for (let i = 0; i < 3; i++) { b.counter(1, 6 + i * 10, 26, 12 + i * 10, 28, M.TRIM); b.box(1, 6 + i * 10, 26, 12 + i * 10, 28, 4, 6, M.GLASS); }
     b.box(1, 4, 44, 30, 46, 0, 1, M.METAL); b.box(1, 2, 54, 6, 60, 0, 4, M.CRATE); b.box(1, 22, 6, 30, 10, 0, 3, M.METAL);
-    for (let i = 0; i < 3; i++) { b.box(1, 50 + i * 7, 2, 50 + i * 7, 22, 0, 9, M.RAIL); }
-    b.box(1, 66, 4, 70, 10, 0, 1, M.FAB_BLUE); b.table(1, 78, 8, 84, 14, M.METAL);
+    // cell bars stop short of the corridor wall, leaving a walkway into every cell
+    for (let i = 0; i < 3; i++) { b.box(1, 50 + i * 7, 2, 50 + i * 7, 17, 0, 9, M.RAIL); }
+    b.box(1, 65, 2, 68, 8, 0, 1, M.FAB_BLUE); b.table(1, 78, 8, 84, 14, M.METAL);
     b.box(1, 92, 2, 110, 3, 0, 8, M.METAL); b.box(1, 92, 12, 98, 16, 0, 3, M.CRATE); b.box(1, 104, 12, 110, 16, 0, 3, M.CRATE);
     b.desk(1, 52, 40, 58, 44); b.desk(1, 64, 40, 70, 44); b.desk(1, 52, 52, 58, 56); b.shelf(1, 72, 34, 74, 60, 8);
     b.table(1, 80, 42, 90, 50); b.counter(1, 78, 58, 96, 61); b.counter(1, 96, 34, 97, 40, M.FRIDGE);
@@ -578,7 +582,8 @@
     B.obox(18, 100, 19, 101, 0, 30, M.PIPE); B.obox(20, 92, 20, 99, 22, 28, M.BLUE_PAINT);
     for (const [x, z] of [[4, 140], [60, 150], [130, 156], [190, 140]]) B.obox(x, z, x + 4, z + 3, 0, 2, M.STONE);
     B.cam(100, 27, 20, 180, -14, 'LANES'); B.cam(180, 25, 130, 40, -14, 'NORTH');
-    B.spawn('Vehicle Lanes', 112, 12, 0); B.spawn('Truck Yard', 190, 84, 90); B.spawn('Riverbank', 100, 154, 180); B.spawn('Dry Wash', 8, 92, -90);
+    // Vehicle Lanes sits in the open just past the truck's tail (the truck covers x 96-125, z 9-17)
+    B.spawn('Vehicle Lanes', 136, 12, 0); B.spawn('Truck Yard', 190, 84, 90); B.spawn('Riverbank', 100, 154, 180); B.spawn('Dry Wash', 8, 92, -90);
     B.meta.bombs = [['Armory', 'Interrogation'], ['Offices', 'Break Room'], ['Supervisor Office', 'Comms Room'], ['Briefing Room', 'Locker Room']];
     B.meta.secure = ['Detention', 'Supervisor Office', 'Briefing Room', 'Armory'];
     B.meta.hostage = ['Detention', 'Comms Room', 'Offices', 'Locker Room'];
@@ -746,10 +751,76 @@
     }
   }
 
+  /* Stretch a finished map by about `s` in x and z: duplicate voxel planes that don't carry a wall,
+     so rooms, corridors, doorways and the ground between buildings and spawns all get roomier,
+     while walls stay one voxel thick and staircases and hatches keep their exact shape. Every
+     coordinate in the map's metadata moves with the voxels. */
+  const STRETCH = 1.4;
+  function stretch(B, s) {
+    const w = B.w, W = w.W, H = w.H, D = w.D, v = w.v, T = 24;
+    const at = (x, y, z) => v[(y * D + z) * W + x];
+    const pick = (n, axis) => {
+      const bad = new Uint8Array(n);
+      bad[0] = bad[n - 1] = 1;
+      // a plane crossing a thin wall lengthwise would thicken it
+      for (let c = 1; c < n - 1; c++) {
+        let thin = 0;
+        outer: for (let y = 1; y < H; y++) {
+          if (axis === 'x') { for (let z = 0; z < D; z++) if (at(c, y, z) && !at(c - 1, y, z) && !at(c + 1, y, z) && ++thin > T) break outer; }
+          else { for (let x = 0; x < W; x++) if (at(x, y, c) && !at(x, y, c - 1) && !at(x, y, c + 1) && ++thin > T) break outer; }
+        }
+        if (thin > T) bad[c] = 1;
+      }
+      const keep = (a, b) => { for (let c = Math.max(0, a); c <= Math.min(n - 1, b); c++) bad[c] = 1; };
+      for (const h of B.meta.hatches) { const c0 = axis === 'x' ? h.x : h.z; keep(c0 - 1, c0 + 4); }
+      // (a plane along a flight's run just lengthens one tread: the stair gets a little gentler)
+      const dup = new Uint8Array(n); let acc = 0;
+      for (let c = 1; c < n - 1; c++) { if (bad[c]) continue; acc += s - 1; if (acc >= 1) { dup[c] = 1; acc -= 1; } }
+      const map = new Int32Array(n + 1); let k = 0;
+      for (let c = 0; c < n; c++) { map[c] = c + k; if (dup[c]) k++; }
+      map[n] = n + k;
+      return { dup, map, n2: n + k };
+    };
+    const X = pick(W, 'x'), Z = pick(D, 'z'), W2 = X.n2, D2 = Z.n2;
+    const nw = new VW.World(W2, H, D2); nw.light = w.light;
+    const nv = nw.v;
+    for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) {
+      const tz = Z.map[z], nzc = Z.dup[z] ? 2 : 1;
+      for (let x = 0; x < W; x++) {
+        const m = v[(y * D + z) * W + x]; if (!m) continue;
+        const tx = X.map[x], nxc = X.dup[x] ? 2 : 1;
+        for (let a = 0; a < nzc; a++) for (let b = 0; b < nxc; b++) nv[(y * D2 + tz + a) * W2 + tx + b] = m;
+      }
+    }
+    B.w = nw; B.W = W2; B.D = D2;
+    // metadata: voxel indices, inclusive voxel ranges and metres
+    const vx = c => X.map[c], vz = c => Z.map[c];
+    const hx = c => X.map[c] + X.dup[c], hz = c => Z.map[c] + Z.dup[c];   // last voxel of a range
+    const mx = m => { const c = Math.floor(m * 4); return (X.map[c] + (m * 4 - c) * (X.dup[c] ? 2 : 1)) * VS; };
+    const mz = m => { const c = Math.floor(m * 4); return (Z.map[c] + (m * 4 - c) * (Z.dup[c] ? 2 : 1)) * VS; };
+    const meta = B.meta;
+    for (const r of meta.rooms) {
+      r.x0 = vx(r.x0); r.x1 = hx(r.x1); r.z0 = vz(r.z0); r.z1 = hz(r.z1);
+      r.cx = (r.x0 + r.x1 + 1) / 2 * VS; r.cz = (r.z0 + r.z1 + 1) / 2 * VS;
+    }
+    for (const o of meta.openings) {
+      if (o.axis === 'z') { o.line = vz(o.line); o.a0 = vx(o.a0); o.a1 = hx(o.a1); }
+      else { o.line = vx(o.line); o.a0 = vz(o.a0); o.a1 = hz(o.a1); }
+    }
+    for (const h of meta.hatches) { h.x = vx(h.x); h.z = vz(h.z); }
+    for (const f of meta.flights) {
+      // first and last step, each taken at its outer edge
+      const sx = f.dir === '-x' ? hx : vx, sz = f.dir === '-z' ? hz : vz, ex = f.dir === '+x' ? hx : vx, ez = f.dir === '+z' ? hz : vz;
+      f.x = sx(f.x); f.z = sz(f.z); f.ex = ex(f.ex); f.ez = ez(f.ez);
+    }
+    for (const p of [...meta.spawns, ...meta.cams]) { p.x = mx(p.x); p.z = mz(p.z); }
+    for (const b of meta.buildings) { b.x = vx(b.x); b.z = vz(b.z); b.x1 = hx(b.x1); b.z1 = hz(b.z1); }
+  }
+
   function build(id) {
     const def = id === 'range' ? { fn: range } : LIST.find(m => m.id === id);
     const B = def.fn();
-    if (id !== 'range') protectSpawns(B);
+    if (id !== 'range') { stretch(B, STRETCH); protectSpawns(B); }
     const meta = B.meta, w = B.w;
     meta.world = w;
     meta.buildings = meta.buildings.map(b => ({ x0: b.x, z0: b.z, x1: b.x1, z1: b.z1, lo: b.lo, hi: b.hi, roofY: b.roofY }));

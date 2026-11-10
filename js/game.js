@@ -88,7 +88,14 @@
       const si = (a.isPlayer || a.net) && a.spawnPick != null ? a.spawnPick : (Math.random() < 0.6 ? leadSpawn : U.rndi(0, map.spawns.length - 1));
       const s = map.spawns[si] || map.spawns[0];
       const ang = i * 1.3, r = i ? 1.5 : 0;
-      a.pos.set(s.x + Math.cos(ang) * r, s.y, s.z + Math.sin(ang) * r);
+      // never start inside a tree, a vehicle or a spawn wall: close in toward the spawn point,
+      // and failing that take the nearest walkable spot
+      let ok = false;
+      for (const k of [1, 0.66, 0.33, 0]) {
+        a.pos.set(s.x + Math.cos(ang) * r * k, s.y, s.z + Math.sin(ang) * r * k);
+        if (!a.blocked(a.pos.x, a.pos.y, a.pos.z, a.h)) { ok = true; break; }
+      }
+      if (!ok) { const n = NAV.nearest(a.pos, 8); if (n >= 0) a.pos.copy(NAV.nodePos(n)); }
       const b = map.buildings[0]; a.yaw = U.yawTo(a.pos, V().set((b.x0 + b.x1) / 8, 0, (b.z0 + b.z1) / 8));
     });
     defTeam.forEach(a => { const r = U.pick(GAME.siteRooms); const p = NAV.randomIn(r); a.pos.copy(p); a.yaw = Math.random() * 6.28; });
@@ -409,7 +416,13 @@
   };
   GAME.dropDefuser = function (a) {
     a.carry = null;
-    GAME.obj.dropped = new GAD.Dropped(V().set(a.pos.x, a.pos.y + 0.05, a.pos.z));
+    // land it where a teammate can walk up and take it: the floor below the carrier, or the
+    // nearest walkable spot if they fell mid-vault, on a rope or wedged in a door frame
+    const p = a.pos.clone();
+    for (let i = 0; i < 80 && p.y > 0.25 && !a.blocked(p.x, p.y - 0.25, p.z, 0.2); i++) p.y -= 0.25;
+    const n = NAV.nearest(p, 6);
+    if (n >= 0) { const q = NAV.nodePos(n); if (Math.hypot(q.x - p.x, q.z - p.z) > 0.3 || Math.abs(q.y - p.y) > 0.3) p.copy(q); }
+    GAME.obj.dropped = new GAD.Dropped(V().set(p.x, p.y + 0.05, p.z));
     GAME.obj.carrier = null;
     GAD.tellTeam(GAME.atkTeam(), 'The defuser was dropped');
   };

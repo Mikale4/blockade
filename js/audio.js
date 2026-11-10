@@ -132,7 +132,7 @@
   SFX.metal = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 35, 0.6); if (!d) return; const t = now(); tone(d, t, 0.5, 320, 300, 0.4, 'triangle'); tone(d, t, 0.4, 755, null, 0.25, 'triangle'); noise(d, t, 0.1, 'bandpass', 2000, 2, 0.5); };
   SFX.zap = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 30, 0.6); if (!d) return; const t = now(); tone(d, t, 0.35, 90, 1600, 0.4, 'sawtooth'); noise(d, t, 0.3, 'highpass', 5000, 1, 0.3); };
   SFX.sonar = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 40, 0.5); if (!d) return; const t = now(); tone(d, t, 1.1, 1400, 700, 0.35); tone(d, t + 0.02, 1.0, 2100, 1050, 0.12); };
-  SFX.flashRing = function (strength) { if (!SFX.ctx) return; const d = chain(null, 1, 0.12 * strength); const t = now(); tone(d, t, 3.5 * strength, 3600, 3400, 0.6); };
+  SFX.flashRing = function (strength) { if (!SFX.ctx) return; const d = chain(null, 1, 0.12 * strength); if (!d) return; const t = now(); tone(d, t, 3.5 * strength, 3600, 3400, 0.6); };
   SFX.throwS = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 15, 0.3); if (!d) return; noise(d, now(), 0.12, 'bandpass', 1200, 1, 0.5); };
   SFX.whoosh = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 30, 0.5); if (!d) return; noise(d, now(), 0.4, 'bandpass', 800, 0.8, 0.6); };
   SFX.voice = function (kind) {

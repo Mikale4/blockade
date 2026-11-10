@@ -59,7 +59,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   explosives tear holes; reinforced steel only falls to a hard breach (Kiln's Plasma Bore).
 - **Preparation phase (45 s):** attackers pilot drones (spot with fire); defenders reinforce
   walls and hatches from a 10-panel team pool (+2 per Brick), barricade doors and windows, and
-  place gadgets. Attackers can't be hurt in prep. Spawns are checked at map load so no
+  place gadgets. Defenders can't leave the building until the action phase, and attackers
+  can't be hurt in prep. Spawns are checked at map load so no
   window, door or room can see them, and cover walls are raised wherever one could.
 - **Action phase (3 min):** vault (low walls, windows), rappel up outside walls onto roofs, lean,
   crouch, go prone, melee through barricades and hatches.

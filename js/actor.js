@@ -135,7 +135,20 @@
       if (this.carry && this.carry.hostage && s === 2) return;
       this.stance = s;
     }
-    blocked(x, y, z, h) { return G.world.boxHits(x - RAD, y, z - RAD, x + RAD, y + h, z + RAD) || this.entBlock(x, y, z, h); }
+    blocked(x, y, z, h) { return G.world.boxHits(x - RAD, y, z - RAD, x + RAD, y + h, z + RAD) || this.entBlock(x, y, z, h) || this.prepFenced(x, y, z); }
+    /* preparation phase: defenders can't leave the building (doors, windows, vaults, the roof).
+       Someone already outside isn't trapped, they just can't wander further. */
+    prepFenced(x, y, z) {
+      if (this.side !== 'def' || G.mode !== 'match' || GAME.phase !== 'prep' || !G.map || !G.map.buildings) return false;
+      return !Actor.indoors(x, y, z) && Actor.indoors(this.pos.x, this.pos.y, this.pos.z);
+    }
+    static indoors(x, y, z) {
+      const e = 1e-3, V = 0.25;   // voxel size
+      for (const b of G.map.buildings) {
+        if (x - RAD >= (b.x0 + 1) * V - e && x + RAD <= b.x1 * V + e && z - RAD >= (b.z0 + 1) * V - e && z + RAD <= b.z1 * V + e && y < b.roofY * V) return true;
+      }
+      return false;
+    }
     entBlock(x, y, z, h) {
       for (const e of G.ents) if (e.solid && e.alive) {
         const b = e.solid;
@@ -185,18 +198,42 @@
       this.vel.y -= GRAV * dt;
       // integrate per axis
       const p = this.pos, h = this.h;
+      /* corner slide: a move blocked only by the very edge of a corner (a rail end, a door
+         jamb) shifts us sideways around it instead of stopping us dead. A flat wall is
+         still blocked at every offset, so walking into one behaves as before. */
+      const slide = (alongX, to, lateralV) => {
+        const pref = lateralV < 0 ? -1 : 1, room = Math.abs(alongX ? this.vel.x : this.vel.z) * dt;
+        for (const off of [0.04, 0.08, 0.12]) for (const sgn of [pref, -pref]) {
+          const o = off * sgn;
+          const free = alongX ? !this.blocked(to, p.y, p.z + o, h) && !this.blocked(p.x, p.y, p.z + o, h)
+            : !this.blocked(p.x + o, p.y, to, h) && !this.blocked(p.x + o, p.y, p.z, h);
+          if (free) { const s = Math.min(off, Math.max(room, 0.01)) * sgn; if (alongX) p.z += s; else p.x += s; return true; }
+        }
+        return false;
+      };
+      // step up exactly onto the next voxel top, so the feet stay planted (no airborne frame
+      // per step, which used to cost air control on every stair)
+      const up = Math.round(p.y * 4) / 4 + 0.25;
       let nx = p.x + this.vel.x * dt;
       if (this.blocked(nx, p.y, p.z, h)) {
-        if (this.onGround && !this.blocked(nx, p.y + 0.27, p.z, h) && !this.blocked(p.x, p.y + 0.27, p.z, h)) { p.y += 0.27; this.stepUp = 0.27; }
+        if (this.onGround && !this.blocked(nx, up, p.z, h) && !this.blocked(p.x, up, p.z, h)) { p.y = up; this.stepUp = 0.25; }
+        else if (slide(true, nx, this.vel.z)) nx = p.x;
         else { nx = p.x; this.vel.x = 0; }
       }
       p.x = nx;
       let nz = p.z + this.vel.z * dt;
       if (this.blocked(p.x, p.y, nz, h)) {
-        if (this.onGround && !this.blocked(p.x, p.y + 0.27, nz, h) && !this.blocked(p.x, p.y + 0.27, p.z, h)) { p.y += 0.27; this.stepUp = 0.27; }
+        const upz = Math.round(p.y * 4) / 4 + 0.25;
+        if (this.onGround && !this.blocked(p.x, upz, nz, h) && !this.blocked(p.x, upz, p.z, h)) { p.y = upz; this.stepUp = 0.25; }
+        else if (slide(false, nz, this.vel.x)) nz = p.z;
         else { nz = p.z; this.vel.z = 0; }
       }
       p.z = nz;
+      // step down: walking off a stair step or a kerb keeps your feet on the ground, instead of a
+      // quarter-metre free fall per step (hopping down stairs with no air control). Real drops
+      // (two voxels or more) still fall.
+      if (this.onGround && this.vel.y <= 0 && !this.blocked(p.x, p.y - 0.05, p.z, 0.04)
+        && this.blocked(p.x, p.y - 0.3, p.z, 0.04) && !this.blocked(p.x, p.y - 0.25, p.z, h)) p.y -= 0.25;
       let ny = p.y + this.vel.y * dt;
       this.onGround = false;
       if (this.vel.y <= 0) {

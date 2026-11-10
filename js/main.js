@@ -51,6 +51,19 @@
     outer.material.color.setHex(t.water ? 0x0d2236 : t.outer);
     outer.position.y = t.water ? 2.6 : 3.24;
   }
+  /* the ground (or sea) beyond the map: a 900 m square with the map's own footprint cut out.
+     The voxels draw their own ground inside it, so the plane never caps a basement stairwell,
+     a cellar trench or a blast crater with a flat sheet of colour. */
+  function outerRing(Wm, Dm) {
+    const R = 450, cx = Wm / 2, cz = Dm / 2, sh = new THREE.Shape(), hole = new THREE.Path();
+    // shape space (x, y) lies on the ground as world (x, -z) once rotated flat
+    sh.moveTo(cx - R, -(cz - R)); sh.lineTo(cx + R, -(cz - R)); sh.lineTo(cx + R, -(cz + R)); sh.lineTo(cx - R, -(cz + R)); sh.lineTo(cx - R, -(cz - R));
+    hole.moveTo(0, 0); hole.lineTo(0, -Dm); hole.lineTo(Wm, -Dm); hole.lineTo(Wm, 0); hole.lineTo(0, 0);
+    sh.holes.push(hole);
+    outer.geometry.dispose();
+    outer.geometry = new THREE.ShapeGeometry(sh);
+    outer.position.x = 0; outer.position.z = 0;
+  }
   MAIN.loadMap = function (id) {
     GAD.clear(); FX.clear(); SFX.stopAll();
     for (const a of G.actors) a.removeFrom(G.scene);
@@ -63,7 +76,7 @@
     applyTheme(map.theme);
     G.world.remeshAll();
     G.scene.add(G.world.group);
-    outer.position.x = G.world.W / 8; outer.position.z = G.world.D / 8;
+    outerRing(G.world.W * 0.25, G.world.D * 0.25);
     NAV.build();
     MAIN.mapId = id;
   };

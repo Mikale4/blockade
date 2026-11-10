@@ -102,6 +102,9 @@
   mat('FELT', 0x2f6b45, {});
   // a voxel id beyond the table means "outside the world": solid, never drawn
   const OOB = 255;
+  // ...with a table entry of its own, so a lookup at the edge of the map reads "unbreakable"
+  // instead of throwing (a bot smashing clutter beside the boundary used to freeze the game)
+  MAT[OOB] = Object.assign({}, MAT[M.BEDROCK], { id: OOB, key: 'OOB' });
 
   /* --------------------------------------------------------------- weapons --
      dmg per bullet, rpm, mag, mags (spare), reload (s), reloadE (empty),
