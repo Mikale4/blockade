@@ -191,7 +191,15 @@
     if (a.interact) { pr = a.interact.it.label; prog = a.interact.t / a.interact.it.time; }
     else if (P.view === 'body' && a.state === 'alive' && (G.mode === 'match' || G.mode === 'range')) {
       H.intT = (H.intT || 0) - dt;
-      if (H.intT <= 0) { H.intT = 0.12; const its = GAME.interactions(a); H.intLabel = its.length ? '[' + KEYS.name('interact') + '] ' + its[0].label + (its[0].time > 0.4 ? ' (hold)' : '') : ''; }
+      if (H.intT <= 0) {
+        H.intT = 0.12; const its = GAME.interactions(a); H.intLabel = its.length ? '[' + KEYS.name('interact') + '] ' + its[0].label + (its[0].time > 0.4 ? ' (hold)' : '') : '';
+        // rope: what Space does right now; on the ground: an outside wall you can hook onto
+        if (!H.intLabel && !(G.mode === 'match' && GAME.phase === 'prep' && a.side === 'atk')) {
+          const v = '[' + KEYS.name('vault') + '] ', c = '[' + KEYS.name('crouch') + '] ';
+          if (a.rappel) H.intLabel = a.ropeWindow() ? v + 'CRASH THROUGH WINDOW' : v + 'LET GO · ' + c + (a.rappel.inv ? 'TURN UPRIGHT' : 'HANG INVERTED');
+          else if (a.rappelProbe()) H.intLabel = v + 'RAPPEL';
+        }
+      }
       pr = H.intLabel || '';
     }
     e.prompt.style.display = pr ? '' : 'none';

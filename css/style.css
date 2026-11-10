@@ -151,6 +151,10 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .map-homestead { background-image: linear-gradient(135deg, rgba(90,140,60,0.3), transparent); }
 .map-checkpoint { background-image: linear-gradient(135deg, rgba(200,180,130,0.3), transparent); }
 .map-helix { background-image: linear-gradient(135deg, rgba(60,120,200,0.3), transparent); }
+.map-cannery { background-image: linear-gradient(135deg, rgba(150,170,180,0.28), transparent); }
+.map-observatory { background-image: linear-gradient(135deg, rgba(40,50,120,0.4), transparent); }
+.map-depot { background-image: linear-gradient(135deg, rgba(110,90,80,0.32), transparent); }
+.map-museum { background-image: linear-gradient(135deg, rgba(160,110,150,0.3), transparent); }
 .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .seg button, .lo-row button { font: 700 14px var(--f); letter-spacing: 0.1em; color: var(--txt); background: rgba(255,255,255,0.05); border: 1px solid var(--line); padding: 7px 12px; cursor: pointer; }

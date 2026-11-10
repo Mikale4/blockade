@@ -32,17 +32,33 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   end-to-end encrypted and wait for friends who are offline. You can invite a friend to a
   match or a room, join their room, or block someone.
 
-- **22 operators** (11 attack, 11 defense) in six units. The launch roster is 20 operators
-  across five units, plus a two-operator **Season 1** squad (Ironveil: Pike and Lark).
+- **26 operators** (13 attack, 13 defense) in eight units. The launch roster is 20 operators
+  across five units, plus three two-operator season squads:
+  - **Season 1 · Ironveil:** Pike (smoke launcher) and Lark (decoy emitter)
+  - **Season 2 · Driftline:** Brace (Barrier Foam: a waist-high bulletproof foam wall) and Seam
+    (Patch Spray: refills a breached wall, floor or hatch with foam)
+  - **Season 3 · Meridian:** Haze (Irritant Shells: a haze that hurts, makes defenders cough and
+    marks them) and Lumen (Floodlight: dazzles attackers who look into it)
+
   Each operator has an armor/speed rating, two primaries, two secondaries, two gadget choices
   and a unique ability.
-- **5 maps**, each with a basement or upper floors, hatches, soft and hard walls, and 3–4
+- **Pick your spawn:** in operator select every player chooses their own spawn. Attackers pick
+  one of the map's outdoor spawns; defenders pick the objective or another room in the building.
+- **9 maps**, each with a basement or upper floors, hatches, soft and hard walls, and 3–4
   bomb-site pairs, plus Secure Area and Hostage rooms:
   - **Roadhouse**: highway diner and garage, brewery cellar (dusk)
   - **Summit Lodge**: snowed-in log and stone ski lodge (overcast)
   - **Homestead**: farmhouse with a bunker underneath, plus a hay barn (afternoon)
   - **Checkpoint**: border station with a double-height customs hall (noon)
   - **Helix Labs**: island research campus with a specimen vault (night)
+  - **Cannery**: brick fish cannery on the harbour quay, with a two-storey processing floor
+    under a catwalk, an ice plant below, and a crane and a dry-docked boat outside (foggy morning)
+  - **Observatory**: mountaintop observatory whose telescope hall rises into a dome, ringed by
+    a gallery, with a weather hut and a cable-car stop outside (starry night)
+  - **Rail Depot**: brick station with a clock tower, a freight tunnel underneath, a train you
+    can walk through at the platform, and a signal box down the line (rainy dusk)
+  - **Museum**: natural-history museum with a glass-roofed atrium, a fossil skeleton, a grand
+    stair to the mezzanine and a concrete vault below (evening)
 - **Modes:** Bomb (plant the defuser and protect it, or disable it), Secure Area (hold the room
   with no defenders inside), Hostage (escort the hostage out; harming the hostage loses).
   Sides swap every round (optional), and the first team to N rounds wins.
@@ -60,10 +76,24 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 - **Preparation phase (45 s):** attackers pilot drones (spot with fire); defenders reinforce
   walls and hatches from a 10-panel team pool (+2 per Brick), barricade doors and windows, and
   place gadgets. Defenders can't leave the building until the action phase, and attackers
-  can't be hurt in prep. Spawns are checked at map load so no
-  window, door or room can see them, and cover walls are raised wherever one could.
+  can't be hurt in prep. Each map has four attacker spawns, one off each side of the building
+  and at least 25 m from it, each behind one cover structure that suits the map (a parked
+  trailer, a woodshed, a hay shelter, a boxcar...). At map load every spawn is checked against
+  every door, window and roof edge; where an outbuilding can still look past the cover, that
+  end gets a return wall. Fences on the way in have gates.
 - **Action phase (3 min):** vault (low walls, windows), rappel up outside walls onto roofs, lean,
   crouch, go prone, melee through barricades and hatches.
+- **Rappel and window entries:** attackers facing an outside wall get a RAPPEL prompt. On the
+  rope you can climb, move sideways, shoot, and hang upside down to peek into a window from
+  above. Beside a window, Space crashes you in feet-first: the glass or barricade shatters and you
+  land crouched inside, loudly. A reinforced or blocked window won't give. From the ground,
+  vaulting into a glass or barricaded window breaks it as you go through.
+- **Shields:** carried low on the left with a glass viewport, so you can see past them. Held up,
+  a shield stops bullets from the front, from the shins up (all the way down when you crouch),
+  and you hip-fire your sidearm beside it. Aiming swings it aside so you shoot past its edge,
+  which exposes part of your head and your gun arm. Sprinting swings it to your flank.
+  Melee is a shield bash: a short lunge that knocks the target's aim and slows them.
+  You can't go prone while holding one.
 - **Down but not out:** lethal non-headshot damage usually downs you; teammates revive (hold
   interact). Headshots kill outright (shotgun pellets just hit harder).
 - **Intel:** drones (attack), cameras (defense; attackers can shoot them), spotting marks
@@ -71,6 +101,25 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 - **Bots:** they path through the building (stairs, breached holes, barricades they smash),
   react to what they see and hear, reinforce and gadget up in prep, plant, disable, escort and
   revive. Choose Recruit, Normal or Realistic.
+  - **Attack:** the team splits over two or three entrances on different walls (sometimes a
+    window near the site: vaulted on the ground floor, or reached on a rope and crashed through
+    higher up, falling back to a door if it's reinforced or blocked), and each bot
+    stacks up outside its door. Everyone goes in together once all are in place, as soon as
+    anyone makes contact, or after 30 s. Bots keep their spacing instead of walking in a line,
+    and they sweep a room's corners and doorways as they enter it.
+  - **Defense:** anchors share out the site rooms, keep a few metres apart, and each pre-aims a
+    different doorway at head height. Roamers fall back to the site when the defense is losing.
+  - **Reading the round:** each team tracks how many players are left on each side, where the
+    enemy was last seen, and the clock. Up in numbers (or with one enemy left) and time in hand,
+    bots hunt the enemy down. When the objective needs them now, they drop every detour:
+    - a dropped defuser: the nearest attacker fetches it while the others cover
+    - a planted one: every defender goes to disable it
+    - a hostage leaving, or the area being secured: defenders converge on it
+    - the last minute: all attackers commit to the objective
+
+    After a plant, attackers spread out to cover the defuser from separate spots. A bot that
+    can't hurt its target (a shield, or cover bullets can't get through) stops trading shots
+    after a few seconds and gets back to the job.
 
 ## Controls (all rebindable: **Controls** in the menu)
 
@@ -81,7 +130,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 | L-Shift | Sprint |
 | C / Z | Crouch / prone |
 | Q / E | Lean (hold **or toggle**, your choice) |
-| Space | Vault, rappel (on outside walls; W/S to climb), drone hop |
+| Space | Vault (smashes window glass or a barricade on the way through), rappel (attackers, facing an outside wall; on the rope W/S climb, A/D sidestep, C hang upside down, Space crash through the window beside you or let go), drone hop |
 | R · 1 · 2 · B · V | Reload · primary · secondary · fire mode · melee |
 | G | Secondary gadget (press again to detonate charges) |
 | X | Operator ability (Rhea: hold to detonate) |
@@ -158,8 +207,8 @@ match itself are not.
 
 `index.html` · `css/style.css` · `lib/three.min.js` (three.js r128) · `js/`:
 `util` (helpers, settings, key bindings) · `data` (materials, weapons, gadgets, operators) ·
-`world` (voxel storage, meshing, rays, destruction) · `maps` (map builder, 5 maps, range,
-spawn protection) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
+`world` (voxel storage, meshing, rays, destruction) · `maps` (map builder, 9 maps, range,
+attacker spawns and their cover) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `gadgets` · `nav` (pathfinding) · `ai` ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
 `range` (range and training) · `main` · online: `ui` (toasts, modals, top bar) · `auth`

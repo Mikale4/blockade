@@ -7,8 +7,25 @@
   GAD.tell = (a, x, c) => { if (window.NP) NP.tell(a, x, c); else if (a && a.isPlayer) HUD.toast(x, c); };
   GAD.tellTeam = (team, x, alarm) => { if (window.NP) NP.tellTeam(team, x, alarm); };
   const V = () => new THREE.Vector3();
-  const ELEC = new Set(['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach']);
-  const TRAPS = new Set(['snare', 'wire', 'sensor', 'c4', 'rcharge', 'dampener', 'scrambler', 'seeker', 'decoy', 'bpcam', 'cam']);
+  const ELEC = new Set(['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight']);
+  const TRAPS = new Set(['snare', 'wire', 'sensor', 'c4', 'rcharge', 'dampener', 'scrambler', 'seeker', 'decoy', 'bpcam', 'cam', 'floodlight']);
+  /* meshes for gadgets that models.js has no builder for (the season 2 and 3 kit); online
+     guests build theirs the same way, through GAD.mesh */
+  const EXTRA = {
+    floodlight: g => {
+      for (const [x, z] of [[-6, 4], [6, 4], [0, -6]]) g.box(x, 0, z, x, 30, z, 0x3a3f45);
+      g.box(-1, 28, -1, 1, 40, 1, 0x3a3f45);
+      g.box(-6, 40, -3, 6, 50, 3, 0x2a2c30); g.box(-5, 41, -4, 5, 49, -4, MD.glow(0xfff6c8));
+    },
+    foam: g => { g.box(-2, -2, -3, 2, 2, 3, 0x6a8f7a); g.box(-1, -1, -4, 1, 1, -4, 0xd9cf9e); },
+    irritant: g => { g.box(-2, -2, -2, 2, 3, 2, 0x8a7a2a); g.box(-1, 4, -1, 1, 4, 1, 0x333333); },
+  };
+  const extraGeo = new Map();
+  GAD.mesh = function (model) {
+    if (!EXTRA[model]) return MD.gadget(model);
+    if (!extraGeo.has(model)) { const g = new MD.Grid(); EXTRA[model](g); extraGeo.set(model, MD.mesh(g, 1 / 32)); }
+    return new THREE.Mesh(extraGeo.get(model), new THREE.MeshBasicMaterial({ vertexColors: true }));
+  };
 
   /* ===================================================================== base */
   class Ent {
@@ -21,7 +38,7 @@
       this.normal = o.normal ? o.normal.clone() : new THREE.Vector3(0, 1, 0);
       this.mesh = null; this.nid = ++GAD.nidc; this.model = o.model || type;
       if (o.model !== false) {
-        this.mesh = MD.gadget(o.model || type);
+        this.mesh = GAD.mesh(o.model || type);
         this.mesh.position.copy(this.pos);
         if (o.upright) this.mesh.rotation.y = o.yaw || 0;
         else if (this.normal.y > 0.7) { this.mesh.rotation.x = -Math.PI / 2; this.mesh.rotation.z = o.yaw || 0; }
@@ -300,6 +317,14 @@
       case 'spotter': { a.zoom4 = !a.zoom4; GAD.tell(a, a.zoom4 ? 'Scope 4.0x' : 'Scope 2.5x'); return true; }
       case 'scanner': { ab.on = !ab.on; a.busy = 0.2; SFX.ui(ab.on ? 1200 : 700); return true; }
       case 'smokegl': { if (!need()) return false; new Proj('smokegl', a, GAD.throwStart(a), a.fwd(V()).multiplyScalar(26).add(V().set(0, 1.5, 0)), { impact: true, onFuse: s => { s.destroy('used'); FX.smoke(s.pos.clone().addScaledVector(s.normal, 0.3), 4.2, 16); SFX.whoosh(s.pos); } }); SFX.whoosh(a.pos); return spend(); }
+      // ---- season 2 / 3 attackers
+      case 'foam': {
+        if (!need()) return false;
+        const yaw = a.yaw;
+        new Proj('foam', a, GAD.throwStart(a), GAD.throwVel(a, 14, 1.5), { impact: true, intercept: true, onFuse: s => { s.destroy('used'); GAD.foamWall(a, s.pos.clone().addScaledVector(s.normal, 0.3), yaw); } });
+        SFX.whoosh(a.pos); return spend();
+      }
+      case 'irritant': { if (!need()) return false; new Proj('irritant', a, GAD.throwStart(a), GAD.throwVel(a, 13), { impact: true, onFuse: s => { s.destroy('used'); new Irritant(a, s.pos.clone().addScaledVector(s.normal, 0.1)); } }); return spend(); }
       // ---- defenders
       case 'dampener': { if (!need()) return false; const h = GAD.aim(a, 2.2); if (!h || Math.abs(h.n.y) > 0.5) { GAD.tell(a, 'Mount the dampener on a wall'); return false; } new Device('dampener', a, h.p, h.n, { jamR: 2.5 }); return spend(); }
       case 'seeker': { if (!need()) return false; const p = GAD.floorAhead(a, 0.9); if (!p) return false; new Seeker(a, p); return spend(); }
@@ -322,6 +347,9 @@
         };
         a.placed.push(p); return spend();
       }
+      // ---- season 2 / 3 defenders
+      case 'patch': { if (!need()) return false; const n = GAD.patch(a); if (!n) { GAD.tell(a, 'Aim at a hole in a wall, floor or hatch'); return false; } return spend(); }
+      case 'floodlight': { if (!need()) return false; const p = GAD.floorAhead(a, 1.0); if (!p) return false; new Floodlight(a, p, a.yaw); return spend(); }
     }
     return false;
   };
@@ -471,6 +499,117 @@
         if (dx * dx + dz * dz < this.r * this.r && Math.abs(b.pos.y - this.pos.y) < 1.2) b.hurt(b.team === this.team ? 1 : 3, { src: this.owner, kind: 'fire' });
       }
       GAME.noise(this.pos, 10, this.owner, 'fire');
+    }
+  }
+  /* ------------------------------------------------ season 2 and 3 kit */
+  /* does an actor's body overlap voxel (x, y, z)? Foam never sets inside somebody */
+  function voxelHasActor(x, y, z) {
+    const x0 = x * 0.25, y0 = y * 0.25, z0 = z * 0.25;
+    for (const b of G.actors) {
+      if (b.state === 'dead') continue;
+      if (x0 + 0.25 > b.pos.x - 0.26 && x0 < b.pos.x + 0.26 && z0 + 0.25 > b.pos.z - 0.26 && z0 < b.pos.z + 0.26 && y0 + 0.25 > b.pos.y && y0 < b.pos.y + (b.h || 1.8)) return true;
+    }
+    return false;
+  }
+  /* Brace: a waist-high foam wall, 2 m wide and two voxels thick, square to the thrower */
+  GAD.foamWall = function (a, p, yaw) {
+    const W = G.world, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+    const alongX = Math.abs(fz) >= Math.abs(fx);
+    const cx = Math.floor(p.x * 4), cz = Math.floor(p.z * 4);
+    const gy = Math.floor(W.groundBelow(p.x, p.y + 0.3, p.z) * 4);
+    let n = 0;
+    for (let t = -4; t <= 3; t++) for (let k = 0; k <= 1; k++) for (let y = gy; y <= gy + 4; y++) {
+      const x = alongX ? cx + t : cx + k, z = alongX ? cz + k : cz + t;
+      if (W.get(x, y, z) || voxelHasActor(x, y, z)) continue;
+      // only where it can stand: on the floor or on foam already set
+      if (y > gy && !W.get(x, y - 1, z)) continue;
+      if (y === gy && !W.get(x, y - 1, z)) continue;
+      W.set(x, y, z, M.FOAM); n++;
+    }
+    FX.puff(V().set((cx + 0.5) / 4, gy / 4 + 0.6, (cz + 0.5) / 4), 1.6, 1.0, 0xd9cf9e);
+    SFX.whoosh(p); GAME.noise(p, 20, a, 'breach');
+    return n;
+  };
+  /* Seam: refill the breach under the crosshair. Anything that was a wall, floor or hatch when the
+     round began and has been blown, shot or melted away since is set again in foam */
+  GAD.patch = function (a) {
+    const W = G.world, orig = W.orig, v = W.v, e = a.eye(V()), f = a.fwd(V());
+    if (!orig) return 0;
+    const hit = W.raycast(e, f, 4.5), maxD = hit ? Math.min(4.5, hit.dist + 0.4) : 4.5;
+    const missing = (x, y, z) => {
+      if (x < 0 || z < 0 || y < 1 || x >= W.W || z >= W.D || y >= W.H) return false;
+      const i = W.idx(x, y, z), o = orig[i];
+      return o && !v[i] && MAT[o].xp && o !== M.GLASS && o !== M.LEAF;
+    };
+    const R = 6;
+    let best = null, bn = 0;
+    for (let s = 0.5; s <= maxD; s += 0.25) {
+      const c = e.clone().addScaledVector(f, s), cx = Math.floor(c.x * 4), cy = Math.floor(c.y * 4), cz = Math.floor(c.z * 4);
+      let n = 0;
+      for (let y = cy - R; y <= cy + R; y += 2) for (let z = cz - R; z <= cz + R; z += 2) for (let x = cx - R; x <= cx + R; x += 2) if (missing(x, y, z)) n++;
+      if (n > bn) { bn = n; best = [cx, cy, cz]; }
+    }
+    if (!best || bn < 2) return 0;
+    const [cx, cy, cz] = best;
+    let n = 0;
+    for (let y = cy - R; y <= cy + R; y++) for (let z = cz - R; z <= cz + R; z++) for (let x = cx - R; x <= cx + R; x++) {
+      if ((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2 > R * R + 1 || !missing(x, y, z) || voxelHasActor(x, y, z)) continue;
+      W.set(x, y, z, M.FOAM); if (++n >= 400) break;
+    }
+    if (!n) return 0;
+    const c = V().set((cx + 0.5) / 4, (cy + 0.5) / 4, (cz + 0.5) / 4);
+    FX.puff(c, 1.4, 1.0, 0xd9cf9e); SFX.whoosh(c); GAME.noise(c, 16, a, 'breach');
+    G.emit && G.emit('patch');
+    return n;
+  };
+  /* Haze: a stinging cloud. Doesn't block sight; defenders inside are hurt, cough, and get marked */
+  class Irritant extends Ent {
+    constructor(a, p) { super('irritant', a, p, { model: false, hp: 999, hitR: 0, melee: false }); this.r = 3.5; this.life = 12; this.tick = 0; this.blastproof = true; this.marked = new Map(); this.loop = SFX.loop('burn', p); }
+    update(dt) {
+      this.t += dt; if (this.t > this.life) { this.destroy('used'); return; }
+      GAD.hazeFx(this.pos, this.r, dt);
+      this.tick -= dt; if (this.tick > 0) return; this.tick = 0.5;
+      const c0 = this.pos.clone().add(V().set(0, 0.4, 0));
+      for (const b of G.actors) {
+        if (b.state !== 'alive' || b.team === this.team || b.hostage) continue;
+        const dx = b.pos.x - this.pos.x, dz = b.pos.z - this.pos.z;
+        if (dx * dx + dz * dz > this.r * this.r || Math.abs(b.pos.y - this.pos.y) > 1.8) continue;
+        if (!G.world.los(c0, b.center(V()))) continue;      // the haze doesn't seep through walls
+        b.hazeT = G.time;
+        b.hurt(1, { src: this.owner, kind: 'gas' });
+        if (G.time > (this.marked.get(b) || 0)) {
+          this.marked.set(b, G.time + 2);
+          GAME.mark(b, this.team, 2, true);
+          GAME.noise(b.pos, 16, b, 'step');              // coughing: anyone close hears it
+          SFX.step(b.pos, true, b.isPlayer);
+          if (b.isPlayer) HUD.flash(0.05); else if (b.net && window.NP) NP.push({ k: 'flash', to: b.net, s: 0.05 });
+        }
+      }
+    }
+  }
+  GAD.hazeFx = function (p, r, dt) {
+    if (Math.random() > dt * 7) return;
+    const q = p.clone().add(V().set((Math.random() - 0.5) * r * 1.6, Math.random() * 1.6, (Math.random() - 0.5) * r * 1.6));
+    FX.puff(q, 0.9, 1.4, 0xbcc46a);
+  };
+  /* Lumen: a tripod floodlight that dazzles attackers who look into its beam */
+  class Floodlight extends Ent {
+    constructor(a, p, yaw) { super('floodlight', a, p, { upright: true, yaw, hp: 100, hitR: 0.3 }); this.yaw = yaw; this.tick = 0; }
+    update(dt) {
+      this.t += dt;
+      if (this.disabled || GAD.jammed(this.pos, this.team, ['scrambler'])) return;
+      this.tick -= dt; if (this.tick > 0) return; this.tick = 0.1;
+      const lamp = this.pos.clone().add(V().set(0, 1.45, 0)), lf = V().set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+      for (const b of G.actors) {
+        if (b.state !== 'alive' || b.team === this.team || b.hostage) continue;
+        const e = b.eye(V()), d = U.dist3(e, lamp); if (d > 15) continue;
+        const toEye = e.clone().sub(lamp).normalize(); if (toEye.dot(lf) < 0.35) continue;   // outside the beam
+        const facing = toEye.clone().negate().dot(b.fwd(V())); if (facing < 0.55) continue;  // not looking at it
+        if (!G.world.los(lamp, e) || FX.smokeBlocks(lamp, e)) continue;
+        const k = Math.min(1, (1 - d / 15) * 1.4) * Math.min(1, (facing - 0.55) / 0.35);
+        b.blind = Math.max(b.blind, 0.35 * k); b.blindK = Math.max(b.blindK, 0.35 * k);
+        if (b.isPlayer) HUD.flash(0.05 + 0.15 * k); else if (b.net && window.NP) NP.push({ k: 'flash', to: b.net, s: 0.05 + 0.15 * k });
+      }
     }
   }
   function decoyStart(s, a) {
@@ -656,6 +795,7 @@
       case 'bpcam': { const c = new Cam(p, yaw || 0, -0.2, a.team, 'ARMORED CAM', true); c.owner = a; return c; }
       case 'claymore': return new Claymore(a, p, yaw || 0);
       case 'beacon': return new Beacon(a, p);
+      case 'floodlight': return new Floodlight(a, p, yaw || 0);
     }
     return null;
   };

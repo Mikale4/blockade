@@ -33,6 +33,7 @@ window.SFX_FILES = {
   'ring': [],             // the ringing after a stun
   'throw': [],
   'whoosh': [],           // vaults, rappels, smoke
+  'hook': [],             // a rappel hook catching the wall top
   'alarm': [],
   'ui': [],
   'round.start': [], 'round.win': [], 'round.lose': [],

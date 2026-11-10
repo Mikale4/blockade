@@ -46,6 +46,24 @@
       onReady: choice => { GAME.playerChoice = choice; if (GAME.net) NP.myPick(choice); else GAME.startRound(); },
     });
   };
+  /* defender spawn choices: the objective first, then up to three rooms elsewhere in the building
+     (the map's own list when it has one, otherwise the biggest room on each floor) */
+  GAME.defSpawnOptions = function (map) {
+    const out = [{ name: 'OBJECTIVE', rooms: null }];
+    const FL = ['B', '1F', '2F', '3F'];
+    let picks = (map.defSpawns || []).map(n => map.roomByName[n] && map.roomByName[n][0]).filter(Boolean);
+    if (!picks.length) {
+      const skip = /Stairs|Hall|Corridor|Landing|Balcony|Catwalk|Mezzanine|Gallery|Tunnel|Passage|Lanes/;
+      const levels = [...new Set(map.rooms.map(r => r.L))].sort();
+      for (const L of levels) {
+        const rs = map.rooms.filter(r => r.L === L && r.b === 0 && !skip.test(r.name));
+        rs.sort((p, q) => (q.x1 - q.x0) * (q.z1 - q.z0) - (p.x1 - p.x0) * (p.z1 - p.z0));
+        if (rs[0]) picks.push(rs[0]);
+      }
+    }
+    for (const r of picks.slice(0, 3)) out.push({ name: r.name.toUpperCase() + ' · ' + FL[r.L], rooms: [r] });
+    return out;
+  };
   GAME.startRound = function () {
     const ch = GAME.playerChoice, map = G.map;
     if (GAME.net) { G.mode = 'match'; MENU.hide(); HUD.show(true); }
@@ -98,7 +116,14 @@
       if (!ok) { const n = NAV.nearest(a.pos, 8); if (n >= 0) a.pos.copy(NAV.nodePos(n)); }
       const b = map.buildings[0]; a.yaw = U.yawTo(a.pos, V().set((b.x0 + b.x1) / 8, 0, (b.z0 + b.z1) / 8));
     });
-    defTeam.forEach(a => { const r = U.pick(GAME.siteRooms); const p = NAV.randomIn(r); a.pos.copy(p); a.yaw = Math.random() * 6.28; });
+    // defenders pick a spawn too: the objective, or one of the map's other defender rooms.
+    // Bots mostly start on the objective, and a few start elsewhere and rotate in.
+    const dsp = GAME.defSpawnOptions(map);
+    defTeam.forEach(a => {
+      const si = (a.isPlayer || a.net) && a.spawnPick != null ? a.spawnPick : (Math.random() < 0.7 ? 0 : U.rndi(0, dsp.length - 1));
+      const o = dsp[si] || dsp[0];
+      a.pos.copy(NAV.randomIn(U.pick(o.rooms || GAME.siteRooms))); a.yaw = Math.random() * 6.28;
+    });
     // ---- objective things
     if (GAME.mode === 'bomb' && atkTeam.length) { const c = U.pick(atkTeam); c.carry = 'defuser'; GAME.obj.carrier = c; }
     if (GAME.mode === 'secure') { const r = GAME.siteRooms[0]; GAME.obj.bio = new GAD.Biohazard(V().set(r.cx, r.fy, r.cz)); GAME.obj.prog = 0; GAME.obj.overtime = 0; }

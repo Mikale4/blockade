@@ -100,6 +100,17 @@
   mat('STUCCO', 0xc9b48a, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'noise', wall: true });
   mat('FACADE', 0xd5dbe0, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'siding', wall: true });
   mat('FELT', 0x2f6b45, {});
+  // Season 2: hardened foam (Brace's barrier walls, Seam's patches): stops a few bullets per
+  // voxel, explosives clear it, and it can be breached again like any soft surface
+  mat('FOAM', 0xd9cf9e, { hp: 6, pen: 0.3, xp: true, hb: true, pat: 'noise' });
+  // second map pack (appended, so every earlier id stays the same)
+  mat('MARBLE', 0xd8d2c6, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'block', wall: true });
+  mat('PLASTER', 0xe0dcd2, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'noise', wall: true });
+  mat('BONE', 0xe2d6b8, { hp: 3, pen: 0.8, xp: true, hb: true, melee: true });
+  mat('BRASS', 0xb38b3c, {});
+  mat('WATER', 0x24506a, { pat: 'noise' });
+  mat('PUDDLE', 0x353f4a, { pat: 'noise' });
+  mat('DOME', 0xc3c8ce, { pat: 'plates' });
   // a voxel id beyond the table means "outside the world": solid, never drawn
   const OOB = 255;
   // ...with a table entry of its own, so a lookup at the edge of the map reads "unbreakable"
@@ -150,6 +161,8 @@
     cinder:    { name: 'CINDER', full: 'Cinder Urban Demolition Brigade', color: '#e0782f', desc: 'Firefighters turned breachers. They open buildings for a living.' },
     tidebreak: { name: 'TIDEBREAK', full: 'Tidebreak Maritime Interdiction', color: '#2fb3a6', desc: 'Ship-boarding specialists who fight corridor to corridor.' },
     ironveil:  { name: 'IRONVEIL', full: 'Ironveil Border Rangers', color: '#b0523f', desc: 'SEASON 1 · Operation Cold Iron. A two-operator expansion squad.' },
+    driftline: { name: 'DRIFTLINE', full: 'Driftline Harbor Engineers', color: '#4f9a6e', desc: 'SEASON 2 · Operation Low Tide. Salvage and flood-control engineers who build cover and seal breaches in minutes.' },
+    meridian:  { name: 'MERIDIAN', full: 'Meridian Riot Response', color: '#d6b13a', desc: 'SEASON 3 · Operation Floodlight. Crowd-control specialists: light, haze and noise.' },
   };
 
   /* ----------------------------------------------------------- operators --
@@ -211,6 +224,16 @@
       ability: { id: 'smokegl', name: 'SMOKE LAUNCHER', count: 4, desc: 'An underbarrel launcher with four long-burning smoke canisters. Blocks sight lines and cameras around a plant.' },
       look: { head: 'beret', helmet: 0x6a2a24, vest: 0x5a5040, cloth: 0x6b604c, accent: 0xb0523f, skin: 0xd8a888, hair: 0x5a3a20 },
       bio: 'Season 1. A border ranger who believes the best cover is the cover you bring with you.' },
+    { id: 'brace', name: 'BRACE', real: 'Ilse Varnholt', side: 'atk', unit: 'driftline', role: 'Cover Builder', armor: 2, speed: 2, season: 2,
+      primaries: ['k77', 'torrent'], secondaries: ['p10', 'hornet'], gadgets: ['smoke', 'breach'],
+      ability: { id: 'foam', name: 'BARRIER FOAM', count: 3, desc: 'Fires a canister that sets into a waist-high foam wall, 2 m wide, where it lands. It stops bullets until it is shot apart; explosives clear it at once. Cover for a plant in an open room.' },
+      look: { head: 'cap', helmet: 0x2f5a44, vest: 0x3a4a3e, cloth: 0x45574a, accent: 0x7ce0a0, skin: 0xe0b896, hair: 0xc8a060 },
+      bio: 'Season 2. A flood-barrier engineer who has held back rivers with less than she carries now.' },
+    { id: 'haze', name: 'HAZE', real: 'Noemi Brandvold', side: 'atk', unit: 'meridian', role: 'Flush', armor: 2, speed: 2, season: 3,
+      primaries: ['vkr5', 'strider'], secondaries: ['p10', 'maul'], gadgets: ['frag', 'claymore'],
+      ability: { id: 'irritant', name: 'IRRITANT SHELLS', count: 3, desc: 'Lobs a canister that fills 3.5 m with a stinging haze for 12 s. It does not block sight, but defenders inside take steady damage, cough out loud and are revealed to your team every 2 s.' },
+      look: { head: 'gasmask', helmet: 0x5a4a1c, vest: 0x4a4430, cloth: 0x5a5238, accent: 0xd6b13a, skin: 0xc89070, hair: 0x2a1a10 },
+      bio: 'Season 3. Riot-control veteran. Haze would rather you walked out of that corner on your own.' },
     // ---------------- defenders
     { id: 'anvil', name: 'ANVIL', real: 'Gregor Sand', side: 'def', unit: 'tidebreak', role: 'Anti-Breach', armor: 3, speed: 1,
       primaries: ['torrent', 'tallow'], secondaries: ['p10', 'maul'], gadgets: ['wire', 'dshield'],
@@ -267,6 +290,16 @@
       ability: { id: 'decoy', name: 'DECOY EMITTER', count: 2, desc: 'Throws a speaker that fakes footsteps and gunfire for 20 s. Lark\'s own footsteps are near silent.' },
       look: { head: 'hood', helmet: 0x4a2a26, vest: 0x40382c, cloth: 0x50463a, accent: 0xb0523f, skin: 0xe8c4a4, hair: 0x6a3a1a },
       bio: 'Season 1. Border tracker who learned to walk on dry leaves without a sound.' },
+    { id: 'seam', name: 'SEAM', real: 'Tobiah Mensah', side: 'def', unit: 'driftline', role: 'Repair', armor: 2, speed: 2, season: 2,
+      primaries: ['strider', 'gale12'], secondaries: ['p10', 'maul'], gadgets: ['wire', 'dshield'],
+      ability: { id: 'patch', name: 'PATCH SPRAY', count: 4, desc: 'Sprays fast-setting sealant into the breach you are looking at, refilling a hole in a wall, floor or hatch up to about 3 m across. The patch is soft foam, so it can be broken open again.' },
+      look: { head: 'beanie', helmet: 0x2f5a44, vest: 0x34443a, cloth: 0x3d5044, accent: 0x7ce0a0, skin: 0x6e4a34, hair: 0x111111 },
+      bio: 'Season 2. Ship\'s damage-control chief. Every hole you make, Seam has already priced the repair.' },
+    { id: 'lumen', name: 'LUMEN', real: 'Rafael Quint', side: 'def', unit: 'meridian', role: 'Denial', armor: 1, speed: 3, season: 3,
+      primaries: ['salvo9', 'torrent'], secondaries: ['p10', 'hornet'], gadgets: ['c4', 'wire'],
+      ability: { id: 'floodlight', name: 'FLOODLIGHT', count: 2, desc: 'A tripod floodlight. Attackers within 15 m who look into its beam are dazzled: a white glare and shaky aim. Two or three bullets break it; explosives and surges kill it.' },
+      look: { head: 'visor', helmet: 0x6a5a20, vest: 0x3d3a30, cloth: 0x4a4636, accent: 0xfff27a, skin: 0xd8a888, hair: 0x5a3a20 },
+      bio: 'Season 3. Stadium lighting rigger turned riot officer. Lumen picks where you are allowed to look.' },
   ];
   const OPMAP = {}; OPS.forEach(o => OPMAP[o.id] = o);
 

@@ -99,7 +99,12 @@
     return cached('g3:' + wid, () => {
       const g = new Grid(), W = DATA.WEAPONS[wid], dark = 0x222428, poly = 0x34373c;
       const t = W ? W.type : 'AR';
-      if (t === 'SHIELD') { g.box(-5, -12, 0, 5, 10, 0, 0x2c3540); g.box(-4, 2, -1, 4, 3, -1, glow(0x9ad8ff)); g.box(-5, -12, 1, 5, -12, 1, 0x15171a); return mesh(g, S, 0.03); }
+      if (t === 'SHIELD') {
+        // 0.69 x 1.38 m plate with a dark viewport band at eye height (matches WPN.shieldRect)
+        g.box(-5, -11, 0, 5, 10, 0, 0x2c3540); g.box(-5, -11, 1, 5, -11, 1, 0x15171a); g.box(-5, 10, 1, 5, 10, 1, 0x15171a);
+        g.box(-3, 5, -1, 3, 7, -1, 0x15181c); g.box(-2, 6, -1, 2, 6, -1, glow(0x7ab8d8));
+        return mesh(g, S, 0.03);
+      }
       if (t === 'PISTOL' || t === 'MP') { g.box(0, 0, -5, 0, 1, 0, dark); g.box(0, -3, -1, 0, -1, 0, poly); return mesh(g, S); }
       const len = t === 'DMR' ? 14 : t === 'SMG' ? 9 : t === 'LMG' ? 13 : t === 'SG' ? 12 : 11;
       g.box(0, 0, -len, 0, 1, 4, dark); g.box(0, -2, -2, 0, -1, -1, poly);
@@ -147,8 +152,26 @@
   }
   function addShield(rig) {
     const g = part(gunGeo3P('shield'), rig.mat);
-    const p = new THREE.Group(); p.add(g); p.position.set(-3 * S, -2 * S, -9 * S);
+    const p = new THREE.Group(); p.add(g); p.position.set(-1 * S, -4 * S, -6 * S);
     rig.aim.add(p); rig.shield = p; return p;
+  }
+
+  /* first-person shield: an opaque frame with a viewport cut through it, and the glass that fills the
+     viewport as a separate see-through pane. Model faces -Z; +Z is toward the camera. Units are 1/48 m. */
+  function viewShield(op) {
+    return cached('vshield:' + (op ? op.id : ''), () => {
+      const g = new Grid(), plate = 0x3a4450, edge = 0x252c34, rim = 0x14171b, glove = 0x2a2622, sleeve = op ? op.look.cloth : 0x444444;
+      g.box(-12, -30, 0, 12, 19, 1, plate);
+      g.box(-12, -30, 0, -12, 19, 1, edge); g.box(12, -30, 0, 12, 19, 1, edge); g.box(-12, 19, 0, 12, 19, 1, edge); g.box(-12, -30, 0, 12, -30, 1, edge);
+      for (const y of [-22, -10, 2]) { g.set(-9, y, -1, edge); g.set(9, y, -1, edge); }
+      // viewport: a dark rim, then the hole the glass sits in
+      g.box(-9, 5, -1, 9, 15, 1, rim); g.cut(-8, 6, -1, 8, 14, 1);
+      // grip and forearm behind the plate
+      g.box(-2, -8, 2, 2, -4, 5, glove); g.box(-2, -8, 6, 2, -4, 16, sleeve);
+      const frame = mesh(g, VS1, 0.03);
+      const glass = new THREE.PlaneGeometry(17 * VS1, 9 * VS1); glass.translate(0, 10 * VS1, 0.5 * VS1);
+      return { frame, glass };
+    });
   }
 
   /* hostage: a civilian */
@@ -259,5 +282,5 @@
   /* a voxel cube instance geometry for debris */
   function cubeGeo() { return cached('cube', () => { const g = new Grid(); g.set(0, 0, 0, 0xffffff); return mesh(g, 1, 0); }); }
 
-  window.MD = { Grid, mesh, glow, operator, setRigGun, addShield, viewGun, viewArms, gadget, drone, cubeGeo, HOSTAGE_OP, S };
+  window.MD = { Grid, mesh, glow, operator, setRigGun, addShield, viewGun, viewShield, viewArms, gadget, drone, cubeGeo, HOSTAGE_OP, S };
 })();

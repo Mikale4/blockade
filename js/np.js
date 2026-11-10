@@ -192,6 +192,8 @@
       case 'undrone': { const dr = G.ents.find(e => e.nid === a.netDrone); if (dr) { dr.pilot = null; dr.mf = dr.mr = 0; } a.netDrone = 0; break; }
       case 'zap': { const dr = G.ents.find(e => e.nid === a.netDrone && e.alive); if (dr) dr.zap(); break; }
       case 'ping': { const t = NP.byId.get(d.aid); if (t && t.team !== a.team && t.state !== 'dead') GAME.mark(t, a.team, Math.min(6, +d.dur || 5), true); break; }
+      // a guest crashed or vaulted through a window: break it here too, so everyone sees it open
+      case 'smash': { const op = G.map.openings[d.w | 0]; if (op && op.kind === 'window' && op.ext && a.side === 'atk') Actor.smashWindow(op, a); break; }
     }
   }
   /* --- snapshots */
@@ -253,7 +255,7 @@
       this.look = { yaw: 0, pitch: 0 }; this.used = new Set(); this.uses = 4; this.yaw = 0; this.pitch = 0;
       this.elec = ['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach'].includes(this.type);
       if (this.type === 'drone') this.mesh = MD.drone(r[10] && r[10].sg ? 0xb07cff : 0x5ad8ff);
-      else if (this.type !== 'fire') this.mesh = MD.gadget(r[9]);
+      else if (this.type !== 'fire' && this.type !== 'irritant') this.mesh = GAD.mesh(r[9]);
       if (this.mesh) { this.mesh.position.copy(this.pos); G.scene.add(this.mesh); }
       this.set(r, true);
     }
@@ -275,6 +277,7 @@
       this.pos.lerp(this.tpos, Math.min(1, dt * 14));
       if (this.mesh) this.mesh.position.copy(this.pos);
       if (this.type === 'fire') FX.flames(this.pos, this.r || 2.5, 3);
+      if (this.type === 'irritant') GAD.hazeFx(this.pos, 3.5, dt);
     }
     eye() { return this.pos.clone().add(V(0, 0.12, 0)); }
     fwd() { const cp = Math.cos(this.pitch); return V(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp); }

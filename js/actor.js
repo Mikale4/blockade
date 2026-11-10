@@ -76,7 +76,23 @@
       this.rig.root.userData.actor = this;
     }
     addTo(scene) { if (this.rig) scene.add(this.rig.root); }
-    removeFrom(scene) { if (this.rig) scene.remove(this.rig.root); }
+    removeFrom(scene) { if (this.rig) scene.remove(this.rig.root); if (this.ropeMesh) { scene.remove(this.ropeMesh); this.ropeMesh = null; } }
+    /* the rappel rope: a cord from the hook over the wall top down to the harness, drawn in the
+       world so you see it in first person too (it hangs just in front of you, a little to the left) */
+    updateRope() {
+      const r = this.rappel, show = !!r && this.state !== 'dead';
+      if (!show) { if (this.ropeMesh) this.ropeMesh.visible = false; return; }
+      if (!this.ropeMesh) {
+        this.ropeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.022, 1, 0.022), new THREE.MeshBasicMaterial({ color: 0x4a3f30 }));
+        G.scene.add(this.ropeMesh);
+      }
+      const p = this.pos, tx = r.ax === 'x' ? r.s : 0, tz = r.ax === 'z' ? r.s : 0, lx = tz, lz = -tx;   // toward the wall, and to its left
+      if (r.top == null) r.top = Actor.wallTop(p.x + tx * 0.5, p.y, p.z + tz * 0.5);   // a rope seen over the network
+      const x = p.x + tx * 0.3 + lx * 0.1, z = p.z + tz * 0.3 + lz * 0.1;
+      const y0 = p.y + (r.inv ? STAND - 0.45 : 1.0), y1 = Math.max(y0 + 0.1, r.top + 0.12);
+      this.ropeMesh.visible = true;
+      this.ropeMesh.position.set(x, (y0 + y1) / 2, z); this.ropeMesh.scale.set(1, y1 - y0, 1);
+    }
 
     /* ---------------------------------------------------------------- geometry */
     fwd(out) { out = out || new THREE.Vector3(); const cp = Math.cos(this.pitch); return out.set(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp); }
@@ -85,6 +101,8 @@
       out = out || new THREE.Vector3();
       out.set(this.pos.x, this.pos.y + this.eyeH, this.pos.z);
       if (this.lean) { const k = this.lean * (this.stance === 2 ? 0.15 : 0.38); out.x += Math.cos(this.yaw) * k; out.z -= Math.sin(this.yaw) * k; out.y -= Math.abs(this.lean) * 0.08; }
+      // aiming with a shield: the head moves out past the shield's right edge to line up the sidearm
+      if (this.shieldOp && this.shieldUp && this.ads > 0) { const k = this.ads * 0.1; out.x += Math.cos(this.yaw) * k; out.z -= Math.sin(this.yaw) * k; }
       return out;
     }
     center(out) { out = out || new THREE.Vector3(); return out.set(this.pos.x, this.pos.y + this.h * 0.6, this.pos.z); }
@@ -101,6 +119,16 @@
         return out;
       }
       const e = this.eye(U.v1), h = this.h;
+      if (this.rappel && this.rappel.inv) {
+        // hanging upside down: head at the bottom, legs up the rope
+        out.push([e.x, e.y - 0.03, e.z, 0.14, 'head']);
+        out.push([p.x, p.y + h * 0.3, p.z, 0.24, 'body']);
+        out.push([p.x, p.y + h * 0.45, p.z, 0.25, 'body']);
+        out.push([p.x, p.y + h * 0.6, p.z, 0.22, 'body']);
+        out.push([p.x, p.y + h * 0.76, p.z, 0.2, 'limb']);
+        out.push([p.x, p.y + h * 0.92, p.z, 0.19, 'limb']);
+        return out;
+      }
       const lx = (e.x - p.x) * 0.6, lz = (e.z - p.z) * 0.6;
       out.push([e.x, e.y + 0.03, e.z, 0.14, 'head']);
       out.push([p.x + lx, p.y + h * 0.72, p.z + lz, 0.24, 'body']);
@@ -108,6 +136,11 @@
       out.push([p.x, p.y + h * 0.42, p.z, 0.22, 'body']);
       out.push([p.x, p.y + h * 0.25, p.z, 0.2, 'limb']);
       out.push([p.x, p.y + h * 0.09, p.z, 0.19, 'limb']);
+      // aiming past a shield exposes the gun arm beside its edge
+      if (this.shieldOp && this.shieldUp && this.ads > 0.3) {
+        const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw), rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+        out.push([e.x + rx * 0.13 + fx * 0.32, e.y - 0.14, e.z + rz * 0.13 + fz * 0.32, 0.08, 'limb']);
+      }
       return out;
     }
     /* ray vs hit spheres -> {t, part} | null */
@@ -133,7 +166,21 @@
       if (this.state !== 'alive' || this.rappel) return;
       if (s < this.stance && !this.canStand(s === 0 ? STAND : CROUCH)) return;
       if (this.carry && this.carry.hostage && s === 2) return;
+      if (s === 2 && this.shieldOp && this.shieldUp) return;   // nobody goes prone behind a full-height shield
       this.stance = s;
+    }
+    /* a bot holding a shield in a fight keeps it squared up instead of sprinting with it aside */
+    shieldBrace() {
+      return this.isBot && this.shieldOp && this.shieldUp && !!this.bot && (!!this.bot.target || G.time - this.lastHurt < 3);
+    }
+    /* shield pose timers: shSide 0..1 = how far it has swung to the flank (sprinting), shBash = bash in progress */
+    shieldTick(dt) {
+      if (!this.shieldOp) return;
+      const remoteView = GAME.client && !this.isPlayer;   // a guest only sees other people's speed, not their sprint key
+      const run = this.shieldUp && this.state === 'alive' && this.stance === 0 && this.moving > 3.4 && this.ads < 0.3
+        && (remoteView || (this.sprint && this.mf > 0.3 && !this.shieldBrace()));
+      this.shSide = U.clamp((this.shSide || 0) + (run ? dt : -dt) / 0.2, 0, 1);
+      this.shBash = Math.max(0, (this.shBash || 0) - dt);
     }
     blocked(x, y, z, h) { return G.world.boxHits(x - RAD, y, z - RAD, x + RAD, y + h, z + RAD) || this.entBlock(x, y, z, h) || this.prepFenced(x, y, z); }
     /* preparation phase: defenders can't leave the building (doors, windows, vaults, the roof).
@@ -157,11 +204,11 @@
       return false;
     }
     speedNow() {
-      let v = this.sprint && this.mf > 0.3 && this.stance === 0 && this.ads < 0.3 && !this.carry ? this.spd.run : this.spd.walk;
+      let v = this.sprint && this.mf > 0.3 && this.stance === 0 && this.ads < 0.3 && !this.carry && !this.shieldBrace() ? this.spd.run : this.spd.walk;
       v *= [1, 0.55, 0.25][this.stance];
       v *= 1 - this.ads * 0.38;
       const w = this.wpn; if (w) v *= w.def.mob || 1;
-      if (this.shieldOp && this.shieldUp) v *= 0.92;
+      if (this.shieldOp && this.shieldUp) v *= 0.92 * (1 - this.ads * 0.2);   // and slower still while aiming past it
       if (this.slow > 0) v *= 0.38;
       if (this.stun > 0) v *= 0.6;
       if (this.carry && this.carry.hostage) v *= 0.85;
@@ -268,7 +315,8 @@
         }
       }
     }
-    /* vault over a low obstacle or through a window */
+    /* vault over a low obstacle or through a window. A window still filled with glass or a
+       barricade gets smashed on the way through instead of stopping you. */
     tryVault() {
       if (this.state !== 'alive' || this.vault || this.carry && this.carry.hostage) return false;
       const W = G.world, f = this.fwd(U.v1); f.y = 0; f.normalize();
@@ -279,15 +327,22 @@
         if (!W.boxHits(fx - 0.1, p.y + 0.3, fz - 0.1, fx + 0.1, p.y + 1.3, fz + 0.1)) continue;
         // find obstacle top (<= 1.4m)
         for (let top = 0.25; top <= 1.5; top += 0.25) {
+          let smash = null;
           const clear = !W.boxHits(fx - 0.12, p.y + top, fz - 0.12, fx + 0.12, p.y + top + 0.55, fz + 0.12);
-          if (!clear) continue;
+          if (!clear) {
+            // only window glass or a barricade in the way, inside a real window? break it and go through
+            const op = Actor.windowAt(fx, p.y + top + 0.3, fz, 0.45);
+            if (!op || !Actor.fillOnly(fx - 0.12, p.y + top, fz - 0.12, fx + 0.12, p.y + top + 0.55, fz + 0.12) || Actor.windowState(op).state === 'blocked') continue;
+            smash = op;
+          }
           // land on the far side
           for (let land = reach + 0.6; land <= reach + 1.6; land += 0.25) {
             const lx = p.x + f.x * land, lz = p.z + f.z * land;
             for (let dy = top; dy >= -1.6; dy -= 0.25) {
               const ly = p.y + dy;
               if (!this.blocked(lx, ly, lz, CROUCH) && this.blocked(lx, ly - 0.25, lz, 0.2)) {
-                this.vault = { t: 0, dur: 0.55, from: p.clone(), to: new THREE.Vector3(lx, ly, lz), top: p.y + top + 0.1 };
+                if (smash) Actor.smashWindow(smash, this);
+                this.vault = { t: 0, dur: smash ? 0.65 : 0.55, from: p.clone(), to: new THREE.Vector3(lx, ly, lz), top: p.y + top + 0.1 };
                 SFX.whoosh(p); G.emit('vault'); return true;
               }
             }
@@ -298,33 +353,185 @@
       }
       return false;
     }
+    /* for bots: vault (smashing the glass or barricade first if need be) through the window or
+       low obstacle straight ahead. Same as pressing vault. */
+    vaultWindow() { return this.tryVault(); }
     doVault(dt) {
       const v = this.vault; v.t += dt;
       const k = Math.min(1, v.t / v.dur), e = k * k * (3 - 2 * k);
       this.pos.lerpVectors(v.from, v.to, e);
-      this.pos.y = Math.max(this.pos.y, U.lerp(v.from.y, v.top, Math.sin(k * Math.PI)) );
+      // an arc from start to landing that peaks at v.top (also right for a crash that drops to a lower floor)
+      this.pos.y = U.lerp(v.from.y, v.to.y, e) + Math.sin(k * Math.PI) * Math.max(0, v.top - Math.max(v.from.y, v.to.y));
       this.h = U.smooth(this.h, CROUCH, 15, dt); this.eyeH = this.h - 0.15;
-      if (k >= 1) { this.vault = null; this.vel.set(0, 0, 0); }
+      if (k >= 1) { this.vault = null; this.vel.set(0, 0, 0); if (v.crash) { this.stance = 1; this.h = CROUCH; } }
     }
-    /* rappel: hang on an exterior wall you are facing */
-    tryRappel() {
-      if (this.state !== 'alive' || this.side !== 'atk' || this.carry || !G.map || !G.world.outdoor(this.pos)) return false;
+
+    /* ---------------------------------------------------------------- windows
+       A window is a map opening { kind:'window', axis, line, a0, a1, y0, y1, ext, nrm }: its wall
+       is the voxel plane `line` on `axis`, it spans a0..a1 along the other axis and y0..y1 up.
+       nrm points outward for an exterior window. */
+    static winGeom(op) {
+      const V = 0.25;
+      return { wall: (op.line + 0.5) * V, s0: op.a0 * V, s1: (op.a1 + 1) * V, y0: op.y0 * V, y1: (op.y1 + 1) * V,
+        perp: p => (op.axis === 'x' ? p.x : p.z), lat: p => (op.axis === 'x' ? p.z : p.x) };
+    }
+    /* the window whose opening contains world point (x, y, z), give or take `tol` metres off its wall plane */
+    static windowAt(x, y, z, tol) {
+      if (!G.map || !G.map.openings) return null;
+      const P = { x, z };
+      for (const op of G.map.openings) {
+        if (op.kind !== 'window') continue;
+        const g = Actor.winGeom(op), d = g.perp(P) - g.wall, l = g.lat(P);
+        if (Math.abs(d) <= (tol || 0.3) && l >= g.s0 && l <= g.s1 && y >= g.y0 - 0.1 && y <= g.y1 + 0.1) return op;
+      }
+      return null;
+    }
+    /* true if every solid voxel in the box is window glass or a barricade */
+    static fillOnly(x0, y0, z0, x1, y1, z1) {
+      const W = G.world;
+      for (let y = Math.floor(y0 * 4); y <= Math.floor(y1 * 4); y++) for (let z = Math.floor(z0 * 4); z <= Math.floor(z1 * 4); z++) for (let x = Math.floor(x0 * 4); x <= Math.floor(x1 * 4); x++) {
+        const m = W.get(x, y, z);
+        if (m && m !== M.GLASS && m !== M.BARR) return false;
+      }
+      return true;
+    }
+    /* what fills a window: 'open', 'fill' (glass and/or a barricade to smash) or 'blocked'
+       (reinforced, rubble, a bunker plate or deployable cover across it) */
+    static windowState(op) {
+      const W = G.world, g = Actor.winGeom(op);
+      let fill = 0, glass = 0, barr = 0, blocked = 0;
+      for (let a = op.a0; a <= op.a1; a++) for (let y = op.y0; y <= op.y1; y++) {
+        const m = op.axis === 'x' ? W.get(op.line, y, a) : W.get(a, y, op.line);
+        if (!m) continue;
+        if (m === M.GLASS) { glass++; fill++; } else if (m === M.BARR) { barr++; fill++; } else blocked++;
+      }
+      // gadgets standing in the opening (bunker plates, deployable cover)
+      const ax = op.axis === 'x';
+      for (const e of G.ents) if (e.alive && e.solid) {
+        const b = e.solid, lo = ax ? b.z0 : b.x0, hi = ax ? b.z1 : b.x1, pl = ax ? [b.x0, b.x1] : [b.z0, b.z1];
+        if (hi > g.s0 + 0.1 && lo < g.s1 - 0.1 && b.y1 > g.y0 && b.y0 < g.y1 && pl[1] > g.wall - 0.5 && pl[0] < g.wall + 0.5) blocked++;
+      }
+      return { state: blocked ? 'blocked' : fill ? 'fill' : 'open', glass, barr };
+    }
+    /* the top of the wall column at (x, z) above height y, in metres (the rope's hook point) */
+    static wallTop(x, y, z) {
+      const W = G.world, wx = Math.floor(x * 4), wz = Math.floor(z * 4), y0 = Math.floor(y * 4);
+      for (let ty = W.H - 1; ty > y0; ty--) if (W.get(wx, ty, wz)) return (ty + 1) * 0.25;
+      return y + 2;
+    }
+    /* for bots: how to get in through exterior window `op` from outside.
+       stand: the ground spot outside, square to the window, 0.45 m off the wall (walk here first)
+       wallPoint: the wall face in front of it (hand to rappelAt, or face it and vaultWindow)
+       ground: true when the sill is low enough to vault from the ground (a 1F window)
+       Then on the rope: climb (mf = 1) until ropeWindow() === op, and call crashWindow(). */
+    static windowApproach(op) {
+      if (!op || op.kind !== 'window' || !op.ext) return null;
+      const g = Actor.winGeom(op), mid = (g.s0 + g.s1) / 2, gy = (MAPS.GY + 1) * 0.25;
+      const at = (d, y) => op.axis === 'x' ? new THREE.Vector3(g.wall + op.nrm * d, y, mid) : new THREE.Vector3(mid, y, g.wall + op.nrm * d);
+      return { stand: at(0.45, gy), wallPoint: at(0.13, gy), ground: g.y0 - gy <= 1.3, sill: g.y0 };
+    }
+    /* break the glass and barricade out of a window, loudly */
+    static smashWindow(op, by) {
+      const W = G.world, g = Actor.winGeom(op), st = Actor.windowState(op);
+      const mid = (g.s0 + g.s1) / 2, c = op.axis === 'x' ? new THREE.Vector3(g.wall, (g.y0 + g.y1) / 2, mid) : new THREE.Vector3(mid, (g.y0 + g.y1) / 2, g.wall);
+      for (let a = op.a0; a <= op.a1; a++) for (let y = op.y0; y <= op.y1; y++) {
+        const x = op.axis === 'x' ? op.line : a, z = op.axis === 'x' ? a : op.line, m = W.get(x, y, z);
+        if (m === M.GLASS || m === M.BARR) W.breakVoxel(x, y, z);
+      }
+      if (st.glass) SFX.glass(c);
+      if (st.barr) SFX.wood(c, true);
+      SFX.melee(c);
+      GAME.noise(c, 40, by, 'breach');
+      // an online guest asks the host to break it for everyone
+      if (GAME.client && by === G.player && window.NP) NP.act('smash', { w: G.map.openings.indexOf(op) });
+      return st;
+    }
+
+    /* rappel: hang on an exterior wall you are facing. Attackers only. */
+    rappelProbe() {
+      // (the defuser rides along on the rope; an escorted hostage can't)
+      // outside the building (an awning or a sign overhead doesn't matter)
+      if (this.state !== 'alive' || this.side !== 'atk' || (this.carry && this.carry.hostage) || this.rappel || this.vault || !G.map || Actor.indoors(this.pos.x, this.pos.y, this.pos.z)) return null;
       const f = this.fwd(U.v1); f.y = 0; f.normalize();
       // snap to the dominant axis
       const ax = Math.abs(f.x) > Math.abs(f.z) ? 'x' : 'z', s = ax === 'x' ? Math.sign(f.x) : Math.sign(f.z);
       const W = G.world, p = this.pos;
-      const probe = new THREE.Vector3(p.x + (ax === 'x' ? s * 0.5 : 0), p.y + 1.2, p.z + (ax === 'z' ? s * 0.5 : 0));
-      const m = W.get(Math.floor(probe.x * 4), Math.floor(probe.y * 4), Math.floor(probe.z * 4));
-      if (!m || m === DATA.OOB || !(MAT[m].wall || m === M.CONC_DARK || m === M.CONCRETE || MAT[m].reinf || m === M.GLASS || m === M.BARR)) return false;
-      this.rappel = { ax, s };
+      const px = p.x + (ax === 'x' ? s * 0.5 : 0), pz = p.z + (ax === 'z' ? s * 0.5 : 0);
+      // an outside wall in front, at chest height or above a doorway
+      const hookable = h => { const m = W.get(Math.floor(px * 4), Math.floor((p.y + h) * 4), Math.floor(pz * 4)); return m && m !== DATA.OOB && (MAT[m].wall || m === M.CONC_DARK || m === M.CONCRETE || MAT[m].reinf || m === M.GLASS || m === M.BARR); };
+      if (!hookable(1.2) && !hookable(2.6)) return null;
+      // and it has to be a building's outside wall, not a container, a truck or a cover wall
+      if (!G.map.buildings.some(b => px * 4 >= b.x0 - 1 && px * 4 <= b.x1 + 2 && pz * 4 >= b.z0 - 1 && pz * 4 <= b.z1 + 2)) return null;
+      return { ax, s };
+    }
+    tryRappel() {
+      const pr = this.rappelProbe(); if (!pr) return false;
+      const { ax, s } = pr, p = this.pos, W = G.world;
+      // the rope hooks over the top of this wall
+      this.rappel = { ax, s, inv: false, top: Actor.wallTop(p.x + (ax === 'x' ? s * 0.5 : 0), p.y, p.z + (ax === 'z' ? s * 0.5 : 0)) };
       this.yaw = ax === 'x' ? (s > 0 ? -Math.PI / 2 : Math.PI / 2) : (s > 0 ? Math.PI : 0);
-      this.vel.set(0, 0, 0); this.stance = 0;
-      SFX.whoosh(p);
+      this.vel.set(0, 0, 0); this.stance = 0; this.leanT = 0;
+      SFX.hook(p); GAME.noise(p, 10, this, 'step');
+      return true;
+    }
+    /* for bots: turn to face the outside wall at `wallPoint` (or just beyond it) and hook on */
+    rappelAt(wallPoint) {
+      if (!wallPoint) return false;
+      const dx = wallPoint.x - this.pos.x, dz = wallPoint.z - this.pos.z;
+      if (dx * dx + dz * dz > 2.5 * 2.5) return false;
+      this.yaw = Math.atan2(-dx, -dz); this.pitch = 0;
+      return this.tryRappel();
+    }
+    /* hang upside down on the rope (head at the bottom) to peek into a window from above, or turn back */
+    ropeInvert() {
+      const r = this.rappel; if (!r || this.state !== 'alive') return false;
+      r.inv = !r.inv; SFX.whoosh(this.pos);
+      return true;
+    }
+    /* drop off the rope */
+    ropeLetGo() { if (!this.rappel) return false; this.rappel = null; return true; }
+    /* the exterior window right beside you on the rope that you could crash through now, or null */
+    ropeWindow() {
+      const r = this.rappel; if (!r || !G.map) return null;
+      const p = this.pos;
+      for (const op of G.map.openings) {
+        if (op.kind !== 'window' || !op.ext || op.axis !== r.ax || op.nrm !== -r.s) continue;
+        const g = Actor.winGeom(op), d = (g.perp(p) - g.wall) * op.nrm, l = g.lat(p);
+        if (d < 0 || d > 1.0 || l < g.s0 + 0.05 || l > g.s1 - 0.05) continue;
+        if (p.y < g.y0 - 1.15 || p.y > g.y0 + 0.6) continue;
+        return op;
+      }
+      return null;
+    }
+    /* crash feet-first through the window beside you on the rope: smashes its glass or barricade,
+       lands you inside crouched, and makes a racket. False (with this.crashFail saying why) when
+       there's no window here, it's reinforced or blocked, or there's no floor to land on. */
+    crashWindow() {
+      this.crashFail = '';
+      const op = this.ropeWindow(); if (!op || this.state !== 'alive') { this.crashFail = 'NO WINDOW HERE'; return false; }
+      const st = Actor.windowState(op);
+      if (st.state === 'blocked') { this.crashFail = 'WINDOW IS REINFORCED OR BLOCKED'; return false; }
+      const g = Actor.winGeom(op), fy = (op.L * 12 + 1) * 0.25, p = this.pos;
+      // land straight in from where you hang if there's room, else anywhere across the window's width
+      const lo = g.s0 + RAD + 0.02, hi = g.s1 - RAD - 0.02, l0 = U.clamp(g.lat(p), lo, hi);
+      const lats = [l0, (lo + hi) / 2, lo, hi, (l0 + lo) / 2, (l0 + hi) / 2];
+      // (a window over a two-storey hall drops you to the floor below it)
+      let land = null;
+      for (let drop = 0; drop <= 3.5 && !land; drop += 0.25) for (let depth = 0.6; depth <= 1.8 && !land; depth += 0.2) for (const l of lats) {
+        const w = g.wall - op.nrm * depth, lx = op.axis === 'x' ? w : l, lz = op.axis === 'x' ? l : w, ly = fy - drop;
+        if (!this.blocked(lx, ly, lz, CROUCH) && this.blocked(lx, ly - 0.25, lz, 0.2) && (!drop || !this.blocked(lx, fy, lz, CROUCH))) { land = new THREE.Vector3(lx, ly, lz); break; }
+      }
+      if (!land) { this.crashFail = 'NO ROOM TO LAND'; return false; }
+      Actor.smashWindow(op, this);
+      this.rappel = null;
+      this.vault = { t: 0, dur: 0.5, from: p.clone(), to: land, top: Math.max(p.y, fy) + 0.25, crash: true };
+      this.trigger = false; this.ads = 0;
+      SFX.whoosh(p); G.emit('crash');
       return true;
     }
     doRappel(dt) {
       const r = this.rappel, p = this.pos, W = G.world;
-      this.h = STAND; this.eyeH = STAND - 0.15;
+      this.h = STAND; this.eyeH = r.inv ? 0.3 : STAND - 0.15;
       const up = this.mf * 2.2, side = this.mr * 1.6;
       const sx = r.ax === 'x' ? 0 : (r.s > 0 ? -1 : 1), sz = r.ax === 'z' ? 0 : (r.s > 0 ? 1 : -1);
       // move sideways along wall
@@ -332,13 +539,18 @@
       if (!this.blocked(nx, p.y, nz, this.h)) { p.x = nx; p.z = nz; }
       const ny = p.y + up * dt;
       if (up < 0 && this.blocked(p.x, ny, p.z, 0.05)) { this.rappel = null; return; }
-      if (!this.blocked(p.x, ny, p.z, this.h)) p.y = ny;
+      // upside down you can't climb past the hook
+      // (and nobody climbs past the hook into thin air)
+      const capped = up > 0 && r.top != null && (r.inv ? ny + STAND > r.top + 0.1 : ny > r.top + 0.3);
+      if (!this.blocked(p.x, ny, p.z, this.h) && !capped) p.y = ny;
       // climbed above the wall top: step onto the roof
       const wx = p.x + (r.ax === 'x' ? r.s * 0.5 : 0), wz = p.z + (r.ax === 'z' ? r.s * 0.5 : 0);
       const wallTop = W.boxHits(wx - 0.1, p.y + 0.2, wz - 0.1, wx + 0.1, p.y + 0.6, wz + 0.1);
-      if (!wallTop && up > 0) {
+      // (only up at the hook: climbing past a doorway or an open window doesn't tip you in through it)
+      if (!wallTop && up > 0 && !r.inv && (r.top == null || p.y > r.top - 1.2)) {
         const tx = p.x + (r.ax === 'x' ? r.s * 0.9 : 0), tz = p.z + (r.ax === 'z' ? r.s * 0.9 : 0);
-        for (let dy = 0; dy <= 1.2; dy += 0.25) if (!this.blocked(tx, p.y + dy, tz, CROUCH) && this.blocked(tx, p.y + dy - 0.25, tz, 0.2)) {
+        // the roof can sit a little below your feet once they clear a parapet
+        for (let dy = -0.75; dy <= 1.2; dy += 0.25) if (!this.blocked(tx, p.y + dy, tz, CROUCH) && this.blocked(tx, p.y + dy - 0.25, tz, 0.2)) {
           this.vault = { t: 0, dur: 0.6, from: p.clone(), to: new THREE.Vector3(tx, p.y + dy, tz), top: p.y + dy + 0.2 }; this.rappel = null; return;
         }
       }
@@ -405,6 +617,7 @@
       this.stun = Math.max(0, this.stun - dt); this.blind = Math.max(0, this.blind - dt); this.rooted = Math.max(0, this.rooted - dt);
       this.slow = Math.max(0, this.slow - dt); this.revealed = Math.max(0, this.revealed - dt); this.deaf = Math.max(0, this.deaf - dt);
       if (this.over > 0) this.over = Math.max(0, this.over - dt * 0.6);
+      this.shieldTick(dt);
       if (this.state === 'dbno') {
         this.bleed -= dt;
         if (!this.hostage && Math.floor(this.bleed + dt) !== Math.floor(this.bleed)) { this.hp = Math.max(1, Math.ceil(this.bleed * 20 / 25)); }
@@ -414,11 +627,21 @@
 
     /* ------------------------------------------------------------- 3rd person */
     updateRig(dt, visible) {
+      this.updateRope();
       const r = this.rig; if (!r) return;
       r.root.visible = visible;
       if (!visible) return;
       r.root.position.copy(this.pos);
       r.root.rotation.y = this.yaw;
+      r.pose.rotation.z = 0;
+      if (this.rappel && this.rappel.inv && this.state === 'alive') {
+        // hanging upside down from the rope: the whole body flipped about its middle, head at the bottom
+        r.pose.rotation.set(0, 0, Math.PI); r.pose.position.set(0, STAND, 0);
+        r.hips.position.y = 13 * MD.S; r.torso.rotation.set(0, 0, 0);
+        r.thighL.rotation.x = 0.15; r.thighR.rotation.x = -0.1; r.shinL.rotation.x = -0.3; r.shinR.rotation.x = -0.1;
+        r.aim.rotation.x = -this.pitch; r.head.rotation.x = -this.pitch * 0.4;
+        return;
+      }
       const hs = this.moving || 0;
       this.animT += dt * (hs > 0.2 ? 3 + hs * 1.7 : 0);
       const sw = hs > 0.2 ? Math.sin(this.animT) : 0;
@@ -446,6 +669,13 @@
       r.torso.rotation.z = -this.lean * 0.38;
       r.aim.rotation.x = this.pitch + c * 0.25 + (this.sprint && hs > 3.5 ? -0.6 : 0);
       r.head.rotation.x = this.pitch * 0.4;
+      if (r.shield) {
+        // the same poses the hit test uses (WPN.shieldRect): square in front, aside to aim, round to the flank to run
+        if (GAME.client && !this.isPlayer) this.shieldTick(dt);
+        const k = this.ads || 0, sd = this.shSide || 0, bs = this.shBash > 0 ? Math.sin(this.shBash / 0.3 * Math.PI) : 0, S = MD.S;
+        r.shield.position.set((-1 - 3 * k - 5 * sd) * S, (-4 - k - 2 * sd) * S, (-6 + k + 5 * sd - 3.5 * bs) * S);
+        r.shield.rotation.set(-r.aim.rotation.x, 0.2 * k + 1.25 * sd, 0);   // stays upright whatever the arms do
+      }
       if (this.rappel) { r.thighL.rotation.x = 0.9; r.thighR.rotation.x = 0.7; r.shinL.rotation.x = -0.9; r.shinR.rotation.x = -0.8; }
     }
     tint(k) { if (this.rig) this.rig.mat.color.setRGB(k[0], k[1], k[2]); }

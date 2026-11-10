@@ -135,6 +135,8 @@
   SFX.flashRing = function (strength) { if (!SFX.ctx) return; const d = chain(null, 1, 0.12 * strength); if (!d) return; const t = now(); tone(d, t, 3.5 * strength, 3600, 3400, 0.6); };
   SFX.throwS = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 15, 0.3); if (!d) return; noise(d, now(), 0.12, 'bandpass', 1200, 1, 0.5); };
   SFX.whoosh = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 30, 0.5); if (!d) return; noise(d, now(), 0.4, 'bandpass', 800, 0.8, 0.6); };
+  /* rappel: a hook clanking onto the wall top, then the rope paying out */
+  SFX.hook = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 30, 0.55); if (!d) return; const t = now(); tone(d, t, 0.16, 1900, 1500, 0.3, 'triangle'); tone(d, t + 0.02, 0.1, 2700, null, 0.15, 'triangle'); noise(d, t + 0.08, 0.45, 'bandpass', 1300, 1.4, 0.45); };
   SFX.voice = function (kind) {
     if (!SFX.ctx) return; const d = chain(null, 1, 0.22); const t = now();
     const seq = kind === 'win' ? [660, 880, 1100] : kind === 'lose' ? [440, 330, 220] : kind === 'start' ? [523, 659] : [700];
@@ -220,6 +222,7 @@
     flashRing: [() => ['ring'], () => null, 1, s => 0.5 * s],
     throwS: [() => ['throw'], p => p, 15, () => 0.5],
     whoosh: [() => ['whoosh'], p => p, 30, () => 0.6],
+    hook: [() => ['hook'], p => p, 30, () => 0.7],
     plant: [() => ['plant'], p => p, 30, () => 0.9],
     voice: [k => ['round.' + k], () => null, 1, () => 0.7],
   };

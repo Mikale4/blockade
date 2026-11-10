@@ -6,6 +6,18 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8771", "--bind", "127.0.0.1"],
       "port": 8771
+    },
+    {
+      "name": "blockade-8772",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8772", "--bind", "127.0.0.1"],
+      "port": 8772
+    },
+    {
+      "name": "blockade-8773",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8773", "--bind", "127.0.0.1"],
+      "port": 8773
     }
   ]
 }

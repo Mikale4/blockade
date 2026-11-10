@@ -98,7 +98,7 @@
     }
     if (a.state !== 'alive') return;
     switch (act) {
-      case 'crouch': a.setStance(G.settings.crouchToggle ? (a.stance === 1 ? 0 : 1) : 1); break;
+      case 'crouch': if (a.rappel) { a.ropeInvert(); break; } a.setStance(G.settings.crouchToggle ? (a.stance === 1 ? 0 : 1) : 1); break;
       case 'prone': a.setStance(a.stance === 2 ? 0 : 2); break;
       case 'leanL': a.leanT = G.settings.leanToggle ? (a.leanT === -1 ? 0 : -1) : -1; break;
       case 'leanR': a.leanT = G.settings.leanToggle ? (a.leanT === 1 ? 0 : 1) : 1; break;
@@ -114,8 +114,20 @@
         if (GAME.client && a.ability.id !== 'scanner' && a.ability.id !== 'spotter') NP.act('ability'); else GAD.ability(a);
         break;
       }
-      case 'melee': if (GAME.client) { if ((a.meleeT || 0) > G.time) break; a.meleeT = G.time + 0.85; P.onMelee(); SFX.melee(a.eye(V())); NP.act('melee'); } else WPN.melee(a); break;
-      case 'vault': if (atkPrep) break; if (a.rappel) { a.rappel = null; break; } if (!a.tryVault()) a.tryRappel(); break;
+      case 'melee': if (GAME.client) { if ((a.meleeT || 0) > G.time) break; const bash = a.shieldOp && a.shieldUp; a.meleeT = G.time + (bash ? 1.1 : 0.85); if (bash) a.shBash = 0.3; P.onMelee(); SFX.melee(a.eye(V())); NP.act('melee'); } else WPN.melee(a); break;
+      case 'vault': {
+        if (atkPrep) break;
+        if (a.rappel) {
+          // beside a window: crash through it. A blocked window says so; press again to just let go
+          if (a.ropeWindow()) {
+            if (a.crashWindow()) break;
+            if (!(P.crashNag > G.time)) { HUD.toast(a.crashFail + ' · ' + KEYS.name('vault') + ' again to let go', 'warn'); P.crashNag = G.time + 1.5; break; }
+          }
+          a.ropeLetGo(); break;
+        }
+        if (!a.tryVault()) a.tryRappel();
+        break;
+      }
       case 'device': P.openDeviceView(false); break;
       case 'ping': P.ping(); break;
       case 'firemode': if (a.wpn && a.wpn.def.auto) { a.wpn.auto = !a.wpn.auto; HUD.toast(a.wpn.auto ? 'FULL AUTO' : 'SINGLE'); } break;
@@ -235,6 +247,8 @@
   };
   P.onMelee = function () { P.meleeT = 0.35; };
   P.shake = function (k) { P.shakeT = Math.max(P.shakeT, k); };
+  /* aim punch (from a shield bash): the view gets knocked up and sideways and shakes */
+  P.punch = function (k) { P.rec.p += 0.2 * k; P.rec.y += (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.12) * k; P.shake(0.5 * k); };
   P.zoomNow = function () {
     const a = G.player; if (!a || !a.wpn) return 1;
     const s = a.wpn.def.sight;
@@ -300,7 +314,16 @@
     gun.scale.setScalar(SC);
     root.add(gun);
     let shield = null;
-    if (a.shieldOp && a.shieldUp) { shield = new THREE.Mesh(MD.viewGun('shield', a.op).geo, mat); shield.scale.setScalar(0.6); shield.position.set(-0.13, -0.08, -0.3); shield.rotation.y = 0.1; root.add(shield); }
+    if (a.shieldOp && a.shieldUp) {
+      // held low on the left with a clear glass viewport: the middle and right of the screen stay open
+      const vs = MD.viewShield(a.op);
+      shield = new THREE.Group();
+      shield.add(new THREE.Mesh(vs.frame, mat));
+      const glass = new THREE.Mesh(vs.glass, new THREE.MeshBasicMaterial({ color: 0x9fd2ee, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+      glass.renderOrder = 3; shield.add(glass);
+      shield.scale.setScalar(0.62);
+      root.add(shield);
+    }
     G.vmScene.add(root);
     P.vm = { root, gun, mat, flash, sightY: vg.sightY * SC, shield, pistol: /PISTOL|MP/.test(a.wpn.def.type) };
   };
@@ -318,7 +341,7 @@
     const w = a.wpn, ads = a.ads;
     P.bob += dt * (a.moving > 0.3 && a.onGround ? 4 + a.moving * 1.6 : 0);
     const bobA = Math.min(1, a.moving / 4) * (1 - ads * 0.85);
-    const hip = vm.pistol ? V().set(0.075, -0.085, -0.2) : V().set(0.075, -0.08, -0.13);
+    const hip = vm.shield ? V().set(0.1, -0.095, -0.21) : vm.pistol ? V().set(0.075, -0.085, -0.2) : V().set(0.075, -0.08, -0.13);
     const aim = V().set(0, -vm.sightY, vm.pistol ? -0.3 : -0.24);
     const pos = hip.lerp(aim, ads);
     pos.x += Math.sin(P.bob) * 0.006 * bobA - P.swayX * 0.5 * (1 - ads * 0.8);
@@ -336,7 +359,16 @@
     if (P.meleeT > 0) { const k = Math.sin((1 - P.meleeT / 0.35) * Math.PI); pos.z -= 0.08 * k; pos.x -= 0.04 * k; ry -= 0.5 * k; P.meleeT -= dt; }
     vm.gun.position.copy(pos); vm.gun.rotation.set(rx, ry, rz);
     vm.flash.visible = P.flashT > 0; if (vm.flash.visible) vm.flash.material.rotation = Math.random() * 6;
-    if (vm.shield) { vm.shield.position.y = -0.12 - (a.sprint && a.moving > 3.5 ? 0.1 : 0); }
+    if (vm.shield) {
+      // the same three poses the hit test uses: up in front, aside to aim, round to the flank to sprint
+      const k = ads, sd = a.shSide || 0, bs = a.shBash > 0 ? Math.sin(a.shBash / 0.3 * Math.PI) : 0;
+      const sp = V().set(-0.25, -0.23, -0.44).lerp(V().set(-0.4, -0.33, -0.42), k).lerp(V().set(-0.5, -0.46, -0.3), sd);
+      sp.x += 0.13 * bs; sp.y += 0.07 * bs; sp.z += 0.1 * bs;
+      sp.x += Math.sin(P.bob) * 0.008 * bobA - P.swayX * 0.4; sp.y += Math.abs(Math.cos(P.bob)) * 0.006 * bobA + P.swayY * 0.4;
+      if (a.state === 'dbno') sp.y -= 0.2;
+      vm.shield.position.copy(sp);
+      vm.shield.rotation.set(0.06 + 0.25 * sd, U.lerp(U.lerp(0.32, 0.55, k), 1.15, sd) - 0.25 * bs, 0.05 + 0.25 * sd);
+    }
     // scope overlay for magnified optics
     const scoped = w.def.sight === 'acog' && ads > 0.85 && P.view === 'body';
     vm.gun.visible = !scoped;

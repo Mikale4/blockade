@@ -7,13 +7,15 @@
   const D2R = Math.PI / 180;
   const tmpO = new THREE.Vector3(), tmpD = new THREE.Vector3(), tmpP = new THREE.Vector3();
 
-  WPN.canAds = a => a.state === 'alive' && !a.vault && !(a.sprint && a.moving > 3.4 && a.mf > 0.3) && !(a.shieldOp && a.shieldUp) && a.busy <= 0;
+  /* a shield carrier can aim too: the shield swings aside and the sidearm comes up past its edge */
+  WPN.canAds = a => a.state === 'alive' && !a.vault && !(a.sprint && a.moving > 3.4 && a.mf > 0.3 && !a.shieldBrace()) && a.busy <= 0;
 
   WPN.update = function (a, dt) {
     const w = a.wpn; if (!w) return;
+    if (GAME.client && a === G.player) a.shieldTick(dt);   // a guest's own shield pose (the host ticks everyone else)
     w.cool -= dt; a.swap = Math.max(0, a.swap - dt);
     w.bloom = Math.max(0, w.bloom - dt * (a.trigger ? 1.5 : 6));
-    if (a.sprint && a.mf > 0.3 && a.moving > 3.4) a.sprintT = 0.18; else a.sprintT = Math.max(0, a.sprintT - dt);
+    if (a.sprint && a.mf > 0.3 && a.moving > 3.4 && !a.shieldBrace()) a.sprintT = 0.18; else a.sprintT = Math.max(0, a.sprintT - dt);
     const adsT = w.def.adsT || 0.25;
     const want = a.adsWant && WPN.canAds(a);
     a.ads = U.clamp(a.ads + (want ? dt : -dt) / adsT, 0, 1);
@@ -34,7 +36,7 @@
     if (!a.trigger) { w.semiLock = false; w.clicked = false; }
     if (a.trigger && a.state === 'alive') {
       if (w.reload > 0 || a.swap > 0 || a.vault || a.busy > 0 || a.sprintT > 0 || w.cool > 0) return;
-      if (a.shieldOp && a.shieldUp && a.ads > 0.5) return;
+      if (a.shBash > 0) return;   // mid shield bash
       if (w.mag <= 0) {
         if (!w.clicked) { if (a.isPlayer) SFX.empty(); w.clicked = true; }
         if (w.reserve > 0) WPN.reload(a);
@@ -82,6 +84,8 @@
     if (a.stance === 1) s *= 0.85; else if (a.stance === 2) s *= 0.7;
     if (!a.onGround && !a.rappel) s += 2;
     if (a.stun > 0) s += 2.5;
+    // a sidearm fired one-handed from beside the shield is loose; aiming past its edge tightens it
+    if (a.shieldOp && a.shieldUp) s += 1.4 * (1 - a.ads);
     if (a.isBot) s += a.bot ? a.bot.extraSpread || 0 : 0;
     return s;
   };
@@ -147,17 +151,39 @@
     return t0;
   }
   WPN.rayBox = rayBox;
-  /* ray vs a carried shield (a vertical rectangle in front of the carrier) */
+  /* where a carried shield is: a vertical plate 0.68 m wide in front of the carrier.
+     Shield up (hip): square in front, from the knees (the shins when crouched) to above the head.
+     Aiming: it swings to the left so the sidearm and part of the head clear its right edge.
+     Sprinting: it swings round to the left flank, leaving the front open.
+     A bash thrusts it forward. Leaning carries it most of the way with the body. */
+  const SH_HW = 0.34;
+  function shieldRect(a) {
+    const fx = -Math.sin(a.yaw), fz = -Math.cos(a.yaw), rx = Math.cos(a.yaw), rz = -Math.sin(a.yaw);
+    const ads = a.ads || 0, side = a.shSide || 0, bash = a.shBash > 0 ? Math.sin(a.shBash / 0.3 * Math.PI) : 0;
+    let lat = -0.2 * ads, fwd = 0.42, turn = 0.2 * ads;
+    lat = U.lerp(lat, -0.38, side); fwd = U.lerp(fwd, 0.06, side); turn = U.lerp(turn, 1.25, side);
+    fwd += bash * 0.22;
+    if (a.lean) lat += a.lean * (a.stance === 2 ? 0.15 : 0.38) * 0.75;
+    // facing: the forward vector turned toward the carrier's left by `turn`
+    const c = Math.cos(turn), s = Math.sin(turn);
+    const nx = fx * c - rx * s, nz = fz * c - rz * s;
+    const low = a.stance >= 1 || a.h < 1.45;
+    return {
+      cx: a.pos.x + fx * fwd + rx * lat, cz: a.pos.z + fz * fwd + rz * lat, nx, nz, hw: SH_HW,
+      y0: a.pos.y + (low ? 0.04 : 0.42), y1: a.pos.y + a.eyeH + 0.2 - 0.14 * ads,
+    };
+  }
+  WPN.shieldRect = shieldRect;
+  /* ray vs a carried shield: entry t or -1 */
   function rayShield(o, dd, a, maxT) {
-    const fx = -Math.sin(a.yaw), fz = -Math.cos(a.yaw);
-    const cx = a.pos.x + fx * 0.42, cz = a.pos.z + fz * 0.42, cy = a.pos.y + a.h * 0.52;
-    const denom = dd.x * fx + dd.z * fz;
+    const r = shieldRect(a);
+    const denom = dd.x * r.nx + dd.z * r.nz;
     if (Math.abs(denom) < 1e-4) return -1;
-    const t = ((cx - o.x) * fx + (cz - o.z) * fz) / denom;
+    const t = ((r.cx - o.x) * r.nx + (r.cz - o.z) * r.nz) / denom;
     if (t < 0 || t > maxT) return -1;
-    const px = o.x + dd.x * t - cx, py = o.y + dd.y * t - cy, pz = o.z + dd.z * t - cz;
-    const lat = Math.abs(px * fz - pz * fx);
-    return (lat < 0.34 && Math.abs(py) < a.h * 0.46) ? t : -1;
+    const px = o.x + dd.x * t - r.cx, py = o.y + dd.y * t, pz = o.z + dd.z * t - r.cz;
+    const lat = Math.abs(px * r.nz - pz * r.nx);
+    return (lat < r.hw && py > r.y0 && py < r.y1) ? t : -1;
   }
   WPN.rayShield = rayShield;
 
@@ -231,26 +257,41 @@
   };
 
   /* melee: hits a body in front, or smashes soft voxels / gadgets */
+  /* knock someone's aim off: a big camera kick for a player, a shaky spread for a bot */
+  WPN.aimPunch = function (b, k) {
+    b.stun = Math.max(b.stun, 0.9 * k);
+    if (b.isPlayer) PLAYER.punch(k); else if (b.net) NP.push({ k: 'shake', to: b.net, s: 0.6 * k });
+  };
   WPN.melee = function (a) {
     if (a.state !== 'alive' || a.meleeT > G.time || a.vault) return;
-    a.meleeT = G.time + 0.85;
+    // carrying a shield, melee is a shield bash: a short lunge that staggers more than it hurts
+    const bash = a.shieldOp && a.shieldUp;
+    a.meleeT = G.time + (bash ? 1.1 : 0.85);
     const e = a.eye(new THREE.Vector3()), f = a.fwd(new THREE.Vector3());
     SFX.melee(e); GAME.noise(e, 10, a, 'melee');
     if (a.isPlayer) PLAYER.onMelee();
+    if (bash) { a.shBash = 0.3; a.vel.x += f.x * 4; a.vel.z += f.z * 4; SFX.metal(e); }
     // bodies
-    let best = null, bd = 1.7;
+    let best = null, bd = bash ? 2.1 : 1.7;
     for (const b of G.actors) {
       if (b === a || b.state === 'dead') continue;
       const c = b.center(new THREE.Vector3()); const to = c.clone().sub(e); const dist = to.length();
       if (dist > bd) continue;
-      to.normalize(); if (to.dot(f) < 0.7) continue;
+      to.normalize(); if (to.dot(f) < (bash ? 0.6 : 0.7)) continue;
       if (!G.world.los(e, c)) continue;
       best = b; bd = dist;
     }
     if (best) {
-      if (best.shieldOp && best.shieldUp && rayShield(e, f, best, 2) >= 0) { best.stun = Math.max(best.stun, 0.6); SFX.metal(e); return; }
-      best.hurt(a.shieldOp ? 35 : 70, { src: a, kind: 'melee', dir: f });
-      if (a.shieldOp) best.stun = Math.max(best.stun, 1.2);
+      // a strike that lands on a raised shield just rocks its carrier
+      if (best.shieldOp && best.shieldUp && rayShield(e, f, best, 2.4) >= 0) {
+        WPN.aimPunch(best, bash ? 0.7 : 0.5); best.slow = Math.max(best.slow, bash ? 0.4 : 0);
+        SFX.metal(e); return;
+      }
+      if (bash) {
+        best.hurt(30, { src: a, kind: 'melee', dir: f });
+        WPN.aimPunch(best, 1); best.slow = Math.max(best.slow, 0.8);
+        if (best.state === 'alive') { best.vel.x += f.x * 3; best.vel.z += f.z * 3; }
+      } else best.hurt(70, { src: a, kind: 'melee', dir: f });
       if (a.isPlayer) HUD.hitmarker(false, best.state === 'dead'); else if (a.net) NP.push({ k: 'hit', to: a.net, h: false, x: best.state === 'dead' });
       return;
     }

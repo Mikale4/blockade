@@ -174,7 +174,7 @@
   function opDetail(op, lo, onChange) {
     const u = UNITS[op.unit];
     const d = $('div', { class: 'op-detail' });
-    d.append($('div', { class: 'op-title' }, $('b', {}, op.name), $('span', { class: 'unit', style: { background: u.color } }, u.name), op.season ? $('span', { class: 'season' }, 'SEASON 1') : null));
+    d.append($('div', { class: 'op-title' }, $('b', {}, op.name), $('span', { class: 'unit', style: { background: u.color } }, u.name), op.season ? $('span', { class: 'season' }, 'SEASON ' + op.season) : null));
     d.append($('div', { class: 'op-real' }, op.real + ' · ' + op.role));
     d.append($('div', { class: 'op-stats' }, $('span', {}, 'ARMOR ', pips(op.armor, 3)), $('span', {}, 'SPEED ', pips(op.speed, 3))));
     d.append($('div', { class: 'op-ab' }, $('kbd', {}, KEYS.name('ability')), $('b', {}, op.ability.name), $('p', {}, op.ability.desc)));
@@ -210,10 +210,13 @@
         $('div', { class: 'os-score' }, cfg.score[0] + ' – ' + cfg.score[1])));
       const grid = $('div', { class: 'os-grid' });
       for (const o of ops) grid.append($('div', { class: 'os-op' + (o === sel ? ' sel' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { sel = o; lo = Object.assign({ primary: o.primaries[0], secondary: o.secondaries[0], gadget: o.gadgets[0] }, U.store.get('lo_' + o.id, {})); SFX.ui(); render(); } },
-        $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S1') : null));
+        $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null));
       const prev = $('div', { class: 'os-prev' });
       const right = $('div', { class: 'os-right' }, opDetail(sel, lo, render));
-      if (side === 'atk') right.append($('div', { class: 'lo-row spawn' }, $('label', {}, 'SPAWN'), ...cfg.map.spawns.map((s, i) => $('button', { class: spawn === i ? 'on' : '', onclick: () => { spawn = i; SFX.ui(); render(); } }, s.name))));
+      // every player picks their own spawn: attackers one of the map's outdoor spawns,
+      // defenders the objective or another room in the building
+      const spawns = side === 'atk' ? cfg.map.spawns.map(s => s.name) : GAME.defSpawnOptions(cfg.map).map(o => o.name);
+      right.append($('div', { class: 'lo-row spawn' }, $('label', {}, 'SPAWN'), ...spawns.map((s, i) => $('button', { class: spawn === i ? 'on' : '', onclick: () => { spawn = i; SFX.ui(); render(); } }, s))));
       right.append($('div', { class: 'actions' }, btn(cfg.online ? 'LEAVE MATCH' : 'QUIT MATCH', () => { if (cfg.online) Online.leave(); else { GAME.quit(); MENU.home(); } }, 'ghost'),
         btn('READY', () => { U.store.set('lastOp_' + side, sel.id); U.store.set('lo_' + sel.id, lo); MENU.hide(); G.mode = 'match'; HUD.show(true); cfg.onReady({ op: sel, loadout: Object.assign({}, lo), spawn }); }, 'big')));
       wrap.append($('div', { class: 'os-body' }, grid, prev, right));
@@ -232,7 +235,7 @@
       const list = $('div', { class: 'g-list' });
       for (const side of ['atk', 'def']) {
         list.append($('h3', {}, side === 'atk' ? 'ATTACKERS' : 'DEFENDERS'));
-        list.append($('div', { class: 'os-grid' }, ...OPS.filter(o => o.side === side).map(o => $('div', { class: 'os-op' + (o === sel ? ' sel' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { sel = o; SFX.ui(); render(); } }, $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S1') : null))));
+        list.append($('div', { class: 'os-grid' }, ...OPS.filter(o => o.side === side).map(o => $('div', { class: 'os-op' + (o === sel ? ' sel' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { sel = o; SFX.ui(); render(); } }, $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null))));
       }
       const u = UNITS[sel.unit];
       const prev = $('div', { class: 'os-prev' });
