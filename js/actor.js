@@ -29,6 +29,7 @@
       this.isBot = !this.isPlayer && !this.hostage && !this.dummy;
       const op = this.op;
       this.loadout = Object.assign({ primary: op.primaries ? op.primaries[0] : 'p10', secondary: op.secondaries ? op.secondaries[0] : 'p10', gadget: op.gadgets ? op.gadgets[0] : null }, o.loadout || {});
+      this.cos = o.cos || this.loadout.cos || {};   // shop looks: { finish, suit }
       this.maxHp = this.hostage ? 100 : (o.hp || ARMOR_HP[op.armor] || 100);
       this.hp = this.maxHp; this.over = 0;
       this.spd = SPEED[op.speed] || SPEED[2];
@@ -45,7 +46,16 @@
       this.kills = 0; this.deaths = 0; this.assists = 0; this.score = 0; this.dmgBy = new Map();
       this.lastShot = -9; this.lastHurt = -9; this.lastNoise = -9; this.noisePos = new THREE.Vector3();
       this.sprintT = 0; this.fireDelay = 0;
-      // weapons
+      this.resetKit();
+      this.placed = [];     // gadget entities this actor owns that can be detonated
+      // model
+      this.rig = null;
+      if (o.model !== false) this.buildRig();
+      this.animT = Math.random() * 10; this.deathT = 0;
+    }
+    /* weapons, gadget and ability at full: at the start, and on every respawn */
+    resetKit() {
+      const op = this.op;
       this.w = [];
       if (!this.hostage) {
         const prim = this.loadout.primary;
@@ -58,19 +68,28 @@
       this.shieldUp = this.shieldOp; this.shieldPlanted = null;
       this.gadget = this.loadout.gadget ? { id: this.loadout.gadget, count: GADGETS[this.loadout.gadget].count } : null;
       this.ability = op.ability ? { id: op.ability.id, count: op.ability.count, cd: 0, on: false, zaps: op.ability.id === 'surge' ? 3 : 0 } : null;
-      this.drones = this.side === 'atk' && !this.hostage && !this.dummy ? 2 : 0;
-      this.placed = [];     // gadget entities this actor owns that can be detonated
-      // model
-      this.rig = null;
-      if (o.model !== false) this.buildRig();
-      this.animT = Math.random() * 10; this.deathT = 0;
+      this.drones = this.side === 'atk' && !this.hostage && !this.dummy && !(window.GAME && GAME.arcade) ? 2 : 0;
+    }
+    /* back in the fight (Deathmatch / Team Deathmatch): fresh health, kit and status at a new spot */
+    respawn(pos, yaw) {
+      this.pos.copy(pos); this.vel.set(0, 0, 0); this.yaw = yaw || 0; this.pitch = 0;
+      this.state = 'alive'; this.hp = this.maxHp; this.over = 0; this.bleed = 0; this.downedBy = null; this.reviving = null;
+      this.stance = 0; this.h = STAND; this.eyeH = EYE[0]; this.lean = this.leanT = 0; this.ads = 0; this.trigger = false; this.sprint = false; this.mf = this.mr = 0;
+      this.stun = this.blind = this.blindK = this.rooted = this.slow = this.revealed = this.deaf = 0;
+      this.vault = null; this.rappel = null; this.busy = 0; this.carry = null; this.interact = null;
+      this.dmgBy = new Map(); this.deathT = 0; this.marks = {};
+      const gun = this.wpn && this.wpn.id;
+      this.resetKit();
+      if (this.rig && gun !== this.w[0].id) MD.setRigGun(this.rig, this.w[0].id);
+      this.spawnProt = G.time + 2;   // a moment to get your bearings; ends early once you shoot
+      if (this.ropeMesh) this.ropeMesh.visible = false;
     }
     get wpn() { return this.w[this.cur]; }
     get alive() { return this.state === 'alive'; }
     get up() { return this.state !== 'dead'; }
 
     buildRig() {
-      this.rig = MD.operator(this.hostage ? MD.HOSTAGE_OP : this.op, this.hostage ? 'p10' : this.w[0].id);
+      this.rig = MD.operator(this.hostage ? MD.HOSTAGE_OP : this.op, this.hostage ? 'p10' : this.w[0].id, this.hostage ? null : this.cos);
       if (this.hostage) this.rig.gun.visible = false;
       if (this.shieldOp) MD.addShield(this.rig);
       this.rig.root.userData.actor = this;
@@ -204,7 +223,9 @@
       return false;
     }
     speedNow() {
-      let v = this.sprint && this.mf > 0.3 && this.stance === 0 && this.ads < 0.3 && !this.carry && !this.shieldBrace() ? this.spd.run : this.spd.walk;
+      const run = this.sprint && this.mf > 0.3 && this.stance === 0 && this.ads < 0.3 && !this.carry && !this.shieldBrace();
+      let v = run ? this.spd.run : this.spd.walk;
+      if (this.walk && !run) v *= 0.45;   // walking slowly: about half pace, footsteps all but silent
       v *= [1, 0.55, 0.25][this.stance];
       v *= 1 - this.ads * 0.38;
       const w = this.wpn; if (w) v *= w.def.mob || 1;
@@ -304,13 +325,13 @@
         if (this.stepAcc > stride) {
           this.stepAcc = 0;
           const quiet = (this.op && this.op.ability && this.op.ability.id === 'decoy') || this.stance === 2;
-          const loud = hs > 3.6;
+          const loud = hs > 3.6, soft = this.walk && !loud;
           if (!quiet || loud) {
             const m = W.get(Math.floor(p.x * 4), Math.floor(p.y * 4 - 0.5), Math.floor(p.z * 4));
             const metal = m && (MAT[m].reinf || m === M.METAL || m === M.RHATCH || m === M.CORRUGATE);
-            if (!this.isPlayer) SFX.step(p, loud && !quiet, false, metal ? 'metal' : null);
-            else SFX.step(p, loud, true, metal ? 'metal' : null);
-            if (!this.hostage) GAME.noise(p, quiet ? 4 : loud ? 14 : this.stance === 1 ? 4 : 8, this, 'step');
+            if (!this.isPlayer) SFX.step(p, loud && !quiet, false, metal ? 'metal' : null, soft);
+            else SFX.step(p, loud, true, metal ? 'metal' : null, soft);
+            if (!this.hostage) GAME.noise(p, soft ? 2.5 : quiet ? 4 : loud ? 14 : this.stance === 1 ? 4 : 8, this, 'step');
           }
         }
       }
@@ -567,6 +588,7 @@
       const src = info.src;
       // attackers are not deployed yet during preparation: nothing can hurt them
       if (G.mode === 'match' && GAME.phase === 'prep' && this.side === 'atk') return;
+      if (this.spawnProt > G.time) return;   // just respawned
       if (src && src !== this && src.team === this.team && !this.hostage && info.kind === 'bullet') return; // no friendly bullets
       if (src && src.team === this.team && info.kind !== 'bullet' && src !== this) dmg *= 0.5;
       if (src && src !== this) this.dmgBy.set(src, (this.dmgBy.get(src) || 0) + dmg);
@@ -583,7 +605,7 @@
       if (this.hp - dmg > 0) { this.hp -= dmg; return; }
       // lethal: down or dead?
       const canDown = !info.head && info.kind !== 'fall' && (this.hp > 20 || this.hostage) && dmg < this.hp + 60 && !this.carry;
-      if (canDown && G.mode !== 'range') this.down(src);
+      if (canDown && G.mode !== 'range' && !GAME.arcade) this.down(src);
       else this.die(src, info.head);
     }
     down(src) {

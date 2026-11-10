@@ -310,7 +310,59 @@
     bomb:    { name: 'BOMB', desc: 'Attackers plant a defuser on one of two bomb sites. Defenders stop the plant or disable the defuser.' },
     secure:  { name: 'SECURE AREA', desc: 'Attackers must hold the biohazard room with no defenders inside long enough to secure it.' },
     hostage: { name: 'HOSTAGE', desc: 'Attackers must reach the hostage and escort them to an extraction zone. Whoever harms the hostage loses.' },
+    // arcade modes: one long round, instant respawns, no objective, no down-but-not-out
+    tdm:     { name: 'TEAM DEATHMATCH', arcade: true, limit: 40, time: 420, desc: 'Two teams of five with respawns. First team to 40 kills wins, or the most kills when the 7 minutes run out.' },
+    dm:      { name: 'DEATHMATCH', arcade: true, ffa: true, limit: 20, time: 360, desc: 'Ten players, everyone for themselves, with respawns. First to 20 kills wins, or the most kills after 6 minutes.' },
   };
+
+  /* shop cosmetics: looks only, never stats. price 0 = everyone has it. */
+  const RARITY = { common: { name: 'COMMON', color: '#9aa4b2' }, rare: { name: 'RARE', color: '#4f9be0' }, epic: { name: 'EPIC', color: '#b07cff' }, legendary: { name: 'LEGENDARY', color: '#f2c14e' } };
+  const COSMETICS = {
+    // weapon finishes: the colours of every gun's metal, polymer and fittings
+    finish: {
+      factory:  { name: 'Factory', rarity: 'common', price: 0, dark: 0x222428, poly: 0x34373c, mid: 0x44474d },
+      sand:     { name: 'Desert Tan', rarity: 'common', price: 400, dark: 0x6b5a3e, poly: 0x8a7552, mid: 0xa48d64 },
+      olive:    { name: 'Olive Drab', rarity: 'common', price: 400, dark: 0x3a4229, poly: 0x4f5a37, mid: 0x667148 },
+      arctic:   { name: 'Arctic', rarity: 'common', price: 400, dark: 0xc4ccd4, poly: 0xe2e7ec, mid: 0x9aa4ae },
+      cobalt:   { name: 'Cobalt', rarity: 'rare', price: 900, dark: 0x1c2f5a, poly: 0x2b4a8c, mid: 0x5a7fc8 },
+      crimson:  { name: 'Crimson', rarity: 'rare', price: 900, dark: 0x5a1416, poly: 0x8c2226, mid: 0xc8484a },
+      graphite: { name: 'Graphite', rarity: 'rare', price: 900, dark: 0x121316, poly: 0x1c1e22, mid: 0x7a8088, glowMid: true },
+      toxic:    { name: 'Toxic', rarity: 'epic', price: 1800, dark: 0x1a2418, poly: 0x2a3a24, mid: 0x7cf05a, glowMid: true },
+      neon:     { name: 'Neon Pulse', rarity: 'epic', price: 1800, dark: 0x1e1430, poly: 0x2c1e48, mid: 0xff4fd8, glowMid: true },
+      gilded:   { name: 'Gilded', rarity: 'legendary', price: 4000, dark: 0x8a6a1c, poly: 0xc89a2a, mid: 0xf6d36a },
+      obsidian: { name: 'Obsidian Ember', rarity: 'legendary', price: 4000, dark: 0x0c0c0e, poly: 0x18181c, mid: 0xff7a2a, glowMid: true },
+    },
+    // uniforms: the cloth and vest of whichever operator you play
+    suit: {
+      standard: { name: 'Unit Standard', rarity: 'common', price: 0 },
+      urban:    { name: 'Urban Grey', rarity: 'common', price: 500, cloth: 0x4a4e55, vest: 0x2f3237 },
+      dune:     { name: 'Dune', rarity: 'common', price: 500, cloth: 0x9a8560, vest: 0x6e5c40 },
+      snow:     { name: 'Snowfield', rarity: 'rare', price: 1100, cloth: 0xd8dde2, vest: 0x9aa6b0, helmet: 0xe8ecf0 },
+      jungle:   { name: 'Jungle', rarity: 'rare', price: 1100, cloth: 0x3a5a2e, vest: 0x2a3a20, helmet: 0x4a5a30 },
+      night:    { name: 'Night Ops', rarity: 'epic', price: 2200, cloth: 0x15171c, vest: 0x0c0d10, helmet: 0x1a1c22, accent: 0x5ad8ff },
+      redguard: { name: 'Red Guard', rarity: 'epic', price: 2200, cloth: 0x6a1c1c, vest: 0x3a1010, helmet: 0x2a0c0c, accent: 0xffc040 },
+      royal:    { name: 'Royal', rarity: 'legendary', price: 4500, cloth: 0x1c2c6a, vest: 0xc8a030, helmet: 0x1c2c6a, accent: 0xfff0a0 },
+    },
+    // crosshair colours
+    reticle: {
+      white:   { name: 'White', rarity: 'common', price: 0, css: '#ffffff' },
+      green:   { name: 'Signal Green', rarity: 'common', price: 250, css: '#5cff7a' },
+      cyan:    { name: 'Cyan', rarity: 'common', price: 250, css: '#4fe6ff' },
+      yellow:  { name: 'Hi-Vis Yellow', rarity: 'rare', price: 600, css: '#ffe14f' },
+      magenta: { name: 'Magenta', rarity: 'rare', price: 600, css: '#ff4fd8' },
+      red:     { name: 'Laser Red', rarity: 'epic', price: 1200, css: '#ff4040' },
+    },
+    // player cards: the banner behind your name on your profile, the home screen and the results
+    card: {
+      plain:   { name: 'Plain', rarity: 'common', price: 0, css: 'linear-gradient(120deg, #1a1f28, #12161d)' },
+      dusk:    { name: 'Dusk', rarity: 'common', price: 400, css: 'linear-gradient(120deg, #3a2a5a, #1a1a30)' },
+      ember:   { name: 'Ember', rarity: 'rare', price: 900, css: 'linear-gradient(120deg, #7a2a12, #2a1208)' },
+      glacier: { name: 'Glacier', rarity: 'rare', price: 900, css: 'linear-gradient(120deg, #1a5a7a, #0c2030)' },
+      aurora:  { name: 'Aurora', rarity: 'epic', price: 2000, css: 'linear-gradient(120deg, #1a7a5a, #2a3a8a 55%, #5a1a7a)' },
+      sovereign: { name: 'Sovereign', rarity: 'legendary', price: 4000, css: 'linear-gradient(120deg, #8a6a1c, #f2c14e 50%, #6a4a10)' },
+    },
+  };
+  const COS_KINDS = { finish: 'WEAPON FINISHES', suit: 'UNIFORMS', reticle: 'RETICLES', card: 'PLAYER CARDS' };
 
   const DIFFS = [
     { name: 'RECRUIT', react: 0.75, aimErr: 3.4, head: 0.08, track: 3.5 },
@@ -318,5 +370,5 @@
     { name: 'REALISTIC', react: 0.32, aimErr: 1.3, head: 0.25, track: 8.0 },
   ];
 
-  window.DATA = { MAT, M, OOB, WEAPONS, GADGETS, UNITS, OPS, OPMAP, ARMOR_HP, SPEED, MODES, DIFFS };
+  window.DATA = { MAT, M, OOB, WEAPONS, GADGETS, UNITS, OPS, OPMAP, ARMOR_HP, SPEED, MODES, DIFFS, COSMETICS, COS_KINDS, RARITY };
 })();

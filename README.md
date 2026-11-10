@@ -19,8 +19,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 ## What's in it
 
 - **Accounts:** title screen → log in / new player → home. Your profile tracks your level
-  (XP from every match), matches and rounds won, kills, K/D, headshots, most-played operators
-  and your online rating.
+  (XP from every match), matches and rounds won, kills, K/D, headshots, most-played operators,
+  your Ranked rating and your credits.
 - **Online lobby:** a room list, everyone online, a leaderboard and lobby chat. Use QUICK PLAY,
   HOST A ROOM (public, private with a password, or code only), or join by code.
 - **Rooms:** two teams of five. The host picks the map, mode, rounds, bot skill and starting
@@ -28,6 +28,20 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   Everyone else readies up, and there's room chat (in matches too, with Enter).
 - **Online matches:** you and your friends in the same match, on the same team or against
   each other, with bots in the remaining slots.
+- **Ranked:** Bomb, first to four rounds. FIND MATCH looks for real players near your rating
+  (an open ranked room, or it opens one and waits up to 30 seconds). Seats nobody fills go to
+  bots playing at your level; offline it's you and bots. Ranks run Bronze, Silver, Gold,
+  Platinum and Diamond (III to I each), then Elite. Your first five matches are placements.
+  Your rating moves by the other team's average rating (beating a stronger team gains more),
+  and leaving early counts as a loss. Only Ranked changes your rating.
+- **Shop:** spend credits on looks: weapon finishes, uniforms, reticle colours and player
+  cards, from Common to Legendary. Three items are 30% off each day. Credits come only from
+  playing: every match pays, wins, kills and rounds pay more, online pays 25% extra, Ranked 50%,
+  and your first win each day adds 250. Looks never change stats. Everyone in an online match
+  sees your finish and uniform.
+- **Player-style bot names:** bots have names like a real player picks (QuietOtter, mako_219,
+  xFrostline), and each keeps its name, looks and rating for the whole match. Outside Ranked a
+  small BOT tag on the scoreboard tells them apart.
 - **Friends and messages:** add friends by friend code or from any player card. Messages are
   end-to-end encrypted and wait for friends who are offline. You can invite a friend to a
   match or a room, join their room, or block someone.
@@ -62,6 +76,15 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 - **Modes:** Bomb (plant the defuser and protect it, or disable it), Secure Area (hold the room
   with no defenders inside), Hostage (escort the hostage out; harming the hostage loses).
   Sides swap every round (optional), and the first team to N rounds wins.
+  - **Team Deathmatch:** two teams of five with respawns, no objective. First team to 40 kills,
+    or the most kills after 7 minutes.
+  - **Deathmatch:** ten players, everyone for themselves, any operator. First to 20 kills, or
+    the most after 6 minutes.
+
+  In both, you respawn 4 seconds after dying at the safest spot: away from the enemy, out of
+  their sight and (in Team Deathmatch) near your team. Two seconds of spawn protection end
+  when you fire. There's no down-but-not-out, drones, cameras or reinforcements, and the
+  match-winning kill replays at the end.
 - **Shooting Range:** any operator, targets at 5–50 m (some moving), a breach house with soft,
   reinforced and barricaded surfaces and a hatch, a drone tunnel, and a kill-house drill
   against live bots.
@@ -132,6 +155,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 | WASD / mouse | Move / look |
 | LMB / RMB | Fire / aim down sights |
 | L-Shift | Sprint |
+| Caps Lock | Walk slowly: about half speed, with footsteps quiet enough that only someone right beside you hears them |
 | C / Z | Crouch / prone |
 | Q / E | Lean (hold **or toggle**, your choice) |
 | Space | Vault (smashes window glass or a barricade on the way through), rappel (attackers, facing an outside wall; on the rope W/S climb, A/D sidestep, C hang upside down, Space crash through the window beside you or let go), drone hop |
@@ -144,7 +168,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 | Tab | Scoreboard |
 
 Every action, including mouse buttons, can be rebound. Taking a key that another action uses
-swaps the two. Lean, crouch and aim each have a HOLD/TOGGLE switch.
+swaps the two. Lean, crouch, walk and aim each have a HOLD/TOGGLE switch.
 
 ## Music
 
@@ -169,21 +193,24 @@ New MP3s only play once they're listed.
 
 If `playlist.js` is missing or a pool is empty, the game falls back to its own synthesised
 score, which also intensifies as the clock runs down. The music files are your own local
-copies; `.gitignore` keeps them out of a repository if you ever publish the game.
+copies: `.gitignore` keeps them out of the repository, so they play only on your machine and
+the published site plays the synthesised score.
 
 ## Sound effects
 
 `sound effects/sfx.js` lists which files in that folder play for each effect, for example
 `'break'` for a barricade being smashed, `'plant'` for the defuser plant, or `'shot.SMG'` for
-SMG fire. It already maps the five files you added:
+SMG fire. Three of the files you added are mapped:
 
 | File | Plays for |
 |---|---|
-| Door Break | barricade breaks |
 | Lion scan | Vesper's sonar |
 | Plant bomb | defuser plant |
 | c4 | Detonator Pack blast |
-| call | spotting / callout ping |
+
+`Door Break` and `call` are still in the folder but no longer used: barricades breaking and
+spotting now use the game's own generated sounds (a splintering crack and a short radar chirp).
+Put a file name back in `'break'` or `'ping'` to use a file again.
 
 Every other effect key is listed with an empty list. Fill one in to replace that sound;
 empty lists keep the game's built-in synthesised sound. Your files play in 3D like everything
@@ -215,7 +242,8 @@ match itself are not.
 attacker spawns and their cover) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `gadgets` · `nav` (pathfinding) · `ai` ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
-`range` (range and training) · `main` · online: `ui` (toasts, modals, top bar) · `auth`
+`range` (range and training) · `killcam` (replays) · `names` (bot names) · `arcade` (Deathmatch and
+Team Deathmatch) · `shop` (cosmetics, credits) · `ranked` (ranks, matchmaking) · `main` · online: `ui` (toasts, modals, top bar) · `auth`
 (accounts, keys, stats) · `net` (the relay) · `relay` (encrypted room fallback) · `social`
 (friends, messages, invites) · `online` (lobby, rooms) · `np` (the networked match).
 `audio/playlist.js` (music) and `sound effects/sfx.js` (sound-effect files).

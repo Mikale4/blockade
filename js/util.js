@@ -83,7 +83,7 @@
     settings: Object.assign({
       sens: 1.0, adsSens: 0.8, fov: 80, volume: 0.8, music: 0.45, difficulty: 1,
       leanToggle: false, crouchToggle: true, aimToggle: false, renderScale: 1, roundsToWin: 3, swapEveryRound: true,
-      showFps: false, invertY: false, killcam: true,
+      showFps: false, invertY: false, killcam: true, walkToggle: false,
     }, U.store.get('settings', {})),
   };
   G.saveSettings = () => U.store.set('settings', G.settings);
@@ -91,14 +91,14 @@
   /* ------------------------------------------------------- key bindings --
      every action maps to one input code: a KeyboardEvent.code, or Mouse0/1/2/3/4 */
   const DEFAULT_KEYS = {
-    forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', sprint: 'ShiftLeft', crouch: 'KeyC', prone: 'KeyZ',
+    forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', sprint: 'ShiftLeft', walk: 'CapsLock', crouch: 'KeyC', prone: 'KeyZ',
     leanL: 'KeyQ', leanR: 'KeyE', vault: 'Space',
     fire: 'Mouse0', aim: 'Mouse2', reload: 'KeyR', primary: 'Digit1', secondary: 'Digit2', firemode: 'KeyB', melee: 'KeyV',
     gadget: 'KeyG', ability: 'KeyX', interact: 'KeyF', device: 'Digit5', ping: 'KeyT', scoreboard: 'Tab', chat: 'Enter',
     rangeOp: 'KeyO', refill: 'KeyH', rebuild: 'KeyK', drill: 'KeyJ', skipStep: 'KeyN',
   };
   const KEY_GROUPS = [
-    ['MOVEMENT', [['forward', 'Move forward'], ['back', 'Move back'], ['left', 'Strafe left'], ['right', 'Strafe right'], ['sprint', 'Sprint (hold)'], ['crouch', 'Crouch'], ['prone', 'Prone'], ['leanL', 'Lean left'], ['leanR', 'Lean right'], ['vault', 'Vault / rappel / drone hop']]],
+    ['MOVEMENT', [['forward', 'Move forward'], ['back', 'Move back'], ['left', 'Strafe left'], ['right', 'Strafe right'], ['sprint', 'Sprint (hold)'], ['walk', 'Walk slowly (quiet footsteps)'], ['crouch', 'Crouch'], ['prone', 'Prone'], ['leanL', 'Lean left'], ['leanR', 'Lean right'], ['vault', 'Vault / rappel / drone hop']]],
     ['COMBAT', [['fire', 'Fire'], ['aim', 'Aim down sights'], ['reload', 'Reload'], ['primary', 'Primary weapon'], ['secondary', 'Secondary weapon'], ['firemode', 'Fire mode'], ['melee', 'Melee']]],
     ['GADGETS & TEAM', [['gadget', 'Secondary gadget / detonate'], ['ability', 'Operator ability (Rhea: hold)'], ['interact', 'Interact (hold): plant, revive, reinforce'], ['device', 'Drone / cameras'], ['ping', 'Spot enemy'], ['scoreboard', 'Scoreboard (hold)'], ['chat', 'Room chat (online)']]],
     ['RANGE & TRAINING', [['rangeOp', 'Range: change operator'], ['refill', 'Range: refill gadgets'], ['rebuild', 'Range: rebuild the house'], ['drill', 'Range: kill-house drill'], ['skipStep', 'Training: skip step']]],

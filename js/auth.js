@@ -43,6 +43,8 @@
       xp: 0,
       stats: { matches: 0, wins: 0, losses: 0, rounds: 0, roundsWon: 0, kills: 0, deaths: 0, assists: 0, headshots: 0, online: 0, onlineWins: 0, ops: {} },
       rank: { rating: 1000, games: 0, wins: 0, losses: 0, peak: 1000 },
+      // the shop: credits earned by playing (never bought), what you own and what you wear
+      credits: 1500, owned: {}, equip: { finish: 'factory', suit: 'standard', reticle: 'white', card: 'plain' }, daily: { day: '' },
       friends: {}, reqIn: {}, reqOut: {}, blocked: {}, convos: {}, seen: [],
       prefs: Object.assign({}, PREFS), created: Date.now(),
     };
@@ -51,6 +53,7 @@
     const f = freshSave(); for (const k in f) if (a.save[k] == null) a.save[k] = f[k];
     a.save.stats = Object.assign({}, f.stats, a.save.stats);
     a.save.prefs = Object.assign({}, PREFS, a.save.prefs);
+    a.save.equip = Object.assign({}, f.equip, a.save.equip);
     return a;
   }
   /* level from xp: each level needs a little more */
@@ -115,7 +118,9 @@
       };
       return Auth._k;
     },
-    /* a finished match: { won, rounds, roundsWon, k, d, a, hs, op, online, ranked } */
+    /* a finished match: { won, rounds, roundsWon, k, d, a, hs, op, online, ranked, oppR, abandon }
+       Only Ranked moves your rating: against the other team's average rating (Elo), faster
+       over the five placement matches. Every match pays credits for the shop. */
     record(r) {
       const S = Auth.S; if (!S) return null;
       const st = S.stats, before = level(S.xp).lv;
@@ -125,15 +130,30 @@
       if (r.op) st.ops[r.op] = (st.ops[r.op] || 0) + 1;
       let xp = 150 + (r.won ? 250 : 0) + (r.roundsWon || 0) * 60 + (r.k || 0) * 40 + (r.a || 0) * 15;
       if (r.online) { st.online++; if (r.won) st.onlineWins++; xp = Math.round(xp * 1.5); }
+      if (r.ranked) xp = Math.round(xp * 1.25);
+      if (r.abandon) xp = 0;
       S.xp += xp;
-      if (r.online) {
-        const R = S.rank; R.games++;
-        const delta = r.won ? 24 : -18; R.rating = Math.max(100, R.rating + delta); if (r.won) R.wins++; else R.losses++;
+      let before2 = null;
+      if (r.ranked) {
+        const R = S.rank; before2 = R.rating; R.games++;
+        const opp = r.oppR || R.rating, E = 1 / (1 + Math.pow(10, (opp - R.rating) / 400)), K = R.games <= 5 ? 64 : 32;
+        let delta = Math.round(K * ((r.won ? 1 : 0) - E) + Math.max(-4, Math.min(4, (r.k || 0) - (r.d || 0))));
+        delta = r.won ? Math.max(8, delta) : Math.min(-6, delta);
+        if (r.abandon) delta = Math.min(delta, -30);
+        R.rating = Math.max(100, R.rating + delta); if (r.won) R.wins++; else R.losses++;
         R.peak = Math.max(R.peak, R.rating); r.delta = delta;
       }
+      // credits: a base, the win, kills and rounds, more online and in Ranked, and a bonus for the
+      // first win of the day
+      let cr = r.abandon ? 0 : 60 + (r.won ? 120 : 0) + (r.k || 0) * 10 + (r.a || 0) * 4 + (r.roundsWon || 0) * 15;
+      if (r.online) cr = Math.round(cr * 1.25);
+      if (r.ranked) cr = Math.round(cr * 1.5);
+      const day = new Date().toISOString().slice(0, 10); let first = false;
+      if (r.won && !r.abandon && (S.daily || {}).day !== day) { S.daily = { day }; cr += 250; first = true; }
+      S.credits = (S.credits || 0) + cr;
       Auth.save();
       if (window.Net) Net.profile();
-      return { xp, lv: level(S.xp).lv, up: level(S.xp).lv > before, delta: r.delta };
+      return { xp, lv: level(S.xp).lv, up: level(S.xp).lv > before, delta: r.delta, before: before2, rating: S.rank.rating, cr, first };
     },
   };
   Object.assign(Auth, U.hub());   // on / emit (mixed in after: Object.assign would call the getters above)

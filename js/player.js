@@ -99,6 +99,7 @@
     }
     if (a.state !== 'alive') return;
     switch (act) {
+      case 'walk': if (G.settings.walkToggle) P.walkLatch = !P.walkLatch; break;
       case 'crouch': if (a.rappel) { a.ropeInvert(); break; } a.setStance(G.settings.crouchToggle ? (a.stance === 1 ? 0 : 1) : 1); break;
       case 'prone': a.setStance(a.stance === 2 ? 0 : 2); break;
       case 'leanL': a.leanT = G.settings.leanToggle ? (a.leanT === -1 ? 0 : -1) : -1; break;
@@ -206,6 +207,9 @@
       const h = P.held;
       a.mf = (h('forward') ? 1 : 0) - (h('back') ? 1 : 0); a.mr = (h('right') ? 1 : 0) - (h('left') ? 1 : 0);
       a.sprint = h('sprint');
+      // walking: hold (or toggle) for a slow, quiet pace; breaking into a sprint ends a toggled walk
+      if (a.sprint && a.mf > 0.3) P.walkLatch = false;
+      a.walk = !a.sprint && (G.settings.walkToggle ? !!P.walkLatch : h('walk'));
       if (!G.settings.leanToggle && a.state === 'alive') a.leanT = h('leanL') ? -1 : h('leanR') ? 1 : 0;
       const scanning = a.ability && a.ability.id === 'scanner' && a.ability.on;
       a.trigger = h('fire') && !scanning && !(a.carry && a.carry.hostage && a.cur === 0);
@@ -220,7 +224,7 @@
         const e = a.eye(V()), f = a.fwd(V());
         for (const t of G.actors) { if (t.team === a.team || t.state !== 'alive' || t.hostage) continue; const c = t.center(V()), to = c.clone().sub(e), d = to.length(); if (d < 60 && 1 - to.normalize().dot(f) < 0.002 && G.world.los(e, c) && !GAME.marked(t, a.team) && (t.spotT || 0) < G.time) { t.spotT = G.time + 1; if (GAME.client) NP.act('ping', { aid: t.id, dur: 6 }); else GAME.mark(t, a.team, 6, true); SFX.ping(); } }
       }
-    } else if (P.view !== 'body') { a.mf = a.mr = 0; a.trigger = false; a.adsWant = false; a.sprint = false; }
+    } else if (P.view !== 'body') { a.mf = a.mr = 0; a.trigger = false; a.adsWant = false; a.sprint = false; a.walk = false; }
     if (!P.locked) { a.trigger = false; }
     if (P.view === 'drone' && P.drone) {
       const h = P.held, d = P.drone;
@@ -230,7 +234,8 @@
     if (P.view === 'cams' && P.cam && !P.cam.alive) P.cycleCam(1);
     if (a.state === 'dead') {
       P.deadT += dt;
-      if (P.view === 'body' && P.deadT > 2.2 && !KC.busy()) { P.view = 'spectate'; P.cycleSpec(0); }
+      // Deathmatch / Team Deathmatch: stay down until the respawn, no spectating
+      if (P.view === 'body' && P.deadT > 2.2 && !KC.busy() && !GAME.arcade) { P.view = 'spectate'; P.cycleSpec(0); }
       if (P.view === 'spectate' && (!P.spec || P.spec.state === 'dead')) P.cycleSpec(1);
     }
     // recoil recovery (visual part)
@@ -261,19 +266,28 @@
     P.deadT = 0; P.leaveDrone(); P.leaveCams();
     let head = !!(GAME.lastElim && GAME.lastElim.v === G.player && GAME.lastElim.head);
     // a guest hears who did it from the kill feed
-    if (GAME.client) { const f = feedEntry(G.player); if (f) { k = k || G.actors.find(a => a.op.name === f.k && a.team === f.kt) || null; head = !!f.head; } }
+    if (GAME.client) { const f = feedEntry(G.player); if (f) { k = k || G.actors.find(a => GAME.who(a) === f.k && a.team === f.kt) || null; head = !!f.head; } }
     P.killer = k;
-    HUD.toast(k && k !== G.player ? 'Eliminated by ' + k.op.name : 'You died', 'warn');
+    HUD.toast(k && k !== G.player ? 'Eliminated by ' + GAME.who(k) + ' (' + k.op.name + ')' : 'You died', 'warn');
     // the kill cam: a moment on the floor, then the last few seconds again from the killer's side
-    if (G.mode === 'match' && GAME.phase === 'action') KC.queue('death', k, G.player, 1.1, { head });
+    // (not in Deathmatch / Team Deathmatch: you're back in four seconds)
+    if (GAME.arcade) P.respawnAt = G.time + ARC.RESPAWN;
+    else if (G.mode === 'match' && GAME.phase === 'action') KC.queue('death', k, G.player, 1.1, { head });
   };
-  const feedEntry = v => GAME.feed.find(e => e.v === v.op.name && e.vt === v.team && !e.verb);
+  const feedEntry = v => GAME.feed.find(e => e.v === GAME.who(v) && e.vt === v.team && !e.verb);
   P.feedEntry = feedEntry;
   P.roundStart = function () {
-    P.view = 'body'; P.drone = null; P.cam = null; P.spec = null; P.deadT = 0; P.eyeY = null; P.vmKey = ''; P.enabled = true;
+    P.view = 'body'; P.drone = null; P.cam = null; P.spec = null; P.deadT = 0; P.eyeY = null; P.vmKey = ''; P.enabled = true; P.respawnAt = 0;
     const a = G.player;
-    if (a.side === 'atk' && !GAME.client) { const d = GAD.deployDrone(a, true); if (d) P.enterDrone(d); }
+    if (a.side === 'atk' && !GAME.client && !GAME.arcade) { const d = GAD.deployDrone(a, true); if (d) P.enterDrone(d); }
+    HUD.reticle && document.documentElement.style.setProperty('--xc', SHOP.css('reticle'));
     if (!P.locked) P.lock();
+  };
+  /* back in after a death (Deathmatch / Team Deathmatch) */
+  P.respawned = function () {
+    if (KC.play) KC.stop(true);
+    P.view = 'body'; P.drone = null; P.cam = null; P.spec = null; P.deadT = 0; P.eyeY = null; P.vmKey = ''; P.respawnAt = 0;
+    P.rec.p = P.rec.y = 0; P.kick = 0;
   };
   P.actionStart = function () { if (P.view === 'drone' && G.player.state === 'alive') P.leaveDrone(); };
 
@@ -314,14 +328,14 @@
 
   /* ----------------------------------------------------------- viewmodel */
   P.buildVM = function () {
-    const a = G.player, key = a.op.id + ':' + a.wpn.id + ':' + (a.shieldOp && a.shieldUp ? 'S' : '');
+    const a = G.player, cos = a.cos || {}, key = a.op.id + ':' + a.wpn.id + ':' + (a.shieldOp && a.shieldUp ? 'S' : '') + ':' + (cos.finish || '') + ':' + (cos.suit || '');
     if (key === P.vmKey) return;
     P.vmKey = key;
     if (P.vm) G.vmScene.remove(P.vm.root);
     const root = new THREE.Group(), gun = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ vertexColors: true });
-    const vg = MD.viewGun(a.wpn.id, a.op);
+    const vg = MD.viewGun(a.wpn.id, a.op, cos.finish);
     const gm = new THREE.Mesh(vg.geo, mat); gun.add(gm);
-    const arms = new THREE.Mesh(MD.viewArms(a.op), mat); arms.position.set(0.02, -0.17, 0.12); arms.rotation.x = 0.25; gun.add(arms);
+    const arms = new THREE.Mesh(MD.viewArms(a.op, cos.suit), mat); arms.position.set(0.02, -0.17, 0.12); arms.rotation.x = 0.25; gun.add(arms);
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: P.flashTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     flash.position.set(0, 0, vg.muzzleZ - 0.04); flash.scale.setScalar(0.22); flash.visible = false; gun.add(flash);
     const SC = 0.5;
@@ -355,8 +369,11 @@
     const w = a.wpn, ads = a.ads;
     P.bob += dt * (a.moving > 0.3 && a.onGround ? 4 + a.moving * 1.6 : 0);
     const bobA = Math.min(1, a.moving / 4) * (1 - ads * 0.85);
-    const hip = vm.shield ? V().set(0.1, -0.095, -0.21) : vm.pistol ? V().set(0.075, -0.085, -0.2) : V().set(0.075, -0.08, -0.13);
-    const aim = V().set(0, -vm.sightY, vm.pistol ? -0.3 : -0.24);
+    // held low on the right, far enough out that the sight housing doesn't fill the screen
+    // (13 cm away, a red dot or holo frame covered a third of the view); aiming brings the sight
+    // to the centre
+    const hip = vm.shield ? V().set(0.1, -0.095, -0.21) : vm.pistol ? V().set(0.1, -0.12, -0.3) : V().set(0.12, -0.15, -0.3);
+    const aim = V().set(0, -vm.sightY, vm.pistol ? -0.32 : -0.28);
     const pos = hip.lerp(aim, ads);
     pos.x += Math.sin(P.bob) * 0.006 * bobA - P.swayX * 0.5 * (1 - ads * 0.8);
     pos.y += Math.abs(Math.cos(P.bob)) * 0.005 * bobA + P.swayY * 0.5 * (1 - ads * 0.8);

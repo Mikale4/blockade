@@ -74,9 +74,9 @@
     tone(d, t0, t === 'SG' ? 0.22 : 0.12, t === 'SG' ? 120 : 160, 50, t === 'SG' ? 0.8 : 0.5, 'sine');
     if (!local) noise(d, t0 + 0.03, 0.35, 'bandpass', 600, 0.6, 0.15);
   };
-  SFX.step = function (pos, loud, local, mat) {
+  SFX.step = function (pos, loud, local, mat, soft) {
     if (!SFX.ctx) return;
-    const d = chain(local ? null : pos, loud ? 22 : 12, (local ? 0.12 : 0.5) * (loud ? 1 : 0.55));
+    const d = chain(local ? null : pos, loud ? 22 : soft ? 6 : 12, (local ? 0.12 : 0.5) * (loud ? 1 : 0.55) * (soft ? 0.35 : 1));
     if (!d) return;
     const t0 = now(), metal = mat === 'metal';
     noise(d, t0, 0.07, 'bandpass', metal ? 2200 : 500 + Math.random() * 300, 1.2, 0.8);
@@ -109,11 +109,29 @@
     const d = chain(pos, 25, 0.25); if (!d) return;
     noise(d, now(), 0.06, 'bandpass', soft ? 700 : 2600, 1.5, 0.6);
   };
-  SFX.wood = function (pos) {
+  SFX.wood = function (pos, brk) {
     if (!SFX.ctx) return;
+    if (brk) return woodBreak(pos);
     const d = chain(pos, 35, 0.6); if (!d) return;
     const t0 = now(); noise(d, t0, 0.25, 'bandpass', 420, 1.0, 0.8); tone(d, t0, 0.12, 180, 90, 0.4, 'triangle');
   };
+  /* a barricade or door giving way: a sharp crack, a dull knock, splinters snapping and the
+     bits rattling down. Made here rather than played from a file, and kept no louder than a shot */
+  function woodBreak(pos) {
+    const d = chain(pos, 40, 0.5); if (!d) return;
+    const t0 = now();
+    noise(d, t0, 0.09, 'bandpass', 1800 + Math.random() * 600, 1.4, 0.7);          // the crack
+    tone(d, t0, 0.16, 150 + Math.random() * 30, 70, 0.35, 'triangle');              // the knock of the boards
+    noise(d, t0 + 0.01, 0.3, 'lowpass', 650, 0.8, 0.35);                            // the body of it
+    for (let i = 0; i < 5; i++) {                                                     // splinters
+      const t = t0 + 0.03 + Math.random() * 0.22;
+      noise(d, t, 0.03 + Math.random() * 0.03, 'bandpass', 2500 + Math.random() * 2500, 3, 0.18 + Math.random() * 0.12);
+    }
+    for (let i = 0; i < 4; i++) {                                                     // pieces landing
+      const t = t0 + 0.2 + i * 0.07 + Math.random() * 0.06;
+      noise(d, t, 0.05, 'bandpass', 500 + Math.random() * 500, 2, 0.12 * (1 - i * 0.18));
+    }
+  }
   SFX.melee = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 25, 0.6); if (!d) return; noise(d, now(), 0.15, 'lowpass', 600, 0.8, 0.9); };
   SFX.reload = function (pos, local, phase) {
     if (!SFX.ctx) return;
@@ -127,7 +145,14 @@
   SFX.hurt = function () { if (!SFX.ctx) return; const d = chain(null, 1, 0.5); noise(d, now(), 0.18, 'lowpass', 400, 1, 1); tone(d, now(), 0.15, 110, 60, 0.6); };
   SFX.beep = function (pos, f, vol) { if (!SFX.ctx) return; const d = chain(pos, 30, vol || 0.35); if (!d) return; tone(d, now(), 0.09, f || 1800, null, 0.6, 'square'); };
   SFX.ui = function (f) { if (!SFX.ctx) return; const d = chain(null, 1, 0.18); tone(d, now(), 0.05, f || 900, null, 0.7, 'triangle'); };
-  SFX.ping = function () { if (!SFX.ctx) return; const d = chain(null, 1, 0.25); const t = now(); tone(d, t, 0.12, 1320, null, 0.5); tone(d, t + 0.08, 0.18, 1760, null, 0.4); };
+  /* spotting an enemy: a short radar-style chirp, two rising blips with a soft tail */
+  SFX.ping = function () {
+    if (!SFX.ctx) return; const d = chain(null, 1, 0.2); const t = now();
+    tone(d, t, 0.07, 1180, 1480, 0.45, 'triangle');
+    tone(d, t + 0.075, 0.16, 1560, 1980, 0.38, 'triangle');
+    tone(d, t + 0.075, 0.22, 3120, 3000, 0.06, 'sine');
+    noise(d, t, 0.03, 'highpass', 6000, 0.7, 0.05);
+  };
   SFX.alarm = function () { if (!SFX.ctx) return; const d = chain(null, 1, 0.25); const t = now(); for (let i = 0; i < 3; i++) tone(d, t + i * 0.12, 0.08, 980, null, 0.5, 'square'); };
   SFX.metal = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 35, 0.6); if (!d) return; const t = now(); tone(d, t, 0.5, 320, 300, 0.4, 'triangle'); tone(d, t, 0.4, 755, null, 0.25, 'triangle'); noise(d, t, 0.1, 'bandpass', 2000, 2, 0.5); };
   SFX.zap = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 30, 0.6); if (!d) return; const t = now(); tone(d, t, 0.35, 90, 1600, 0.4, 'sawtooth'); noise(d, t, 0.3, 'highpass', 5000, 1, 0.3); };
@@ -201,7 +226,7 @@
   // name: [keys(...args) -> candidate keys, pos(...args), range, gain(...args)]
   const OVR = {
     shot: [(w, p, l) => ['shot.' + w.id, 'shot.' + w.type, 'shot'], (w, p, l) => l ? null : p, 90, (w, p, l) => l ? 0.6 : 0.9],
-    step: [(p, loud, l, m) => [m === 'metal' ? 'step.metal' : 'step', 'step'], (p, loud, l) => l ? null : p, 18, (p, loud, l) => (l ? 0.2 : 0.6) * (loud ? 1 : 0.55)],
+    step: [(p, loud, l, m) => [m === 'metal' ? 'step.metal' : 'step', 'step'], (p, loud, l) => l ? null : p, 18, (p, loud, l, m, soft) => (l ? 0.2 : 0.6) * (loud ? 1 : 0.55) * (soft ? 0.35 : 1)],
     explosion: [(p, big, v) => [v ? 'explosion.' + v : '', 'explosion'], p => p, 140, () => 1],
     crumble: [() => ['crumble'], p => p, 50, () => 0.7],
     glass: [() => ['glass'], p => p, 40, () => 0.6],

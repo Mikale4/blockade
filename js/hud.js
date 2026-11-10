@@ -85,15 +85,27 @@
     const b = H.el.board;
     if (!on || !G.player || G.mode !== 'match') { b.style.display = 'none'; return; }
     b.style.display = 'block'; b.innerHTML = '';
+    // a player's name; bots carry a small BOT tag except in Ranked, where they stand in for players
+    const nameOf = a => $('span', {}, a.isPlayer ? 'YOU' : GAME.who(a), !a.isPlayer && !a.net && !a.netHuman && !GAME.ranked ? $('em', { class: 'bot' }, 'BOT') : null);
+    if (GAME.ffa) {
+      b.append($('div', { class: 'sb-head t0' }, 'DEATHMATCH', $('span', {}, 'FIRST TO ' + DATA.MODES.dm.limit)));
+      ARC.standings().forEach((a, i) => {
+        const s = a.match;
+        b.append($('div', { class: 'sb-row ' + (a.isPlayer ? 't0 me' : 't1') + (a.state === 'dead' ? ' dead' : '') },
+          $('span', { class: 'sb-op', style: { borderColor: DATA.UNITS[a.op.unit].color } }, '#' + (i + 1) + ' ' + a.op.name), nameOf(a), $('span', {}, s.s), $('span', {}, s.k), $('span', {}, s.a), $('span', {}, s.d)));
+      });
+      b.prepend($('div', { class: 'sb-cols' }, $('span', {}, 'OPERATOR'), $('span', {}, ''), $('span', {}, 'SCORE'), $('span', {}, 'K'), $('span', {}, 'A'), $('span', {}, 'D')));
+      return;
+    }
     for (const team of [GAME.myTeam, 1 - GAME.myTeam]) {
       const side = GAME.sideOf(team);
       const rows = G.actors.filter(a => a.team === team && !a.hostage);
       const mineT = team === GAME.myTeam;
-      b.append($('div', { class: 'sb-head t' + (mineT ? 0 : 1) }, mineT ? 'YOUR TEAM' : 'ENEMY TEAM', $('span', {}, side === 'atk' ? 'ATTACK' : 'DEFENSE')));
+      b.append($('div', { class: 'sb-head t' + (mineT ? 0 : 1) }, mineT ? 'YOUR TEAM' : 'ENEMY TEAM', $('span', {}, GAME.arcade ? GAME.score[team] + ' KILLS' : side === 'atk' ? 'ATTACK' : 'DEFENSE')));
       for (const a of rows) {
         const s = a.match || { k: 0, d: 0, a: 0, s: 0 };
         b.append($('div', { class: 'sb-row t' + (team === GAME.myTeam ? 0 : 1) + (a.isPlayer ? ' me' : '') + (a.state === 'dead' ? ' dead' : '') },
-          $('span', { class: 'sb-op', style: { borderColor: DATA.UNITS[a.op.unit].color } }, a.op.name), $('span', {}, a.isPlayer ? 'YOU' : (a.net || a.netHuman) ? a.name : 'BOT'),
+          $('span', { class: 'sb-op', style: { borderColor: DATA.UNITS[a.op.unit].color } }, a.op.name), nameOf(a),
           $('span', {}, s.s), $('span', {}, s.k), $('span', {}, s.a), $('span', {}, s.d)));
       }
     }
@@ -117,9 +129,10 @@
       const d = GAME.obj.defuser;
       e.timer.textContent = d && d.alive ? U.fmtTime(d.left) : U.fmtTime(GAME.timer);
       e.timer.classList.toggle('planted', !!(d && d.alive));
-      e.phase.textContent = ph === 'prep' ? 'PREPARATION' : ph === 'action' ? (d && d.alive ? 'DEFUSER PLANTED' : 'ACTION') : ph === 'post' ? 'ROUND OVER' : '';
-      e.s0.textContent = GAME.score[GAME.myTeam]; e.s1.textContent = GAME.score[1 - GAME.myTeam];
+      e.phase.textContent = GAME.arcade ? (ph === 'post' ? 'MATCH OVER' : 'FIRST TO ' + DATA.MODES[GAME.mode].limit) : ph === 'prep' ? 'PREPARATION' : ph === 'action' ? (d && d.alive ? 'DEFUSER PLANTED' : 'ACTION') : ph === 'post' ? 'ROUND OVER' : '';
       const MT = GAME.myTeam;
+      if (GAME.ffa) return arcadeTop(a, e, dt);
+      e.s0.textContent = GAME.score[GAME.myTeam]; e.s1.textContent = GAME.score[1 - GAME.myTeam];
       const key = MT + G.actors.map(x => x.state + (x.marks && GAME.marked(x, MT) ? 'm' : '')).join();
       if (key !== H.teamKey) {
         H.teamKey = key;
@@ -135,20 +148,41 @@
       // objective line
       let o = '';
       const side = a.side, mode = GAME.mode;
-      if (ph === 'prep') o = side === 'atk' ? KEYS.fmt('Drone the building: find the objective and spot defenders [{fire}]') : KEYS.fmt('Reinforce walls [hold {interact}], barricade [{interact}], set your gadgets');
+      if (GAME.arcade) o = 'First team to ' + DATA.MODES[mode].limit + ' kills wins';
+      else if (ph === 'prep') o = side === 'atk' ? KEYS.fmt('Drone the building: find the objective and spot defenders [{fire}]') : KEYS.fmt('Reinforce walls [hold {interact}], barricade [{interact}], set your gadgets');
       else if (mode === 'bomb') o = d && d.alive ? (side === 'atk' ? 'Protect the defuser' : 'Disable the defuser!') : (side === 'atk' ? (a.carry === 'defuser' ? 'You carry the defuser: plant it in ' + GAME.siteNames.join(' or ') : 'Plant the defuser in ' + GAME.siteNames.join(' or ')) : 'Defend ' + GAME.siteNames.join(' and '));
       else if (mode === 'secure') o = (side === 'atk' ? 'Secure ' : 'Hold ') + GAME.siteNames[0] + (GAME.obj.prog > 0 ? '  ·  ' + Math.round(GAME.obj.prog / 10 * 100) + '%' + (GAME.obj.contested ? ' CONTESTED' : '') : '');
       else if (mode === 'hostage') o = side === 'atk' ? (a.carry && a.carry.hostage ? 'Get the hostage to an extraction zone' : 'Extract the hostage from ' + GAME.siteNames[0]) : 'Keep the hostage in ' + GAME.siteNames[0];
       e.obj.textContent = o;
       e.obj.style.display = '';
     } else e.obj.style.display = 'none';
+    H.body(a, e, dt);
+  };
+  /* Deathmatch: you and the leader instead of two teams */
+  function arcadeTop(a, e, dt) {
+    const st = ARC.standings(), me = st.indexOf(a), lead = st[0] === a ? st[1] : st[0];
+    e.s0.textContent = a.match ? a.match.k : 0; e.s1.textContent = lead && lead.match ? lead.match.k : 0;
+    const key = 'dm' + (me + 1) + (lead ? GAME.who(lead) : '');
+    if (key !== H.teamKey) {
+      H.teamKey = key;
+      e.t0.innerHTML = ''; e.t1.innerHTML = '';
+      e.t0.append($('div', { class: 'ti me alive dmt' }, 'YOU · ' + ARC.ordinal(me + 1)));
+      if (lead) e.t1.append($('div', { class: 'ti alive dmt' }, (st[0] === a ? '2ND · ' : 'LEADER · ') + GAME.who(lead)));
+      e.t0.className = 'h-team t0 dm'; e.t1.className = 'h-team t1 dm';
+    }
+    e.obj.textContent = 'Everyone for themselves · first to ' + DATA.MODES.dm.limit + ' kills';
+    e.obj.style.display = '';
+    H.body(a, e, dt);
+  }
+  H.body = function (a, e, dt) {
+    const isMatch = G.mode === 'match';
     // ---- health
     e.opname.textContent = a.op.name + (a.isPlayer && a.side ? ' · ' + (a.side === 'atk' ? 'ATTACK' : 'DEFENSE') : '');
     e.hpfill.style.width = Math.max(0, a.hp / a.maxHp * 100) + '%';
     e.hpover.style.width = Math.min(100, a.over / a.maxHp * 100) + '%';
     e.hpnum.textContent = Math.ceil(a.hp + a.over);
     e.hp.classList.toggle('low', a.hp < 30);
-    e.status.textContent = a.state === 'dbno' ? 'DOWN · bleeding out ' + Math.ceil(a.bleed) + 's' : a.rooted > 0 ? 'SNARED' : a.stun > 0 ? 'CONCUSSED' : a.slow > 0 ? 'IN WIRE' : a.over > 0 ? 'OVERHEALED' : a.carry === 'defuser' ? 'CARRYING DEFUSER' : '';
+    e.status.textContent = a.state === 'dbno' ? 'DOWN · bleeding out ' + Math.ceil(a.bleed) + 's' : a.rooted > 0 ? 'SNARED' : a.stun > 0 ? 'CONCUSSED' : a.slow > 0 ? 'IN WIRE' : a.over > 0 ? 'OVERHEALED' : a.carry === 'defuser' ? 'CARRYING DEFUSER' : a.walk && a.moving > 0.3 ? 'WALKING · quiet' : '';
     // ---- weapon & slots
     const w = a.wpn;
     if (w) {
@@ -166,9 +200,12 @@
         const ab = a.op.ability, cnt = ab.cd ? (a.ability.cd > 0 ? Math.ceil(a.ability.cd) + 's' : 'READY') : a.ability.id === 'surge' ? a.ability.zaps + ' zaps' : ab.count >= 99 ? '' : a.ability.count;
         slot(KEYS.name('ability'), ab.name, cnt, ab.count < 99 && a.ability.count <= 0);
       }
-      if (a.side === 'atk') slot(KEYS.name('device'), 'DRONE', a.drones + G.ents.filter(x => x.alive && x.type === 'drone' && x.owner === a).length);
-      else slot(KEYS.name('device'), 'CAMERAS', GAD.cams(a.team).length);
-      if (a.side === 'def' && G.mode === 'match') slot(KEYS.name('interact'), 'REINFORCEMENTS', GAME.pool[a.team] || 0);
+      // Deathmatch / Team Deathmatch have no drones, cameras or reinforcements
+      if (!(G.mode === 'match' && GAME.arcade)) {
+        if (a.side === 'atk') slot(KEYS.name('device'), 'DRONE', a.drones + G.ents.filter(x => x.alive && x.type === 'drone' && x.owner === a).length);
+        else slot(KEYS.name('device'), 'CAMERAS', GAD.cams(a.team).length);
+        if (a.side === 'def' && G.mode === 'match') slot(KEYS.name('interact'), 'REINFORCEMENTS', GAME.pool[a.team] || 0);
+      }
     }
     // ---- view mode overlay
     const P = PLAYER;
@@ -177,6 +214,7 @@
     else if (P.view === 'cams') vtxt = (P.cam ? P.cam.name : 'CAMERA') + KEYS.fmt('<small>{left}/{right} switch · {fire} spot · {device} exit</small>');
     else if (P.view === 'spectate') vtxt = 'SPECTATING ' + (P.spec ? P.spec.op.name : '—') + KEYS.fmt('<small>{fire}/{aim} switch · {device} ' + (a.side === 'atk' ? 'drones' : 'cameras') + '</small>');
     else if (a.state === 'dbno') vtxt = 'DOWN<small>wait for a teammate to revive you</small>';
+    else if (a.state === 'dead' && GAME.arcade && GAME.phase === 'action') { const t = (GAME.client ? P.respawnAt : a.respawnAt) - G.time; vtxt = t > 0 ? 'RESPAWNING IN ' + Math.ceil(t) + '<small>' + (P.killer && P.killer !== a ? 'eliminated by ' + GAME.who(P.killer) : '') + '</small>' : 'RESPAWNING…'; }
     if (H._v !== vtxt) { H._v = vtxt; e.mode.innerHTML = vtxt; e.mode.style.display = vtxt ? '' : 'none'; }
     U.$('fxLayer').className = P.view === 'drone' ? 'drone' : P.view === 'cams' ? 'cams' : '';
     // ---- crosshair
@@ -247,7 +285,7 @@
       if (t.hostage) { put(head, 'mk-host', 'HOSTAGE'); continue; }
       if (t.dummy) continue;
       if (t.team === a.team) {
-        if (U.dist3(camPos, head) < 45) put(head, 'mk-ally' + (t.state === 'dbno' ? ' down' : ''), t.state === 'dbno' ? '✚ ' + t.op.name : t.op.name);
+        if (U.dist3(camPos, head) < 45) put(head, 'mk-ally' + (t.state === 'dbno' ? ' down' : ''), t.state === 'dbno' ? '✚ ' + GAME.who(t) : GAME.who(t));
       } else if (GAME.marked(t, a.team)) put(t.center(V()).add(V().set(0, 0.5, 0)), 'mk-enemy', '◆');
     }
     if (G.mode === 'match') {

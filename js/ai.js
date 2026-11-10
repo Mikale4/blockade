@@ -544,7 +544,7 @@
   AI.situation = situation;
   /* does the objective need this bot right now? */
   function urgentFor(a) {
-    if (GAME.phase !== 'action') return false;
+    if (GAME.phase !== 'action' || GAME.arcade) return false;
     const S = situation(a.team), obj = GAME.obj;
     if (a.side === 'def') return S.threat;
     return !!a.carry || S.late || (obj.dropped && obj.dropped.alive && pickupBot(a.team) === a);
@@ -569,6 +569,11 @@
   AI.roundStart = function () {
     AI.teams = {};
     for (const k in SIT) delete SIT[k];
+    // Deathmatch / Team Deathmatch: no plan to follow, just hunt (arcade.js)
+    if (GAME.arcade) {
+      for (const a of G.actors) if (a.bot && !AI.teams[a.team]) AI.teams[a.team] = { side: a.side, bots: G.actors.filter(x => x.team === a.team && x.bot), goalFor: ARC.goal };
+      return;
+    }
     const obj = GAME.obj;
     for (const team of [0, 1]) {
       const side = GAME.sideOf(team), bots = G.actors.filter(a => a.team === team && a.bot);

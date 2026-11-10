@@ -93,6 +93,7 @@
   WPN.fire = function (a) {
     const w = a.wpn, d = w.def;
     if (GAME.client && a === G.player) return clientFire(a);
+    a.spawnProt = 0;
     w.mag--; w.cool = 60 / d.rpm;
     const e = a.eye(tmpO.clone()), f = a.fwd();
     const s = WPN.spreadNow(a);

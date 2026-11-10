@@ -95,9 +95,13 @@
   function buildShin(L) { const g = new Grid(); g.box(-1, -7, -1, 1, 0, 1, L.cloth); g.box(-1, -1, -2, 1, 0, -2, 0x2e2f33); g.box(-1, -7, -2, 1, -5, 1, 0x26241f); g.box(-1, -7, -3, 1, -7, -2, 0x26241f); return g; }
 
   /* third-person gun */
-  function gunGeo3P(wid) {
-    return cached('g3:' + wid, () => {
-      const g = new Grid(), W = DATA.WEAPONS[wid], dark = 0x222428, poly = 0x34373c;
+  /* a weapon finish from the shop (DATA.COSMETICS.finish): the gun's metal, polymer and fittings */
+  const finishOf = f => (DATA.COSMETICS.finish[f] && f !== 'factory') ? DATA.COSMETICS.finish[f] : null;
+  const suitOf = s => (DATA.COSMETICS.suit[s] && s !== 'standard') ? DATA.COSMETICS.suit[s] : null;
+  function gunGeo3P(wid, fin) {
+    const F = finishOf(fin);
+    return cached('g3:' + wid + ':' + (F ? fin : ''), () => {
+      const g = new Grid(), W = DATA.WEAPONS[wid], dark = F ? F.dark : 0x222428, poly = F ? F.poly : 0x34373c;
       const t = W ? W.type : 'AR';
       if (t === 'SHIELD') {
         // 0.69 x 1.38 m plate with a dark viewport band at eye height (matches WPN.shieldRect)
@@ -111,22 +115,26 @@
       g.box(0, -1, 2, 0, 0, 5, poly);
       if (t === 'LMG') g.box(-1, -3, -4, 1, -1, -1, 0x3a3c32); else if (t !== 'SG') g.box(0, -3, -5, 0, -1, -4, dark);
       if (t === 'DMR') g.box(0, 2, -6, 0, 3, -1, 0x15171a); else g.box(0, 2, -3, 0, 2, -2, 0x15171a);
-      if (t === 'SG') g.box(0, -1, -len + 1, 0, -1, -4, 0x5a3a22);
+      if (t === 'SG') g.box(0, -1, -len + 1, 0, -1, -4, F ? F.mid : 0x5a3a22);
+      if (F) g.set(0, 1, -len + 2, F.glowMid ? glow(F.mid) : F.mid);
       return mesh(g, S);
     });
   }
 
   const opCache = new Map();
-  function opGeos(op) {
-    if (opCache.has(op.id)) return opCache.get(op.id);
-    const L = op.look, bulk = op.armor;
+  const lookOf = (op, suit) => { const U2 = suitOf(suit); return U2 ? Object.assign({}, op.look, U2.cloth ? { cloth: U2.cloth } : {}, U2.vest ? { vest: U2.vest } : {}, U2.helmet ? { helmet: U2.helmet } : {}, U2.accent ? { accent: U2.accent } : {}) : op.look; };
+  function opGeos(op, suit) {
+    const key = op.id + ':' + (suitOf(suit) ? suit : '');
+    if (opCache.has(key)) return opCache.get(key);
+    const L = lookOf(op, suit), bulk = op.armor;
     const geos = { head: mesh(buildHead(L), S), torso: mesh(buildTorso(L, bulk), S), arm: mesh(buildArm(L), S), thigh: mesh(buildThigh(L), S), shin: mesh(buildShin(L), S) };
-    opCache.set(op.id, geos);
+    opCache.set(key, geos);
     return geos;
   }
   /* an operator rig: { root, pose, hips, torso, head, aim, armL, armR, gun, thighL.. } */
-  function operator(op, weaponId) {
-    const G = opGeos(op), m = mat();
+  function operator(op, weaponId, cos) {
+    cos = cos || {};
+    const G = opGeos(op, cos.suit), m = mat();
     const root = new THREE.Group(), pose = new THREE.Group(), hips = new THREE.Group();
     root.add(pose); pose.add(hips); hips.position.y = 13 * S;
     const mk = (geo, parent, x, y, z) => { const p = new THREE.Group(); const me = part(geo, m); p.add(me); p.position.set(x * S, y * S, z * S); parent.add(p); return p; };
@@ -139,14 +147,14 @@
     // arms hang along -Y; a positive X rotation swings them forward (-Z) to hold the gun
     armR.rotation.x = 1.45; armL.rotation.x = 1.35; armL.rotation.z = 0.5; armR.rotation.z = -0.08;
     const gun = new THREE.Group(); gun.position.set(2.5 * S, -1 * S, -7 * S); aim.add(gun);
-    const gm = part(gunGeo3P(weaponId || 'vkr5'), m); gun.add(gm);
-    const rig = { root, pose, hips, torso, head, aim, armL, armR, gun, gunMesh: gm, thighL, thighR, shinL, shinR, mat: m, shield: null };
+    const gm = part(gunGeo3P(weaponId || 'vkr5', cos.finish), m); gun.add(gm);
+    const rig = { root, pose, hips, torso, head, aim, armL, armR, gun, gunMesh: gm, thighL, thighR, shinL, shinR, mat: m, shield: null, fin: cos.finish || null };
     root.traverse(o => { o.matrixAutoUpdate = true; });
     return rig;
   }
   function setRigGun(rig, wid) {
     rig.gun.remove(rig.gunMesh);
-    rig.gunMesh = part(gunGeo3P(wid), rig.mat); rig.gun.add(rig.gunMesh);
+    rig.gunMesh = part(gunGeo3P(wid, rig.fin), rig.mat); rig.gun.add(rig.gunMesh);
     const pistol = /PISTOL|MP/.test((DATA.WEAPONS[wid] || {}).type);
     rig.gun.position.set((pistol ? 0.5 : 2.5) * S, -1 * S, (pistol ? -9 : -7) * S);
   }
@@ -179,9 +187,9 @@
 
   /* ================================================== first-person guns (1/48) */
   const VS1 = 1 / 48;
-  function viewGun(wid, op) {
-    const W = DATA.WEAPONS[wid], t = W.type, g = new Grid();
-    const dark = 0x1e2024, poly = 0x2e3136, mid = 0x44474d, acc = op ? op.look.accent : 0x888888, glove = 0x2a2622, sleeve = op ? op.look.cloth : 0x444444;
+  function viewGun(wid, op, fin) {
+    const W = DATA.WEAPONS[wid], t = W.type, g = new Grid(), F = finishOf(fin);
+    const dark = F ? F.dark : 0x1e2024, poly = F ? F.poly : 0x2e3136, mid = F ? (F.glowMid ? glow(F.mid) : F.mid) : 0x44474d, acc = op ? op.look.accent : 0x888888, glove = 0x2a2622, sleeve = op ? op.look.cloth : 0x444444;
     let sightY = 4, muzzleZ = -40, sight = W.sight;
     if (t === 'SHIELD') {
       g.box(-14, -30, -4, 14, 26, -4, 0x2a333c); g.box(-13, -29, -3, 13, 25, -3, 0x3a4450); g.box(-6, 10, -4, 6, 14, -4, 0x0b0d10); g.box(-5, 11, -4, 5, 13, -4, glow(0x7ab8d8));
@@ -208,7 +216,7 @@
     g.box(-2, -2, -L - 2, 2, 2, -L, mid);              // muzzle
     g.box(-2, -2, 10, 2, 3, 26, poly);                 // stock
     g.box(-2, -8, 2, 2, -3, 6, poly);                  // grip
-    if (t === 'SG') { g.box(-2, -6, -L + 2, 2, -4, -10, 0x5a3a22); g.box(-2, -2, 10, 2, 3, 26, 0x5a3a22); }
+    if (t === 'SG') { const wood = F ? F.poly : 0x5a3a22; g.box(-2, -6, -L + 2, 2, -4, -10, wood); g.box(-2, -2, 10, 2, 3, 26, wood); }
     else if (t === 'LMG') { g.box(-5, -14, -12, 4, -3, -2, 0x3a3c32); g.box(-1, -8, -L + 4, -1, -4, -L + 6, mid); }
     else g.box(-2, -14, -14, 2, -3, -8, poly);         // magazine
     // rail & sight
@@ -224,8 +232,8 @@
     muzzleZ = -L - 2;
     return { geo: mesh(g, VS1, 0.04), sightY: sightY * VS1, muzzleZ: muzzleZ * VS1, sight };
   }
-  function viewArms(op) {
-    const g = new Grid(), sl = op.look.cloth, glove = 0x2a2622;
+  function viewArms(op, suit) {
+    const g = new Grid(), sl = lookOf(op, suit).cloth, glove = 0x2a2622;
     g.box(-3, -3, 0, 3, 3, 40, sl); g.box(-3, -3, 0, 3, 3, 3, shade(sl, 0.8));
     return mesh(g, VS1, 0.04);
   }

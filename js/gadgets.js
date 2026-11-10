@@ -732,7 +732,8 @@
       const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
       const tx = (-sy * this.mf + cy * this.mr) * sp, tz = (-cy * this.mf - sy * this.mr) * sp;
       this.vel.x = U.smooth(this.vel.x, tx, this.onGround ? 8 : 1.5, dt); this.vel.z = U.smooth(this.vel.z, tz, this.onGround ? 8 : 1.5, dt);
-      if (this.jump && this.onGround && !jammed) { this.vel.y = 4.2; SFX.whoosh(p); }
+      // a hop of about 0.68 m: over a crate or a curb (the training tunnel's are 0.5 m), not up to a window sill
+      if (this.jump && this.onGround && !jammed) { this.vel.y = 5.2; SFX.whoosh(p); }
       this.jump = false;
       this.vel.y -= 20 * dt;
       let nx = p.x + this.vel.x * dt; if (hit(nx, p.y, p.z)) { nx = p.x; this.vel.x = 0; } p.x = nx;

@@ -219,7 +219,7 @@
 
   /* -------------------------------------------------------------- overlay */
   let el = null;
-  const who = a => !a ? '' : a.isPlayer ? 'YOU' : (a.net || a.netHuman) && a.name && a.name !== a.op.name ? a.name + ' · ' + a.op.name : a.hostage ? 'HOSTAGE' : a.op.name;
+  const who = a => !a ? '' : a.isPlayer ? 'YOU' : a.hostage ? 'HOSTAGE' : GAME.who(a) + ' · ' + a.op.name;
   function overlay(P) {
     if (!el) {
       el = U.el('div', { id: 'kcLayer' });

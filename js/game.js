@@ -11,6 +11,12 @@
     obj: {}, reinforced: [], pool: {}, feed: [], siteRooms: [], playerChoice: null, active: false, sandbox: false,
     net: false, client: false, myTeam: 0,
   };
+  // Deathmatch / Team Deathmatch (DATA.MODES[mode].arcade / .ffa), worked out from the mode so
+  // online guests know too
+  Object.defineProperty(GAME, 'arcade', { get: () => !!(DATA.MODES[GAME.mode] || {}).arcade });
+  Object.defineProperty(GAME, 'ffa', { get: () => !!(DATA.MODES[GAME.mode] || {}).ffa });
+  /* the name shown for someone: a player's name, a bot's player-style name */
+  GAME.who = a => !a ? '' : a.hostage ? 'HOSTAGE' : a.name;
   GAME.sideOf = team => {
     if (GAME.client) return (NP.sides && NP.sides[team]) || 'atk';
     const s0 = (G.settings.swapEveryRound ? GAME.round % 2 === 0 : GAME.round < G.settings.roundsToWin - 1 || GAME.round % 2 === 0) ? GAME.startSide : (GAME.startSide === 'atk' ? 'def' : 'atk');
@@ -26,7 +32,10 @@
     GAME.mode = cfg.mode; GAME.mapId = cfg.map;
     GAME.startSide = cfg.side === 'random' ? (Math.random() < 0.5 ? 'atk' : 'def') : cfg.side;
     GAME.round = 0; GAME.score = [0, 0]; GAME.sandbox = false; GAME.active = true;
-    GAME.stats = new Map();
+    GAME.stats = new Map(); GAME.seats = null;
+    GAME.ranked = !!cfg.ranked;
+    // ranked plays by its own rules: first to four, bots as good as your rank
+    if (cfg.ranked && !cfg.online) { if (!GAME.prevSettings) GAME.prevSettings = { r: G.settings.roundsToWin, d: G.settings.difficulty, s: G.settings.swapEveryRound }; G.settings.roundsToWin = cfg.rounds || 4; if (cfg.diff != null) G.settings.difficulty = cfg.diff; G.settings.swapEveryRound = true; }
     if (!cfg.online) { GAME.net = false; GAME.client = false; GAME.myTeam = 0; }
     MAIN.loadMap(cfg.map);
     if (GAME.net && NP.host) NP.hookWorld();
@@ -38,12 +47,13 @@
     KC.reset();
     GAME.phase = 'select';
     const map = G.map;
-    if (GAME.mode === 'bomb') { const pair = U.pick(map.bombs); GAME.siteNames = pair; }
+    if (GAME.arcade) GAME.siteNames = [];
+    else if (GAME.mode === 'bomb') { const pair = U.pick(map.bombs); GAME.siteNames = pair; }
     else if (GAME.mode === 'secure') GAME.siteNames = [U.pick(map.secure)];
     else GAME.siteNames = [U.pick(map.hostage)];
     if (GAME.net) NP.select();
     MENU.opSelect({
-      side: GAME.playerSide(), round: GAME.round, score: [mine(), theirs()], mode: GAME.mode, sites: GAME.siteNames, map, online: GAME.net,
+      side: GAME.ffa ? 'any' : GAME.playerSide(), round: GAME.round, score: [mine(), theirs()], mode: GAME.mode, sites: GAME.siteNames, map, online: GAME.net,
       onReady: choice => { GAME.playerChoice = choice; if (GAME.net) NP.myPick(choice); else GAME.startRound(); },
     });
   };
@@ -72,36 +82,59 @@
     GAME.reinforced = []; GAME.feed = []; GAME.obj = {}; G.actors = []; G.player = null; GAME.lastElim = null;
     GAME.siteRooms = GAME.siteNames.map(n => map.roomByName[n][0]);
     GAME.obj.rooms = GAME.siteRooms;
-    // ---- operators: the humans, then bots to fill each team to five
-    const pick = (side, taken, n) => U.shuffle(OPS.filter(o => o.side === side && !taken.includes(o.id))).slice(0, Math.max(0, n));
-    const mkBot = (op, team, side) => {
-      const lo = { primary: U.pick(op.primaries), secondary: U.pick(op.secondaries), gadget: U.pick(op.gadgets) };
-      const a = new Actor({ name: op.name, team, side, op, loadout: lo });
-      AI.attach(a); return a;
+    // ---- operators: the humans, then bots to fill each team to five (Deathmatch: ten players,
+    // each on a team of their own)
+    const ffa = GAME.ffa, arcade = GAME.arcade;
+    const pick = (side, taken, n) => U.shuffle(OPS.filter(o => (side === 'any' || o.side === side) && !taken.includes(o.id))).slice(0, Math.max(0, n));
+    const humans = GAME.net ? NP.humanPicks() : [{ team: 0, op: ch.op, loadout: ch.loadout, spawn: ch.spawn, name: (Auth.user && Auth.name) || 'YOU', local: true, r: Auth.S ? Auth.S.rank.rating : 1000 }];
+    // a bot seat keeps its name, rating and looks for the whole match, like a real player would
+    const seatOf = key => {
+      const S = GAME.seats || (GAME.seats = { _names: NAMES.many(12, humans.map(h => h.name)), _i: 0 });
+      if (!S[key]) S[key] = { name: S._names[S._i++ % S._names.length], cos: SHOP.randomLook(), r: GAME.botRating() };
+      return S[key];
     };
-    const humans = GAME.net ? NP.humanPicks() : [{ team: 0, op: ch.op, loadout: ch.loadout, spawn: ch.spawn, name: ch.op.name, local: true }];
-    const teams = [[], []];
-    for (const h of humans) {
-      const a = new Actor({ name: h.name, team: h.team, side: GAME.sideOf(h.team), op: h.op, loadout: h.loadout, isPlayer: !!h.local });
+    const mkBot = (op, team, side, seatKey) => {
+      const S = seatOf(seatKey);
+      const lo = { primary: U.pick(op.primaries), secondary: U.pick(op.secondaries), gadget: U.pick(op.gadgets), cos: S.cos };
+      const a = new Actor({ name: S.name, team, side, op, loadout: lo });
+      a.seatKey = seatKey; a.rating = S.r;
+      AI.attach(a); if (arcade) a.bot.role = 'roam';
+      return a;
+    };
+    const mkHuman = h => {
+      const a = new Actor({ name: h.name, team: h.team, side: ffa ? h.op.side : GAME.sideOf(h.team), op: h.op, loadout: h.loadout, isPlayer: !!h.local });
       if (!h.local) { a.remote = true; a.net = h.peer; }
-      a.spawnPick = h.spawn; teams[h.team].push(a);
+      a.spawnPick = h.spawn; a.rating = h.r;
       if (h.local) G.player = a;
-    }
+      return a;
+    };
     const fill = GAME.net ? NP.room.bots : true;
-    for (const t of [0, 1]) {
-      const side = GAME.sideOf(t), taken = teams[t].map(a => a.op.id);
-      for (const op of pick(side, taken, fill ? 5 - teams[t].length : 0)) teams[t].push(mkBot(op, t, side));
+    let teams;
+    if (ffa) {
+      humans.forEach((h, i) => { h.team = i; });
+      teams = humans.map(h => [mkHuman(h)]);
+      const ops = pick('any', humans.map(h => h.op.id), fill ? 10 - humans.length : 0);
+      ops.forEach((op, i) => { const t = teams.length; teams.push([mkBot(op, t, op.side, 'd' + i)]); });
+      GAME.myTeam = G.player ? G.player.team : 0;
+    } else {
+      teams = [[], []];
+      for (const h of humans) teams[h.team].push(mkHuman(h));
+      for (const t of [0, 1]) {
+        const side = GAME.sideOf(t), taken = teams[t].map(a => a.op.id);
+        pick(side, taken, fill ? 5 - teams[t].length : 0).forEach((op, i) => teams[t].push(mkBot(op, t, side, 't' + t + ':' + i)));
+      }
     }
-    G.actors = [...teams[0], ...teams[1]];
+    G.actors = [].concat(...teams);
     // match stats follow the player, not the operator: humans by who they are, bots by their
-    // seat on the team, so changing operators between rounds keeps one row per player
-    const seat = [0, 0];
+    // seat, so changing operators between rounds keeps one row per player
     for (const a of G.actors) {
       a.addTo(G.scene);
-      const key = a.isPlayer ? 'me' : a.net ? 'h:' + a.net : 'b:' + a.team + ':' + seat[a.team]++;
+      const key = a.isPlayer ? 'me' : a.net ? 'h:' + a.net : 'b:' + a.seatKey;
       const s = GAME.stats.get(key) || { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: a.team, human: !!(a.isPlayer || a.net), me: !!a.isPlayer, op: a.op.id };
-      s.op = a.op.id; a.match = s; GAME.stats.set(key, s);
+      s.op = a.op.id; s.name = a.name; s.r = a.rating; a.match = s; GAME.stats.set(key, s);
     }
+    if (arcade) ARC.prepare();
+    if (ffa) { ARC.spawnAll(G.actors); return arcadeStart(); }
     // ---- spawn
     const atk = GAME.atkTeam(), atkTeam = teams[atk], defTeam = teams[1 - atk];
     const lead = atkTeam.find(a => a.isPlayer || a.net);
@@ -123,11 +156,16 @@
     // defenders pick a spawn too: the objective, or one of the map's other defender rooms.
     // Bots mostly start on the objective, and a few start elsewhere and rotate in.
     const dsp = GAME.defSpawnOptions(map);
+    const inRooms = dsp.filter(o => o.rooms);
     defTeam.forEach(a => {
       const si = (a.isPlayer || a.net) && a.spawnPick != null ? a.spawnPick : (Math.random() < 0.7 ? 0 : U.rndi(0, dsp.length - 1));
-      const o = dsp[si] || dsp[0];
-      a.pos.copy(NAV.randomIn(U.pick(o.rooms || GAME.siteRooms))); a.yaw = Math.random() * 6.28;
+      let o = dsp[si] || dsp[0];
+      // Team Deathmatch has no objective room: start in one of the building's other rooms
+      if (!o.rooms && !GAME.siteRooms.length) o = U.pick(inRooms) || o;
+      const rooms = o.rooms || GAME.siteRooms;
+      a.pos.copy(rooms.length ? NAV.randomIn(U.pick(rooms)) : ARC.pickSpawn(a)); a.yaw = Math.random() * 6.28;
     });
+    if (arcade) return arcadeStart();
     // ---- objective things
     if (GAME.mode === 'bomb' && atkTeam.length) { const c = U.pick(atkTeam); c.carry = 'defuser'; GAME.obj.carrier = c; }
     if (GAME.mode === 'secure') { const r = GAME.siteRooms[0]; GAME.obj.bio = new GAD.Biohazard(V().set(r.cx, r.fy, r.cz)); GAME.obj.prog = 0; GAME.obj.overtime = 0; }
@@ -149,6 +187,22 @@
     HUD.banner('ROUND ' + (GAME.round + 1), (GAME.playerSide() === 'atk' ? 'ATTACK' : 'DEFENSE') + ' · PREPARATION PHASE', 2.5);
     if (GAME.net) NP.roundStarted();
   };
+  /* Deathmatch / Team Deathmatch: straight into the fight, no objective, no cameras */
+  function arcadeStart() {
+    const M = DATA.MODES[GAME.mode];
+    GAME.pool = {}; GAME.phase = 'action'; GAME.timer = M.time; GAME.planted = false;
+    AI.roundStart();
+    PLAYER.roundStart();
+    HUD.roundStart();
+    SFX.voice('start');
+    HUD.banner(M.name, GAME.ffa ? 'Everyone for themselves · first to ' + M.limit + ' kills' : 'First team to ' + M.limit + ' kills', 3);
+    if (GAME.net) NP.roundStarted();
+  }
+  /* a believable rating for a bot: near the players it plays with */
+  GAME.botRating = function () {
+    const base = Auth.S ? Auth.S.rank.rating : 1000, g = (Math.random() + Math.random() + Math.random() - 1.5) * 160;
+    return Math.max(300, Math.round(base + g));
+  };
 
   GAME.update = function (dt) {
     if (!GAME.active) return;
@@ -157,6 +211,7 @@
       GAME.timer -= dt;
       for (const a of G.actors) GAME.updateInteract(a, dt);
       updateHostage(dt);
+      if (GAME.arcade) { ARC.tick(dt); if (GAME.phase === 'action') ARC.check(); return; }
       if (GAME.phase === 'prep' && GAME.timer <= 0) GAME.beginAction();
       else if (GAME.phase === 'action') checkRound(dt);
       // defenders' cameras feed team intel
@@ -165,7 +220,7 @@
     } else if (GAME.phase === 'post') {
       GAME.timer -= dt;
       if (GAME.timer <= 0) {
-        if (GAME.score[0] >= G.settings.roundsToWin || GAME.score[1] >= G.settings.roundsToWin) GAME.endMatch();
+        if (GAME.arcade || GAME.score[0] >= G.settings.roundsToWin || GAME.score[1] >= G.settings.roundsToWin) GAME.endMatch();
         else { GAME.round++; GAME.prepareRound(); }
       }
     }
@@ -216,6 +271,7 @@
   }
   GAME.endRound = function (winner, reason) {
     if (GAME.phase !== 'action' && GAME.phase !== 'prep') return;
+    if (GAME.arcade) return arcadeEnd(winner, reason);
     GAME.phase = 'post'; GAME.timer = POST;
     GAME.score[winner]++;
     for (const a of G.actors) { a.trigger = false; if (a.team === winner && a.match) a.match.s += 50; }
@@ -229,11 +285,27 @@
     ban(kc ? KC_LEAD : POST - 0.5);
     NP.push({ k: 'rend', w: winner, r: reason, kc: kc ? { k: kc.k ? kc.k.id : 0, v: kc.v.id, h: kc.head ? 1 : 0 } : 0 });
   };
+  /* Deathmatch / Team Deathmatch over: the result, the winning kill again, then the results screen */
+  function arcadeEnd(winner, reason) {
+    GAME.phase = 'post'; GAME.timer = POST; GAME.winner = winner;
+    for (const a of G.actors) { a.trigger = false; a.respawnAt = 0; }
+    const place = G.player ? ARC.place(G.player) : 0;
+    const won = GAME.ffa ? place === 1 : winner === GAME.myTeam;
+    const title = GAME.ffa ? ARC.ordinal(place) + ' PLACE' : winner < 0 ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
+    SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won);
+    const ban = dur => HUD.banner(title, reason, dur, won ? 'win' : 'lose');
+    PLAYER.leaveDrone(); PLAYER.leaveCams();
+    const kc = GAME.roundKillcam(reason, () => ban(Math.max(1, GAME.timer - 0.4)));
+    if (kc) GAME.timer = KC_LEAD + kc.dur + KC_TAIL;
+    ban(kc ? KC_LEAD : POST - 0.5);
+    const pl = {}; for (const a of G.actors) if (a.net) pl[a.net] = ARC.place(a);
+    NP.push({ k: 'rend', w: winner, r: reason, arc: 1, pl, kc: kc ? { k: kc.k ? kc.k.id : 0, v: kc.v.id, h: kc.head ? 1 : 0 } : 0 });
+  }
   /* the kill that ended the round, queued to replay after the result has shown for a moment */
   const KC_LEAD = 1.4, KC_TAIL = 3;
   GAME.roundKillcam = function (reason, done) {
     const le = GAME.lastElim;
-    if (!/eliminated|hostage was killed/.test(reason) || !le || !le.v || G.time - le.t > 2) return null;
+    if (!/eliminated|hostage was killed|kills|Kill limit/.test(reason) || !le || !le.v || G.time - le.t > 2) return null;
     const dur = KC.queue('round', le.k, le.v, KC_LEAD, { head: le.head, done: () => {
       // skipping offline moves straight on; online the host keeps everyone's timing
       if (!GAME.net && GAME.phase === 'post') GAME.timer = Math.min(GAME.timer, KC_TAIL);
@@ -244,6 +316,7 @@
   GAME.endMatch = function () {
     KC.reset();
     GAME.phase = 'end'; GAME.active = false;
+    restoreRanked();
     PLAYER.release();
     if (GAME.net) {
       const stats = NP.matchEnd(), mt = GAME.myTeam, score = GAME.score.slice();
@@ -252,7 +325,13 @@
       Online.matchEnded();
     } else MENU.matchOver(GAME.score, GAME.stats);
   };
-  GAME.quit = function () { KC.reset(); GAME.active = false; GAME.phase = 'none'; SFX.stopAll(); if (window.NP && NP.active) NP.stop(); };
+  function restoreRanked() { const p = GAME.prevSettings; if (!p) return; G.settings.roundsToWin = p.r; G.settings.difficulty = p.d; G.settings.swapEveryRound = p.s; GAME.prevSettings = null; }
+  GAME.restoreRanked = restoreRanked;
+  GAME.quit = function () {
+    // walking out of a ranked match counts as a loss
+    if (GAME.ranked && GAME.active && GAME.phase !== 'end' && !GAME.net && Auth.user) RANKED.abandon();
+    restoreRanked(); GAME.ranked = false;
+    KC.reset(); GAME.active = false; GAME.phase = 'none'; SFX.stopAll(); if (window.NP && NP.active) NP.stop(); };
 
   /* ------------------------------------------------------------------ hostage */
   function updateHostage(dt) {
@@ -284,11 +363,12 @@
     GAME.lastElim = { v, k, head, t: G.time };
     if (v.hostage) { v.killer = k; GAME.addFeed(k, v, head, 'killed the hostage'); return; }
     if (v.match) v.match.d++;
-    if (k && k !== v && k.match && k.team !== v.team) { k.match.k++; k.match.s += head ? 120 : 100; }
+    if (k && k !== v && k.match && k.team !== v.team) { k.match.k++; k.match.s += head ? 120 : 100; if (GAME.arcade && !GAME.ffa && GAME.phase === 'action') GAME.score[k.team]++; }
+    if (GAME.arcade && GAME.phase === 'action') v.respawnAt = G.time + ARC.RESPAWN;
     for (const [src] of v.dmgBy) if (src !== k && src.team !== v.team && src.match) { src.match.a++; src.match.s += 50; }
     GAME.addFeed(k, v, head);
     if (v.isPlayer) PLAYER.onDeath(k);
-    if (k && v.team !== k.team) GAD.tell(k, (head ? 'HEADSHOT  ' : '') + v.op.name + ' eliminated', 'kill');
+    if (k && v.team !== k.team) GAD.tell(k, (head ? 'HEADSHOT  ' : '') + GAME.who(v) + ' eliminated', 'kill');
     if (k && head && k.match && k.team !== v.team) k.match.hs = (k.match.hs || 0) + 1;
   };
   GAME.onDown = function (v, k) {
@@ -299,7 +379,7 @@
   };
   GAME.onRevive = function (v, by) { if (by && by.match) by.match.s += 50; GAME.addFeed(by, v, false, 'revived'); };
   GAME.addFeed = function (k, v, head, verb) {
-    GAME.feed.unshift({ k: k ? k.op.name : '', kt: k ? k.team : -1, v: v.hostage ? 'HOSTAGE' : v.op.name, vt: v.team, head, verb: verb || '', t: G.time });
+    GAME.feed.unshift({ k: k ? GAME.who(k) : '', kt: k ? k.team : -1, v: GAME.who(v), vt: v.team, head, verb: verb || '', t: G.time });
     if (GAME.feed.length > 6) GAME.feed.pop();
     HUD.feedDirty = true;
   };

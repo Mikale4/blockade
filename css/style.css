@@ -46,12 +46,12 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .kf .t0 { color: var(--def); } .kf .t1 { color: var(--bad); } .kf .t-1 { color: #ddd; }
 @keyframes kfin { from { transform: translateX(30px); opacity: 0; } }
 .h-cross { position: absolute; left: 50%; top: 50%; --gap: 8px; transition: opacity 0.1s; }
-.h-cross i { position: absolute; background: #fff; box-shadow: 0 0 2px #000; }
+.h-cross i { position: absolute; background: var(--xc, #fff); box-shadow: 0 0 2px #000; }
 .h-cross .c-t, .h-cross .c-b { width: 2px; height: 9px; left: -1px; }
 .h-cross .c-t { bottom: var(--gap); } .h-cross .c-b { top: var(--gap); }
 .h-cross .c-l, .h-cross .c-r { height: 2px; width: 9px; top: -1px; }
 .h-cross .c-l { right: var(--gap); } .h-cross .c-r { left: var(--gap); }
-.h-cross .c-d { position: absolute; width: 2px; height: 2px; left: -1px; top: -1px; background: #fff; }
+.h-cross .c-d { position: absolute; width: 2px; height: 2px; left: -1px; top: -1px; background: var(--xc, #fff); }
 .h-ret { position: absolute; left: 50%; top: 50%; display: none; }
 .h-ret.red, .h-ret.holo { display: block; }
 .h-ret.red::before { content: ''; position: absolute; width: 5px; height: 5px; left: -2.5px; top: -2.5px; border-radius: 50%; background: #ff2a2a; box-shadow: 0 0 4px #ff3030, 0 0 1px #fff; }
@@ -246,3 +246,7 @@ body.kc #hud, body.kc #fxLayer { visibility: hidden; }
 #kcLayer.slow .kc-title::after { content: '  ·  SLOW MOTION'; color: var(--dim); font-size: 16px; }
 @keyframes kcBlink { 50% { opacity: 0.2; } }
 @media (max-width: 700px) { #kcLayer .kc-line { font-size: 20px; gap: 10px; } #kcLayer .kc-skip { display: none; } #kcLayer .kc-title { font-size: 18px; } }
+
+/* ------------------------------------------------------------ deathmatch HUD */
+.h-team.dm .dmt { width: auto; padding: 0 10px; font: 800 14px var(--f); letter-spacing: 0.12em; }
+.sb-row em.bot { font: 700 10px var(--f); font-style: normal; letter-spacing: 0.14em; color: var(--dim); border: 1px solid rgba(255,255,255,0.2); padding: 0 4px; margin-left: 6px; }

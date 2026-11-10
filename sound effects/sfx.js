@@ -5,11 +5,11 @@
    After editing, reload the game. */
 window.SFX_FILES = {
   // ---- your files
-  'break':        ['Door Break.mp3'],   // a barricade or door smashed (melee, bullets, bots breaking through)
+  'break':        [],                   // a barricade or door smashed (melee, bullets, bots breaking through): the game makes its own splintering sound. ('Door Break.mp3' is still in this folder: put it back here to use it.)
   'sonar':        ['Lion scan.mp3'],    // Vesper's sonar pulse
   'plant':        ['Plant bomb.mp3'],   // the defuser is planted
   'explosion.c4': ['c4.mp3'],           // a Detonator Pack goes off
-  'ping':         ['call.mp3'],         // you spot an enemy / callout
+  'ping':         [],                   // you spot an enemy / callout: the game makes its own chirp. ('call.mp3' is still in this folder: put it back here to use it.)
 
   // ---- every other effect you can replace
   'shot': [],            // any gun (or be specific below)

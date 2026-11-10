@@ -103,11 +103,14 @@
       code, name: U.clean(o.name, 24) || Auth.name + '\'s room', priv: !!o.priv, listed: o.listed !== false, locked: false, max: ROOM_MAX,
       map: o.map || 'roadhouse', mode: o.mode || 'bomb', rounds: o.rounds || 3, diff: o.diff == null ? 1 : o.diff, side: o.side || 'random', bots: o.bots !== false,
       members: [], playing: false, chat: 'on', chal: o.chal || null,
+      // Ranked: fixed rules, no ready-up; the match starts by itself when the wait runs out
+      ranked: !!o.ranked, startAt: o.ranked ? Date.now() + (o.wait || 30) * 1000 : 0, done: false,
     };
   }
   function listing() {
     const R = N && N.room; if (!R || !R.listed) return null;
     return { name: R.name, host: Auth.name, hostId: Auth.id, n: R.members.length, max: R.max, priv: R.priv, map: R.map, mode: R.mode, rounds: R.rounds,
+      ranked: R.ranked ? 1 : 0, r: Auth.S.rank.rating,
       state: R.locked ? 'locked' : R.members.length >= R.max ? 'full' : R.playing ? 'playing' : 'open' };
   }
   let pushT = null;
@@ -244,6 +247,7 @@
   }
   Online.leave = silent => {
     if (!N) return;
+    leaveRanked();
     if (NP.active) { NP.stop(); GAME.quit(); }
     endSession();
     if (!silent) Online.open();
@@ -275,6 +279,7 @@
         Dir.host(code, listing);
         S0.relay = Relay.host(code, link => { if (N === S0) hostConn(link); });
         setPresence(); Online.showRoom();
+        if (o.ranked) rankedClock(S0);
         if (o.chal) Net.send(o.chal.to, 'chal', { code, pass: S0.pass, desc: modeName(o.mode) + ' · ' + mapName(o.map) + (o.chal.together ? ' · same team' : ' · versus') }, true).then(r => { if (r.err) toast(r.err, 'bad'); else toast('Invite sent to ' + o.chal.name + '.'); });
       });
       peer.on('connection', conn => { if (N !== S0) return; hostConn(conn); });
@@ -288,6 +293,19 @@
     open();
   };
 
+  /* a ranked room's host: start when it's full or the wait is over. Nobody came? Then it's a
+     match against bots, played locally */
+  function rankedClock(S0) {
+    const t = setInterval(() => {
+      if (N !== S0 || !S0.room) { clearInterval(t); return; }
+      const R = S0.room; if (R.playing || R.done) return;
+      if (R.members.length >= R.max || Date.now() >= R.startAt) {
+        clearInterval(t);
+        if (R.members.length <= 1) { Online.leave(true); RANKED.solo(); return; }
+        R.done = true; Online.start();
+      }
+    }, 500);
+  }
   Online.join = async (code, pass) => {
     code = String(code || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{5}$/.test(code)) { toast('Room codes are five letters or numbers.', 'bad'); return; }
@@ -331,11 +349,13 @@
   };
 
   Online.quick = () => {
-    const open = listedRooms().filter(r => r.state === 'open' && !r.priv && r.n < r.max).sort((a, b) => b.n - a.n);
+    const open = listedRooms().filter(r => r.state === 'open' && !r.priv && !r.ranked && r.n < r.max).sort((a, b) => b.n - a.n);
     if (open.length) { Online.join(open[0].code, ''); return; }
     toast('No open rooms right now: opening one for you.');
     Online.host({ name: Auth.name + '\'s match', map: U.pick(MAPS.LIST).id, mode: U.pick(Object.keys(DATA.MODES)) });
   };
+  /* walking out of a ranked match counts as a loss */
+  const leaveRanked = () => { if (NP.active && GAME.ranked && GAME.active && GAME.phase !== 'end') RANKED.abandon(); };
   Online.challenge = (id, o) => {
     Online.host({ name: Auth.name + ' & ' + Net.nameOf(id), priv: true, listed: false, map: o.map, mode: o.mode, chal: { to: id, name: Net.nameOf(id), together: o.teams === 'together' } });
   };
@@ -382,7 +402,7 @@
         const rooms = listedRooms().sort((a, b) => (a.state === 'open' ? 0 : 1) - (b.state === 'open' ? 0 : 1) || b.n - a.n);
         if (!rooms.length) left.append(el('p', { class: 'empty' }, 'No rooms open right now. Host one, or use QUICK PLAY.'));
         for (const r of rooms) left.append(el('button', { class: 'roomrow ' + r.state, onclick: () => r.priv ? askPass(r.code) : Online.join(r.code, '') },
-          el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + ' · ' + mapName(r.map) + ' · first to ' + r.rounds)),
+          el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name, r.ranked ? el('em', { class: 'pill ranked' }, 'RANKED') : null), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + ' · ' + mapName(r.map) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].arcade ? '' : ' · first to ' + r.rounds))),
           el('div', { class: 'rr' }, el('b', {}, r.n + '/' + r.max), el('em', { class: 'pill ' + r.state }, r.state.toUpperCase()))));
       } else if (tab === 'players') {
         const S = Auth.S;
@@ -448,6 +468,7 @@
       if (!N || !N.room || !document.body.contains(page)) return;
       const R = N.room, host = N.host, me = memberOf(N.myId) || {};
       body.innerHTML = '';
+      if (R.ranked) return drawRanked(R);
       // header
       body.append(el('div', { class: 'panel roomhead' },
         el('div', {}, el('h2', {}, R.name), el('small', {}, (R.priv ? 'PRIVATE' : R.listed ? 'PUBLIC' : 'CODE ONLY') + (R.locked ? ' · LOCKED' : '') + ' · ' + R.members.length + '/' + R.max + ' players')),
@@ -490,6 +511,18 @@
       body.append(el('div', { class: 'teams' }, teamCol(0), el('div', { class: 'vs' }, 'VS'), teamCol(1)), el('div', { class: 'roomlow' }, set, chat), acts);
       drawChat();
     };
+    // Ranked: who's been found so far and the countdown to the start; nothing to set or ready up
+    let rkT = null;
+    const drawRanked = R => {
+      const left = () => Math.max(0, Math.ceil((R.startAt - Date.now()) / 1000));
+      const clock = el('b', { class: 'rk-clock' }, '0:' + String(left()).padStart(2, '0'));
+      clearInterval(rkT); rkT = setInterval(() => { if (!document.body.contains(clock)) { clearInterval(rkT); return; } clock.textContent = R.playing ? 'STARTING' : '0:' + String(left()).padStart(2, '0'); }, 250);
+      body.append(el('div', { class: 'panel rk-search' }, el('div', { class: 'spin' }), el('h2', {}, 'RANKED · FINDING PLAYERS'), clock,
+        el('p', { class: 'muted' }, R.members.length + ' of ' + R.max + ' players found · empty seats are filled by bots when the countdown ends'),
+        el('div', { class: 'rk-found' }, ...R.members.map(m => el('div', { class: 'mrow' + (m.id === N.myId ? ' me' : '') }, UI.avatar(m.uid, m.name), el('span', { class: 'mn' }, m.name, el('small', {}, ' LV ' + m.lv)), RANKED.badge(m.r)))),
+        el('div', { class: 'actions' }, UI.btn('CANCEL', () => { Online.leave(true); RANKED.open(); }, 'ghost'))));
+    };
+    UI.onLeave(() => clearInterval(rkT));
     const drawChat = () => {
       chatBox.innerHTML = '';
       for (const c of (N && N.chat) || []) chatBox.append(c.sys ? el('div', { class: 'cl sys' }, c.sys) : el('div', { class: 'cl' }, el('button', { class: 'cn', onclick: () => c.id && Social.card(c.id) }, c.n), el('span', {}, Auth.S.prefs.filter ? U.unswear(c.x) : c.x)));
