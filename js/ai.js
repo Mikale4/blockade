@@ -208,8 +208,9 @@
     const tgtPos = b.seenP || (t.pos ? t.pos : t.eye(V()));
     let aim;
     if (t.isActor) {
-      if (t.state === 'dbno' || t.stance === 2) aim = t.center(V());
-      else aim = b.wantHead ? t.eye(V()).add(V().set(0, 0.02, 0)) : t.center(V()).add(V().set(0, 0.25, 0));
+      // the drawn head or chest: the hitboxes follow the model, so this is where hits land
+      if (t.state === 'dbno' || t.stance === 2) aim = t.chestPos(V());
+      else aim = b.wantHead ? t.headPos(V()) : t.chestPos(V());
       // lead a little
       aim.addScaledVector(t.vel, 0.05);
     } else aim = t.pos.clone();

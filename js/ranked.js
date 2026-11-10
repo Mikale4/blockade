@@ -44,6 +44,7 @@
   /* --------------------------------------------------------------- screen */
   RANKED.open = function () {
     if (!Auth.user) return MENU.title();
+    if (window.Online && Online.inParty()) return Online.showRoom();
     G.mode = 'menu'; HUD.show(false); PLAYER.release();
     const R = Auth.S.rank, t = RANKED.tier(R.rating);
     const placing = RANKED.placing();
@@ -61,14 +62,17 @@
           $('li', {}, 'Bomb on any map, first to four rounds, sides swap every round.'),
           $('li', {}, 'Matchmaking looks for real players near your rating for up to ' + SEARCH + ' seconds. Empty seats are filled by bots playing at your level.'),
           $('li', {}, 'Win to gain rating, lose to drop it: beating a higher-rated team gains more. Ranked pays 50% more credits.'),
-          $('li', {}, 'Leaving a match early counts as a loss.')),
-        $('div', { class: 'actions' }, UI.btn('FIND MATCH', () => RANKED.find(), 'big'))));
+          $('li', {}, 'Leaving a match early counts as a loss.'),
+          $('li', {}, 'Play with friends: CREATE PARTY, invite up to four friends, and the party is matched together on one team. Its rating is the party average.')),
+        $('div', { class: 'actions' }, UI.btn('CREATE PARTY', () => Online.createParty(), ''), UI.btn('FIND MATCH', () => RANKED.find(), 'big'))));
     UI.screen(page);
   };
 
   /* ---------------------------------------------------------- matchmaking */
   RANKED.find = function () {
     if (!Auth.user) return MENU.title();
+    // in a party, the leader searches for everyone (and nobody searches on their own)
+    if (window.Online && Online.inParty()) { if (Online.partyLeader()) Online.partySearch(); else UI.toast('Only the party leader can start the search.', 'bad'); Online.showRoom(); return; }
     if (window.Online && Online.inRoom()) Online.leave(true);
     const myR = Auth.S.rank.rating, up = window.Net && Net.state === 'up';
     const S0 = RANKED.search = { t0: Date.now(), cancelled: false };

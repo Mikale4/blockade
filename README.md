@@ -34,6 +34,11 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   Platinum and Diamond (III to I each), then Elite. Your first five matches are placements.
   Your rating moves by the other team's average rating (beating a stronger team gains more),
   and leaving early counts as a loss. Only Ranked changes your rating.
+- **Parties:** play Ranked with friends. CREATE PARTY (on the Ranked screen), then invite up to
+  four friends, or give them the party code to enter under ONLINE LOBBY → JOIN. When the leader
+  presses FIND RANKED MATCH, the party is matched as one team at its average rating. Other
+  players searching for Ranked fill the other seats first, and bots take any left over. After
+  the match the party stays together for the next one.
 - **Shop:** spend credits on looks: weapon finishes, uniforms, reticle colours and player
   cards, from Common to Legendary. Three items are 30% off each day. Credits come only from
   playing: every match pays, wins, kills and rounds pay more, online pays 25% extra, Ranked 50%,

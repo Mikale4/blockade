@@ -131,9 +131,9 @@
     const b = m.b || {}; if (!/^[A-Z0-9]{5}$/.test(b.code || '')) return;
     if (Net.status.a === 'play') { UI.toast(m.n + ' invited you to a room (code ' + b.code + ').', 'gold', 5000); return; }
     SFX.ping();
-    UI.modal({ title: 'ROOM INVITE', body: [
-      el('div', { class: 'chalwho' }, UI.avatar(m.f, m.n, 'lg'), el('div', null, el('h3', null, m.n), el('p', null, 'invites you to ', el('b', null, U.clean(b.name, 24) || 'their room'), '.'), el('small', { class: 'muted' }, 'Room ' + b.code))),
-    ], buttons: [['JOIN', () => Online.join(b.code, String(b.pass || '')), 'big'], ['NOT NOW', () => {}, 'ghost']] });
+    UI.modal({ title: b.party ? 'PARTY INVITE' : 'ROOM INVITE', body: [
+      el('div', { class: 'chalwho' }, UI.avatar(m.f, m.n, 'lg'), el('div', null, el('h3', null, m.n), b.party ? el('p', null, 'invites you to their ', el('b', null, 'party'), ': play ranked together, on the same team.') : el('p', null, 'invites you to ', el('b', null, U.clean(b.name, 24) || 'their room'), '.'), el('small', { class: 'muted' }, (b.party ? 'Party ' : 'Room ') + b.code))),
+    ], buttons: [[b.party ? 'JOIN PARTY' : 'JOIN', () => Online.join(b.code, String(b.pass || '')), 'big'], ['NOT NOW', () => {}, 'ghost']] });
   }
 
   /* ------------------------------------------------------------ player card */

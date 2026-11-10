@@ -99,7 +99,7 @@
       } else if (kind === 'reticle') {
         box.append($('div', { class: 'ret-prev', style: { '--xc': it.css } }, $('div', { class: 'h-cross', style: { '--gap': '8px' } }, $('i', { class: 'c-t' }), $('i', { class: 'c-b' }), $('i', { class: 'c-l' }), $('i', { class: 'c-r' }), $('b', { class: 'c-d' }))));
       } else {
-        box.append($('div', { class: 'pcard', style: { background: it.css } }, UI.avatar(Auth.id, Auth.name, 'lg'), $('div', {}, $('b', {}, Auth.name), $('small', {}, UI.tagOf(Auth.id) + ' · LV ' + Auth.lv() + ' · ' + RANKED.tier(S().rank.rating).label))));
+        box.append($('div', { class: 'pbanner', style: { background: it.css } }, UI.avatar(Auth.id, Auth.name, 'lg'), $('div', {}, $('b', {}, Auth.name), $('small', {}, UI.tagOf(Auth.id) + ' · LV ' + Auth.lv() + ' · ' + RANKED.tier(S().rank.rating).label))));
       }
       box.append($('p', { class: 'muted' }, kind === 'finish' ? 'Colours every gun you carry, in first person and on your operator.' : kind === 'suit' ? 'Recolours the uniform and vest of whichever operator you play. Everyone in the match sees it.' : kind === 'reticle' ? 'The colour of your crosshair.' : 'The banner behind your name on your profile, the home screen and the results.'));
       const price = SHOP.price(kind, id);

@@ -205,10 +205,10 @@
 }
 
 /* ------------------------------------------------------------ player card, credits, ranks */
-.pcard { display: flex; gap: 14px; align-items: center; padding: 14px 18px; border: 1px solid var(--line); min-width: 300px; }
-.pcard b { display: block; font: 800 22px var(--f); letter-spacing: 0.08em; } .pcard b small { color: var(--dim); font-size: 14px; }
-.pcard .row { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
-.pcard.home { width: 300px; margin-bottom: 10px; box-sizing: border-box; }
+.pbanner { display: flex; gap: 14px; align-items: center; padding: 14px 18px; border: 1px solid var(--line); min-width: 300px; }
+.pbanner b { display: block; font: 800 22px var(--f); letter-spacing: 0.08em; } .pbanner b small { color: var(--dim); font-size: 14px; }
+.pbanner .row { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.pbanner.home { width: 300px; margin-bottom: 10px; box-sizing: border-box; }
 .pchead { padding: 12px 14px; }
 .credits { display: inline-flex; align-items: baseline; gap: 6px; font: 800 18px var(--f); letter-spacing: 0.08em; color: var(--gold); background: rgba(0,0,0,0.35); border: 1px solid rgba(242,193,78,0.45); padding: 5px 10px; cursor: pointer; }
 .credits i { font-style: normal; } .credits small { font-size: 12px; color: var(--dim); } .credits.big { font-size: 24px; cursor: default; }
@@ -259,5 +259,11 @@ em.bot { font: 700 10px var(--f); font-style: normal; letter-spacing: 0.14em; co
 .shop-prev { height: 300px; background: radial-gradient(circle at 50% 60%, #1c2230, #0e1117); }
 .ret-prev { position: relative; height: 200px; background: linear-gradient(#5a6470, #2a3038); }
 .ret-prev .h-cross { position: absolute; left: 50%; top: 50%; } .ret-prev .h-cross i, .ret-prev .h-cross .c-d { background: var(--xc); }
-.shop-detail .pcard { margin: 6px 0 12px; }
+.shop-detail .pbanner { margin: 6px 0 12px; }
 @media (max-width: 800px) { .shop-body { grid-template-columns: 1fr; padding: 12px 16px; } .rk-ladder { grid-template-columns: repeat(3, 1fr); } .rk-top { flex-direction: column; } }
+
+/* ------------------------------------------------------------ parties */
+.pill.party { color: var(--def); border-color: var(--def); }
+.partycol .mrow { display: flex; gap: 10px; align-items: center; }
+.partycol .mrow .mn { flex: 1; }
+.partycol .mrow.empty { color: var(--dim); border: 1px dashed var(--line); padding: 10px; }

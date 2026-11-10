@@ -118,7 +118,7 @@
   /* your player card: the banner you equipped, your name, level, rank and credits */
   MENU.card = function () {
     const S = Auth.S, R = S.rank;
-    return $('div', { class: 'pcard home', style: { background: SHOP.css('card') } }, UI.avatar(Auth.id, Auth.name, 'lg'),
+    return $('div', { class: 'pbanner home', style: { background: SHOP.css('card') } }, UI.avatar(Auth.id, Auth.name, 'lg'),
       $('div', {}, $('b', {}, Auth.name, $('small', {}, ' ' + UI.tagOf(Auth.id))), $('div', { class: 'row' }, UI.lv(Auth.lv()), RANKED.badge(R.rating, R.games))),
       $('div', { class: 'grow' }), $('button', { class: 'credits', title: 'Credits: earned by playing, spent in the shop', onclick: () => SHOP.open() }, $('i', {}, '◈'), SHOP.fmt(SHOP.credits())));
   };
@@ -381,6 +381,7 @@
       rk,
       $('div', { class: 'h-board static' }, $('div', { class: 'sb-cols' }, $('span', {}, 'PLAYER'), $('span', {}, 'OPERATOR'), $('span', {}, 'SCORE'), $('span', {}, 'K'), $('span', {}, 'A'), $('span', {}, 'D')),
         ...rows.map((r, i) => $('div', { class: 'sb-row t' + ((M.ffa ? r.me : r.team === mt) ? 0 : 1) + (r.me ? ' me' : '') }, M.ffa ? $('span', { class: 'sb-op' }, '#' + (i + 1) + ' ', nameCell(r)) : nameCell(r), $('span', {}, r.op), $('span', {}, r.s), $('span', {}, r.k), $('span', {}, r.a), $('span', {}, r.d)))),
+      ranked && o.online && Online.inParty() ? $('div', { class: 'actions' }, btn('LEAVE PARTY', () => { Online.leave(true); MENU.home(); }, 'ghost'), btn('BACK TO PARTY', () => Online.showRoom(), 'big')) :
       $('div', { class: 'actions' },
         ranked ? btn('MAIN MENU', () => { if (o.online) Online.leave(true); MENU.home(); }, 'ghost') : o.online ? btn('LEAVE ROOM', () => Online.leave(), 'ghost') : btn('MAIN MENU', MENU.home, 'ghost'),
         ranked ? btn('FIND ANOTHER', () => { if (o.online) Online.leave(true); RANKED.find(); }, 'big') : o.online ? btn('BACK TO ROOM', () => Online.showRoom(), 'big') : btn('REMATCH', () => MENU.loading('Resetting…', () => GAME.startMatch(MENU.cfg)), 'big'))));

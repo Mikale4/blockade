@@ -5,6 +5,9 @@
   'use strict';
   const { ARMOR_HP, SPEED, WEAPONS, GADGETS, MAT, M } = DATA;
   const STAND = 1.75, CROUCH = 1.2, PRONE = 0.55, RAD = 0.24, GRAV = 22;
+  // lying down (prone or downed) the body is drawn centred over where you are, head ahead and
+  // feet behind, instead of stretched out 1.6 m in front of you
+  const PRONE_Z = 1.05;
   const EYE = [1.6, 1.08, 0.36];
   let NID = 1;
 
@@ -125,20 +128,15 @@
       return out;
     }
     center(out) { out = out || new THREE.Vector3(); return out.set(this.pos.x, this.pos.y + this.h * 0.6, this.pos.z); }
-    /* hit spheres: [x,y,z,r,part] */
+    /* hit spheres: [x,y,z,r,part]. Built from the same joints and angles the model is drawn
+       with (updateRig), so crouching, leaning, lying down and leg swing all line up with what
+       you see. (They used to sit at the eye and on a straight line up from the feet: a crouched
+       head was drawn 0.3 m above and ahead of its hitbox, a prone body 0.85 m in front of its.) */
     spheres() {
       const p = this.pos, out = [];
       if (this.state === 'dead') return out;
-      if (this.stance === 2 || this.state === 'dbno') {
-        const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
-        out.push([p.x + fx * 0.75, p.y + 0.3, p.z + fz * 0.75, 0.14, 'head']);
-        out.push([p.x + fx * 0.3, p.y + 0.22, p.z + fz * 0.3, 0.24, 'body']);
-        out.push([p.x - fx * 0.15, p.y + 0.2, p.z - fz * 0.15, 0.22, 'body']);
-        out.push([p.x - fx * 0.6, p.y + 0.16, p.z - fz * 0.6, 0.2, 'limb']);
-        return out;
-      }
       const e = this.eye(U.v1), h = this.h;
-      if (this.rappel && this.rappel.inv) {
+      if (this.rappel && this.rappel.inv && this.state === 'alive') {
         // hanging upside down: head at the bottom, legs up the rope
         out.push([e.x, e.y - 0.03, e.z, 0.14, 'head']);
         out.push([p.x, p.y + h * 0.3, p.z, 0.24, 'body']);
@@ -148,20 +146,58 @@
         out.push([p.x, p.y + h * 0.92, p.z, 0.19, 'limb']);
         return out;
       }
-      const lx = (e.x - p.x) * 0.6, lz = (e.z - p.z) * 0.6;
-      out.push([e.x, e.y + 0.03, e.z, 0.14, 'head']);
-      out.push([p.x + lx, p.y + h * 0.72, p.z + lz, 0.24, 'body']);
-      out.push([p.x + lx * 0.6, p.y + h * 0.57, p.z + lz * 0.6, 0.25, 'body']);
-      out.push([p.x, p.y + h * 0.42, p.z, 0.22, 'body']);
-      out.push([p.x, p.y + h * 0.25, p.z, 0.2, 'limb']);
-      out.push([p.x, p.y + h * 0.09, p.z, 0.19, 'limb']);
-      // aiming past a shield exposes the gun arm beside its edge
+      const S = MD.S, lying = this.stance === 2 || this.state === 'dbno';
+      const sw = (this.moving || 0) > 0.2 ? Math.sin(this.animT) : 0;
+      // the rig's angles, exactly as updateRig poses them
+      let poseX = 0, poseY = 0, poseZ = 0, hipsY, torsoX = 0, torsoZ = 0, thL, thR, shL, shR, aimX, headX = 0;
+      if (lying) {
+        poseX = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; poseY = 0.22; poseZ = PRONE_Z;
+        hipsY = 13 * S; thL = sw * 0.3; thR = -sw * 0.3; shL = shR = -0.2;
+        aimX = this.state === 'dbno' ? -0.5 : Math.PI / 2 - 0.1 + this.pitch * 0.5;
+      } else {
+        const c = Math.max(0, Math.min(1, (STAND - h) / (STAND - CROUCH)));
+        hipsY = (13 - c * 5.6) * S; torsoX = -c * 0.25; torsoZ = -this.lean * 0.38;
+        thL = c * 1.25 + sw * 0.55; thR = c * 1.25 - sw * 0.55;
+        shL = -(c * 1.9 + Math.max(0, -sw) * 0.7); shR = -(c * 1.9 + Math.max(0, sw) * 0.7);
+        aimX = this.pitch + c * 0.25; headX = this.pitch * 0.4;
+        if (this.rappel) { thL = 0.9; thR = 0.7; shL = -0.9; shR = -0.8; }
+      }
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const rx = (v, an) => { const c = Math.cos(an), s = Math.sin(an), y = v[1] * c - v[2] * s, z = v[1] * s + v[2] * c; v[1] = y; v[2] = z; return v; };
+      const rz = (v, an) => { const c = Math.cos(an), s = Math.sin(an), x = v[0] * c - v[1] * s, y = v[0] * s + v[1] * c; v[0] = x; v[1] = y; return v; };
+      const add = (v, x, y, z) => { v[0] += x; v[1] += y; v[2] += z; return v; };
+      // a point in the hips' frame -> the world (through the pose and the facing)
+      const world = v => {
+        add(v, 0, hipsY, 0); rx(v, poseX); add(v, 0, poseY, poseZ);
+        return [p.x + v[0] * cy + v[2] * sy, p.y + v[1], p.z - v[0] * sy + v[2] * cy];
+      };
+      const torso = v => world(add(rx(rz(v, torsoZ), torsoX), 0, 0.5 * S, 0));
+      const leg = (x, th, sh, alongShin, y) => world(add(rx(alongShin ? add(rx([0, y * S, 0], sh), 0, -6.5 * S, 0) : [0, y * S, 0], th), x * S, 0, 0));
+      const push = (w, r, part) => out.push([w[0], w[1], w[2], r, part]);
+      const bulk = this.op && this.op.armor > 2 ? 0.02 : 0;
+      push(torso(add(rx([0, 2.6 * S, 0], headX), 0, 11 * S, 0)), 0.16, 'head');
+      push(torso([0, 7.5 * S, 0]), 0.25 + bulk, 'body');
+      push(torso([0, 3 * S, 0]), 0.24 + bulk, 'body');
+      push(world([0, -0.5 * S, 0]), 0.2, 'body');
+      for (const [x, th, sh] of [[-2, thL, shL], [2, thR, shR]]) {
+        push(leg(x, th, sh, false, -3.2), 0.12, 'limb');   // thigh
+        push(leg(x, th, sh, false, -6.5), 0.1, 'limb');    // knee
+        push(leg(x, th, sh, true, -3.5), 0.1, 'limb');     // shin
+        push(leg(x, th, sh, true, -6.5), 0.09, 'limb');    // foot
+      }
+      push(torso(add(rx([0, -0.5 * S, -4 * S], aimX), 0, 9 * S, -1 * S)), 0.11, 'limb');   // forearms and gun
+      // aiming past a shield: the head leans out past its edge (where the camera is) and the
+      // gun arm shows beside it
       if (this.shieldOp && this.shieldUp && this.ads > 0.3) {
-        const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw), rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
-        out.push([e.x + rx * 0.13 + fx * 0.32, e.y - 0.14, e.z + rz * 0.13 + fz * 0.32, 0.08, 'limb']);
+        const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw), rx2 = Math.cos(this.yaw), rz2 = -Math.sin(this.yaw);
+        out.push([e.x, e.y + 0.03, e.z, 0.14, 'head']);
+        out.push([e.x + rx2 * 0.13 + fx * 0.32, e.y - 0.14, e.z + rz2 * 0.13 + fz * 0.32, 0.08, 'limb']);
       }
       return out;
     }
+    /* where to aim at someone: their drawn head, or the middle of their chest */
+    headPos(out) { const s = this.spheres()[0]; return (out || new THREE.Vector3()).set(s ? s[0] : this.pos.x, s ? s[1] : this.pos.y + 1.6, s ? s[2] : this.pos.z); }
+    chestPos(out) { const s = this.spheres()[1]; return (out || new THREE.Vector3()).set(s ? s[0] : this.pos.x, s ? s[1] : this.pos.y + 1.1, s ? s[2] : this.pos.z); }
     /* ray vs hit spheres -> {t, part} | null */
     rayHit(o, d, maxT) {
       let best = null;
@@ -674,7 +710,7 @@
       }
       const prone = this.stance === 2 || this.state === 'dbno';
       if (prone) {
-        r.pose.rotation.x = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; r.pose.position.y = 0.22; r.pose.position.z = 0.1;
+        r.pose.rotation.x = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; r.pose.position.y = 0.22; r.pose.position.z = PRONE_Z;
         r.thighL.rotation.x = sw * 0.3; r.thighR.rotation.x = -sw * 0.3; r.shinL.rotation.x = -0.2; r.shinR.rotation.x = -0.2;
         r.hips.position.y = 13 * MD.S; r.torso.rotation.x = 0;
         r.aim.rotation.x = this.state === 'dbno' ? -0.5 : Math.PI / 2 - 0.1 + this.pitch * 0.5;
