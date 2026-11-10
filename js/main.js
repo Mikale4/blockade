@@ -82,7 +82,7 @@
   };
   /* back to the pristine map for a new round */
   MAIN.resetWorld = function (keepActors) {
-    GAD.clear(); FX.clear(); SFX.stopAll();
+    GAD.clear(); FX.clear(); SFX.stopAll(); KC.reset();
     if (!keepActors) { for (const a of G.actors) a.removeFrom(G.scene); G.actors = []; }
     G.world.restore();
     NAV.build();
@@ -117,6 +117,7 @@
       }
       NP.guestUpdate(dt);
       GAME.update(dt);
+      KC.record(); KC.update(dt);
       return;
     }
     for (const a of G.actors) if (a.bot) AI.update(a, dt);
@@ -131,13 +132,17 @@
     GAD.update(dt);
     if (G.mode === 'match') GAME.update(dt); else if (G.mode === 'range') RANGE.update(dt);
     if (NP.active && NP.host) NP.hostUpdate(dt);
+    KC.record(); KC.update(dt);
   }
   function drawActors(dt) {
-    const P = PLAYER, W = G.world;
+    const P = PLAYER, W = G.world, kc = KC.frameNow();
     for (const a of G.actors) {
-      const hide = (a === G.player && P.view === 'body') || (P.view === 'spectate' && a === P.spec);
+      // a replay poses everyone from the recording just for drawing, then puts the live state back
+      const saved = kc ? KC.pose(a, kc) : null;
+      const hide = kc ? KC.hidden(a) : (a === G.player && P.view === 'body') || (P.view === 'spectate' && a === P.spec);
       a.updateRig(dt, !hide);
       if (!hide && a.rig) { const L = W.outdoor(a.pos.clone().setY(a.pos.y + 1)) ? W.light.out : W.light.in; a.tint([Math.min(1.1, L[0] * 1.05), Math.min(1.1, L[1] * 1.05), Math.min(1.1, L[2] * 1.05)]); }
+      if (saved) KC.unpose(a, saved);
     }
   }
 

@@ -171,6 +171,7 @@
     const mz = WPN.muzzlePos(a);
     SFX.shot(def, o, false); NP.quiet(() => FX.flash(mz, 0.4, 0.04));
     for (const e of ends.slice(0, 2)) FX.tracer(mz, V(e[0], e[1], e[2]), 0xffb070);
+    KC.shot(a, def.id, mz, ends.slice(0, 3).map(e => V(e[0], e[1], e[2])));
   }
   function remoteAct(a, d) {
     if (Array.isArray(d.p) && a.state === 'alive') a.pos.set(d.p[0], d.p[1], d.p[2]);
@@ -289,6 +290,7 @@
     if (!NP.active || NP.host) return;
     switch (d.t) {
       case 'np.sel': {
+        KC.reset();
         GAME.round = d.round; NP.sides = d.sd; GAME.siteNames = d.sites; GAME.mode = d.mode;
         if (d.teams && d.teams[NP.me] != null) GAME.myTeam = d.teams[NP.me];
         GAME.score = d.score; GAME.phase = 'select';
@@ -350,8 +352,9 @@
     o.hostage = s.o.hs ? NP.byId.get(s.o.hs) || o.hostage : null;
     o.prog = s.o.pg; o.contested = !!s.o.ct;
     // operators
-    for (const r of s.a) applyActor(r);
+    // the feed first, so a death below already knows who did it
     if (s.f) { GAME.feed = s.f; HUD.feedDirty = true; }
+    for (const r of s.a) applyActor(r);
     for (const e of s.ev || []) { try { playEv(e); } catch (x) { console.warn('event', e, x); } }
   }
   function applyActor(r) {
@@ -395,6 +398,7 @@
         const o = V(...e.o), mz = WPN.muzzlePos(s);
         SFX.shot(def, o, PLAYER.viewActor() === s); oF.flash(mz, 0.4, 0.04);
         for (const p of e.e || []) FX.tracer(mz, V(...p), 0xffb070);
+        KC.shot(s, def.id, mz, (e.e || []).map(p => V(...p)));
         s.lastShot = G.time; MUSIC.lastShot = G.time;
         break;
       }
@@ -409,8 +413,12 @@
       case 'rend': {
         const won = e.w === GAME.myTeam;
         SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won);
-        HUD.banner(won ? 'ROUND WON' : 'ROUND LOST', e.r + '  ·  ' + GAME.score[GAME.myTeam] + ' – ' + GAME.score[1 - GAME.myTeam], 6.5, won ? 'win' : 'lose');
+        const ban = dur => HUD.banner(won ? 'ROUND WON' : 'ROUND LOST', e.r + '  ·  ' + GAME.score[GAME.myTeam] + ' – ' + GAME.score[1 - GAME.myTeam], dur, won ? 'win' : 'lose');
         PLAYER.leaveDrone(true); PLAYER.leaveCams();
+        // the host says which kill ended it; replay it from this side's own recording
+        let dur = 0;
+        if (e.kc) { const v = NP.byId.get(e.kc.v), k = e.kc.k ? NP.byId.get(e.kc.k) || null : null; if (v) dur = KC.queue('round', k, v, 1.4, { head: !!e.kc.h, done: () => ban(Math.max(1, GAME.timer - 0.4)) }); }
+        ban(dur ? 1.4 : 6.5);
         break;
       }
     }

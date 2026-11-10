@@ -96,6 +96,10 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   You can't go prone while holding one.
 - **Down but not out:** lethal non-headshot damage usually downs you; teammates revive (hold
   interact). Headshots kill outright (shotgun pellets just hit harder).
+- **Kill cam:** when you're killed you see the last few seconds again over your killer's
+  shoulder, then you spectate. A round that ends on a kill replays that kill for everyone before
+  the result. The killing shot plays in slow motion, and gadget kills circle the victim. Press
+  the vault key (Space) to skip; turn it off in Settings.
 - **Intel:** drones (attack), cameras (defense; attackers can shoot them), spotting marks
   enemies for your team.
 - **Bots:** they path through the building (stairs, breached holes, barricades they smash),

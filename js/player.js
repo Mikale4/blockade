@@ -76,6 +76,7 @@
     const a = G.player; if (!a) return;
     if (act === 'chat') { HUD.openChat(); return; }
     const atkPrep = GAME.phase === 'prep' && a.side === 'atk' && G.mode === 'match';
+    if (P.view === 'replay') { if (act === 'vault' || act === 'interact') KC.skip(); return; }
     if (P.view === 'drone') {
       if (act === 'device' || act === 'interact') { if (!atkPrep) P.leaveDrone(); else HUD.toast('Attackers drone during preparation'); }
       if (act === 'vault' && P.drone) P.drone.jump = true;
@@ -229,7 +230,7 @@
     if (P.view === 'cams' && P.cam && !P.cam.alive) P.cycleCam(1);
     if (a.state === 'dead') {
       P.deadT += dt;
-      if (P.view === 'body' && P.deadT > 2.2) { P.view = 'spectate'; P.cycleSpec(0); }
+      if (P.view === 'body' && P.deadT > 2.2 && !KC.busy()) { P.view = 'spectate'; P.cycleSpec(0); }
       if (P.view === 'spectate' && (!P.spec || P.spec.state === 'dead')) P.cycleSpec(1);
     }
     // recoil recovery (visual part)
@@ -256,7 +257,18 @@
     if (a.wpn.def.type === 'SG') z = 1.1;
     return z;
   };
-  P.onDeath = function (k) { P.deadT = 0; P.leaveDrone(); P.leaveCams(); P.killer = k; HUD.toast(k && k !== G.player ? 'Eliminated by ' + k.op.name : 'You died', 'warn'); };
+  P.onDeath = function (k) {
+    P.deadT = 0; P.leaveDrone(); P.leaveCams();
+    let head = !!(GAME.lastElim && GAME.lastElim.v === G.player && GAME.lastElim.head);
+    // a guest hears who did it from the kill feed
+    if (GAME.client) { const f = feedEntry(G.player); if (f) { k = k || G.actors.find(a => a.op.name === f.k && a.team === f.kt) || null; head = !!f.head; } }
+    P.killer = k;
+    HUD.toast(k && k !== G.player ? 'Eliminated by ' + k.op.name : 'You died', 'warn');
+    // the kill cam: a moment on the floor, then the last few seconds again from the killer's side
+    if (G.mode === 'match' && GAME.phase === 'action') KC.queue('death', k, G.player, 1.1, { head });
+  };
+  const feedEntry = v => GAME.feed.find(e => e.v === v.op.name && e.vt === v.team && !e.verb);
+  P.feedEntry = feedEntry;
   P.roundStart = function () {
     P.view = 'body'; P.drone = null; P.cam = null; P.spec = null; P.deadT = 0; P.eyeY = null; P.vmKey = ''; P.enabled = true;
     const a = G.player;
@@ -272,7 +284,9 @@
     let fov = s.fov;
     P.vmVisible = false;
     for (const e of G.ents) if (e.type === 'drone' && e.mesh) e.mesh.visible = !(P.view === 'drone' && P.drone === e);
-    if (P.view === 'drone' && P.drone) {
+    if (P.view === 'replay' && KC.play) {
+      fov = KC.camera(cam, dt);
+    } else if (P.view === 'drone' && P.drone) {
       cam.position.copy(P.drone.eye()); cam.rotation.set(P.drone.pitch, P.drone.yaw, 0, 'YXZ'); fov = 80;
     } else if (P.view === 'cams' && P.cam) {
       cam.position.copy(P.cam.pos).add(V().set(0, -0.12, 0)); cam.rotation.set(P.cam.pitch + P.cam.look.pitch, P.cam.yaw + P.cam.look.yaw, 0, 'YXZ'); fov = 70;

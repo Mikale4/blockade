@@ -272,6 +272,7 @@
       toggle('Toggle aim down sights (instead of hold)', 'aimToggle'),
       toggle('Invert mouse Y', 'invertY'),
       toggle('Swap sides every round', 'swapEveryRound'),
+      toggle('Kill cam (replay your death and the round-ending kill)', 'killcam'),
       toggle('Show FPS', 'showFps'),
       $('div', { class: 'actions' }, back(onBack))), overlay);
   };

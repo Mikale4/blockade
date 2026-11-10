@@ -223,3 +223,26 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .rangepick .seg { margin-top: 12px; }
 pre { white-space: pre-wrap; font-size: 12px; color: #fbb; }
 @media (max-width: 900px) { .os-body { grid-template-columns: 1fr; overflow: auto; } .os-prev { min-height: 220px; } .row3 { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------------ kill cam */
+body.kc #hud, body.kc #fxLayer { visibility: hidden; }
+#kcLayer { position: fixed; inset: 0; pointer-events: none; z-index: 6; font-family: var(--f); text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+#kcLayer .kc-top, #kcLayer .kc-bottom { position: absolute; left: 0; right: 0; background: rgba(4, 6, 9, 0.82); display: flex; align-items: center; }
+#kcLayer .kc-top { top: 0; height: 9vh; min-height: 52px; padding: 0 32px; gap: 18px; }
+#kcLayer .kc-bottom { bottom: 0; height: 12vh; min-height: 72px; padding: 0 32px; justify-content: center; }
+#kcLayer .kc-tag { display: flex; align-items: center; gap: 8px; font: 800 18px var(--f); letter-spacing: 0.3em; color: var(--bad); }
+#kcLayer .kc-tag i { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); animation: kcBlink 1s steps(2) infinite; }
+#kcLayer .kc-title { font: 800 26px var(--f); letter-spacing: 0.22em; }
+#kcLayer .kc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,0.08); }
+#kcLayer .kc-bar i { display: block; height: 100%; width: 0; background: var(--bad); }
+#kcLayer .kc-line { display: flex; align-items: center; gap: 18px; font: 800 30px var(--f); letter-spacing: 0.12em; }
+#kcLayer .kc-line .mine { color: var(--def); }
+#kcLayer .kc-line .theirs { color: var(--bad); }
+#kcLayer .kc-line .neutral { color: var(--txt); }
+#kcLayer .kc-wpn { font: 600 18px var(--f); letter-spacing: 0.16em; color: var(--dim); padding: 4px 12px; border: 1px solid var(--line); border-radius: 3px; }
+#kcLayer .kc-wpn:empty { display: none; }
+#kcLayer .kc-line em { font: 800 16px var(--f); font-style: normal; letter-spacing: 0.2em; color: var(--gold); }
+#kcLayer .kc-skip { position: absolute; right: 32px; font: 600 15px var(--f); letter-spacing: 0.14em; color: var(--dim); }
+#kcLayer.slow .kc-title::after { content: '  ·  SLOW MOTION'; color: var(--dim); font-size: 16px; }
+@keyframes kcBlink { 50% { opacity: 0.2; } }
+@media (max-width: 700px) { #kcLayer .kc-line { font-size: 20px; gap: 10px; } #kcLayer .kc-skip { display: none; } #kcLayer .kc-title { font-size: 18px; } }

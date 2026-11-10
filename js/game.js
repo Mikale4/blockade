@@ -35,6 +35,7 @@
   };
   /* choose the objective and open operator select */
   GAME.prepareRound = function () {
+    KC.reset();
     GAME.phase = 'select';
     const map = G.map;
     if (GAME.mode === 'bomb') { const pair = U.pick(map.bombs); GAME.siteNames = pair; }
@@ -68,7 +69,7 @@
     const ch = GAME.playerChoice, map = G.map;
     if (GAME.net) { G.mode = 'match'; MENU.hide(); HUD.show(true); }
     MAIN.resetWorld();
-    GAME.reinforced = []; GAME.feed = []; GAME.obj = {}; G.actors = []; G.player = null;
+    GAME.reinforced = []; GAME.feed = []; GAME.obj = {}; G.actors = []; G.player = null; GAME.lastElim = null;
     GAME.siteRooms = GAME.siteNames.map(n => map.roomByName[n][0]);
     GAME.obj.rooms = GAME.siteRooms;
     // ---- operators: the humans, then bots to fill each team to five
@@ -92,9 +93,12 @@
       for (const op of pick(side, taken, fill ? 5 - teams[t].length : 0)) teams[t].push(mkBot(op, t, side));
     }
     G.actors = [...teams[0], ...teams[1]];
+    // match stats follow the player, not the operator: humans by who they are, bots by their
+    // seat on the team, so changing operators between rounds keeps one row per player
+    const seat = [0, 0];
     for (const a of G.actors) {
       a.addTo(G.scene);
-      const key = (a.isPlayer || a.net ? 'h:' + a.name : a.op.id) + ':' + a.team;
+      const key = a.isPlayer ? 'me' : a.net ? 'h:' + a.net : 'b:' + a.team + ':' + seat[a.team]++;
       const s = GAME.stats.get(key) || { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: a.team, human: !!(a.isPlayer || a.net), me: !!a.isPlayer, op: a.op.id };
       s.op = a.op.id; a.match = s; GAME.stats.set(key, s);
     }
@@ -217,11 +221,28 @@
     for (const a of G.actors) { a.trigger = false; if (a.team === winner && a.match) a.match.s += 50; }
     const won = winner === GAME.myTeam;
     SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won);
-    HUD.banner(won ? 'ROUND WON' : 'ROUND LOST', reason + '  ·  ' + mine() + ' – ' + theirs(), POST - 0.5, won ? 'win' : 'lose');
+    const ban = dur => HUD.banner(won ? 'ROUND WON' : 'ROUND LOST', reason + '  ·  ' + mine() + ' – ' + theirs(), dur, won ? 'win' : 'lose');
     PLAYER.leaveDrone(); PLAYER.leaveCams();
-    NP.push({ k: 'rend', w: winner, r: reason });
+    // a round ended by a kill replays that kill, then the result comes back up
+    const kc = GAME.roundKillcam(reason, () => ban(Math.max(1, GAME.timer - 0.4)));
+    if (kc) GAME.timer = KC_LEAD + kc.dur + KC_TAIL;
+    ban(kc ? KC_LEAD : POST - 0.5);
+    NP.push({ k: 'rend', w: winner, r: reason, kc: kc ? { k: kc.k ? kc.k.id : 0, v: kc.v.id, h: kc.head ? 1 : 0 } : 0 });
+  };
+  /* the kill that ended the round, queued to replay after the result has shown for a moment */
+  const KC_LEAD = 1.4, KC_TAIL = 3;
+  GAME.roundKillcam = function (reason, done) {
+    const le = GAME.lastElim;
+    if (!/eliminated|hostage was killed/.test(reason) || !le || !le.v || G.time - le.t > 2) return null;
+    const dur = KC.queue('round', le.k, le.v, KC_LEAD, { head: le.head, done: () => {
+      // skipping offline moves straight on; online the host keeps everyone's timing
+      if (!GAME.net && GAME.phase === 'post') GAME.timer = Math.min(GAME.timer, KC_TAIL);
+      done();
+    } });
+    return dur ? { dur, k: le.k, v: le.v, head: le.head } : null;
   };
   GAME.endMatch = function () {
+    KC.reset();
     GAME.phase = 'end'; GAME.active = false;
     PLAYER.release();
     if (GAME.net) {
@@ -231,7 +252,7 @@
       Online.matchEnded();
     } else MENU.matchOver(GAME.score, GAME.stats);
   };
-  GAME.quit = function () { GAME.active = false; GAME.phase = 'none'; SFX.stopAll(); if (window.NP && NP.active) NP.stop(); };
+  GAME.quit = function () { KC.reset(); GAME.active = false; GAME.phase = 'none'; SFX.stopAll(); if (window.NP && NP.active) NP.stop(); };
 
   /* ------------------------------------------------------------------ hostage */
   function updateHostage(dt) {
@@ -260,6 +281,7 @@
 
   /* ------------------------------------------------------- kills & feed */
   GAME.onKill = function (v, k, head) {
+    GAME.lastElim = { v, k, head, t: G.time };
     if (v.hostage) { v.killer = k; GAME.addFeed(k, v, head, 'killed the hostage'); return; }
     if (v.match) v.match.d++;
     if (k && k !== v && k.match && k.team !== v.team) { k.match.k++; k.match.s += head ? 120 : 100; }
@@ -270,6 +292,7 @@
     if (k && head && k.match && k.team !== v.team) k.match.hs = (k.match.hs || 0) + 1;
   };
   GAME.onDown = function (v, k) {
+    GAME.lastElim = { v, k, head: false, t: G.time };
     if (v.hostage) { GAME.addFeed(k, v, false, 'downed'); return; }
     GAME.addFeed(k, v, false, 'downed');
     GAD.tell(v, 'YOU ARE DOWN · wait for a revive', 'warn');

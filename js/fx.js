@@ -72,6 +72,7 @@
     for (let i = 0; i < 3; i++) spawn(p.x + nx * 0.03, p.y + ny * 0.03, p.z + nz * 0.03, nx * 1.5 + (Math.random() - 0.5) * 1.5, ny * 1.5 + Math.random() * 1.2, nz * 1.5 + (Math.random() - 0.5) * 1.5, 0.035, 0.5, col.r, col.g, col.b, 0.8);
   };
   FX.blood = function (p, dir) {
+    if (window.KC) KC.fx('blood', p, dir);
     for (let i = 0; i < 6; i++) spawn(p.x, p.y, p.z, dir.x * 2 + (Math.random() - 0.5) * 2, dir.y * 2 + Math.random(), dir.z * 2 + (Math.random() - 0.5) * 2, 0.04, 0.5, 0.55, 0.06, 0.06, 1);
   };
   FX.flames = function (p, r, n) {
@@ -95,6 +96,7 @@
     f.s.position.copy(p); f.s.scale.setScalar(size); f.s.visible = true; f.t = dur || 0.05; f.max = f.t;
   };
   FX.explosion = function (p, r) {
+    if (window.KC) KC.fx('explosion', p, r);
     FX.flash(p, r * 2.4, 0.18);
     FX.burst(p, 0xffa040, 26, 7, 0.1, 0.5, 0.2);
     FX.burst(p, 0x4a4540, 20, 4, 0.14, 1.4, 0.4);

@@ -83,7 +83,7 @@
     settings: Object.assign({
       sens: 1.0, adsSens: 0.8, fov: 80, volume: 0.8, music: 0.45, difficulty: 1,
       leanToggle: false, crouchToggle: true, aimToggle: false, renderScale: 1, roundsToWin: 3, swapEveryRound: true,
-      showFps: false, invertY: false,
+      showFps: false, invertY: false, killcam: true,
     }, U.store.get('settings', {})),
   };
   G.saveSettings = () => U.store.set('settings', G.settings);

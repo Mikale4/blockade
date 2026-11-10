@@ -97,12 +97,15 @@
     const e = a.eye(tmpO.clone()), f = a.fwd();
     const s = WPN.spreadNow(a);
     let endP = null;
+    const ends = [];
     for (let i = 0; i < d.pellets; i++) {
       const dir = spreadDir(f, s, new THREE.Vector3());
       const r = WPN.trace(a, e, dir, d, d.pellets > 1 ? 40 : 140, 1);
       if (i === 0 || Math.random() < 0.3) endP = r;
+      if (i < 3) ends.push(r);
       if (i < 3 && (a !== PLAYER.viewActor() || d.pellets > 1 || Math.random() < 0.5)) FX.tracer(muzzlePos(a), r, a.team === (G.player ? G.player.team : 0) ? 0xffe8a0 : 0xffb070);
     }
+    KC.shot(a, d.id, muzzlePos(a), ends);
     if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55));
     a.lastShot = G.time; MUSIC.lastShot = G.time;
     const local = a === PLAYER.viewActor();
@@ -116,12 +119,13 @@
   function clientFire(a) {
     const w = a.wpn, d = w.def;
     w.mag--; w.cool = 60 / d.rpm;
-    const e = a.eye(new THREE.Vector3()), f = a.fwd(), s = WPN.spreadNow(a), dirs = [];
+    const e = a.eye(new THREE.Vector3()), f = a.fwd(), s = WPN.spreadNow(a), dirs = [], ends = [];
     for (let i = 0; i < d.pellets; i++) {
       const dir = spreadDir(f, s, new THREE.Vector3()); dirs.push(dir);
       if (i < 3) {
         const h = G.world.raycast(e, dir, d.pellets > 1 ? 40 : 140, true);
         const end = h ? new THREE.Vector3(h.px, h.py, h.pz) : e.clone().addScaledVector(dir, 140);
+        ends.push(end);
         FX.tracer(muzzlePos(a), end, 0xffe8a0);
         if (h && i === 0 && h.m !== DATA.OOB) FX.dust(end, h.nx, h.ny, h.nz, h.m);
       }
@@ -129,6 +133,7 @@
     if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55));
     a.lastShot = G.time;
     SFX.shot(d, e, true); PLAYER.onFire(d);
+    KC.shot(a, d.id, muzzlePos(a), ends);
     NP.shot(e, dirs, d.id);
   }
   function muzzlePos(a) {
