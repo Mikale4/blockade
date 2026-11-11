@@ -267,3 +267,20 @@ em.bot { font: 700 10px var(--f); font-style: normal; letter-spacing: 0.14em; co
 .partycol .mrow { display: flex; gap: 10px; align-items: center; }
 .partycol .mrow .mn { flex: 1; }
 .partycol .mrow.empty { color: var(--dim); border: 1px dashed var(--line); padding: 10px; }
+
+/* ------------------------------------------------------------ home menu fits any window */
+/* centred when everything fits, scrolls when it doesn't (the auto margins centre it without
+   ever pushing the top out of reach), and shrinks a little on shorter windows first */
+.page.home .title { overflow-y: auto; justify-content: flex-start; padding-top: 20px; padding-bottom: 20px; }
+.page.home .title > :first-child { margin-top: auto; }
+.page.home .title > :last-child { margin-bottom: auto; }
+.page.home .logo { font-size: clamp(44px, min(9vw, 11vh), 120px); }
+.page.home .logo small { margin: 8px 0 clamp(12px, 3vh, 34px) 4px; }
+.page.home .foot { position: static; margin-top: 16px; }
+@media (max-height: 960px) {
+  .page.home .menu-col { gap: 6px; }
+  .page.home .menu-col .btn { padding: 8px 20px; font-size: 16px; }
+  .page.home .menu-col .btn.big { padding: 10px 24px; font-size: 19px; }
+  .page.home .pbanner.home { padding: 10px 14px; margin-bottom: 8px; }
+  .page.home .xpbar { margin-top: 12px; }
+}
