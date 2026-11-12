@@ -34,6 +34,10 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   Platinum and Diamond (III to I each), then Elite. Your first five matches are placements.
   Your rating moves by the other team's average rating (beating a stronger team gains more),
   and leaving early counts as a loss. Only Ranked changes your rating.
+- **Ban phase:** every Ranked match opens with one. Each team bans one attacker and one
+  defender (30 seconds), and nobody on either team can play them for the whole match. Against
+  bots you ban for your team and the bots ban for theirs. Online, the first player on each
+  team is its captain and bans for it.
 - **Parties:** play Ranked with friends. CREATE PARTY (on the Ranked screen), then invite up to
   four friends, or give them the party code to enter under ONLINE LOBBY → JOIN. When the leader
   presses FIND RANKED MATCH, the party is matched as one team at its average rating. Other
@@ -51,16 +55,39 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   end-to-end encrypted and wait for friends who are offline. You can invite a friend to a
   match or a room, join their room, or block someone.
 
-- **26 operators** (13 attack, 13 defense) in eight units. The launch roster is 20 operators
-  across five units, plus three two-operator season squads:
+- **38 operators** (19 attack, 19 defense) in fourteen units. The launch roster is 20 operators
+  across five units, plus nine two-operator season squads:
   - **Season 1 · Ironveil:** Pike (smoke launcher) and Lark (decoy emitter)
   - **Season 2 · Driftline:** Brace (Barrier Foam: a waist-high bulletproof foam wall) and Seam
     (Patch Spray: refills a breached wall, floor or hatch with foam)
   - **Season 3 · Meridian:** Haze (Irritant Shells: a haze that hurts, makes defenders cough and
     marks them) and Lumen (Floodlight: dazzles attackers who look into it)
+  - **Season 4 · Umbra:** Wraith (Phase Cloak: six seconds nearly invisible and silent, and
+    nothing can mark you; firing ends it) and Nox (Blackout: nine seconds of darkness for the
+    attackers while defenders see as normal)
+  - **Season 5 · Trawl:** Gaff (Harpoon Line: drags a defender five metres toward you, or rips
+    a gadget off the wall) and Moor (Recall Anchor: drop it, roam, and snap straight back)
+  - **Season 6 · Override:** Splice (Hijack Dart: a defender's electronic gadget changes sides)
+    and Warden (Watchdog Turret: a sentry gun that covers an 80° arc)
+  - **Season 7 · Breakline:** Tusk (Battering Charge: sprint straight through a soft wall and
+    stagger whoever is behind it) and Ferro (Misfire Coil: attackers' guns near it jam about one
+    shot in five and reload slowly)
+  - **Season 8 · Kinetic:** Dynamo (Overdrive: seven seconds faster, with snap aim and quick
+    reloads, shrugging off wire, snares and stuns, then three seconds winded) and Mimic (Body
+    Double: a life-size decoy of herself; whoever shoots it is marked)
+  - **Season 9 · Resonant:** Triad (Triangulator: a listening post that marks any defender who
+    fires an unsuppressed gun near it) and Veil (Null Field: defenders inside can't be marked
+    or revealed, walk silently, and drones lose signal)
 
   Each operator has an armor/speed rating, two primaries, two secondaries, two gadget choices
   and a unique ability.
+- **22 primaries and sidearms**, eight of them with a mechanic of their own: the KB-3 (three-round
+  bursts), HUSH-45 (suppressed: heard from 10 m instead of 45, no tracer for the enemy, and it
+  doesn't set off a Triangulator), HAMMERHEAD .50 (punches through soft walls with most of its
+  damage), MODEL 8 SLUG (one heavy slug instead of pellets), BANKSHOT (rounds skip once off a
+  hard surface, so you can shoot round a corner), RAMPART (a 100-round belt that steadies when
+  you crouch or go prone), NEEDLER-6 (flechettes that keep going through cover) and the VERDICT
+  (a two-round burst pistol).
 - **Pick your spawn:** in operator select every player chooses their own spawn. Attackers pick
   one of the map's outdoor spawns; defenders pick the objective or another room in the building.
 - **9 maps**, each with a basement or upper floors, hatches, soft and hard walls, and 3–4
@@ -129,10 +156,13 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   the result. The killing shot plays in slow motion, and gadget kills circle the victim. Press
   the vault key (Space) to skip; turn it off in Settings.
 - **Intel:** drones (attack), cameras (defense; attackers can shoot them), spotting marks
-  enemies for your team.
+  enemies for your team. Drones roll straight up stairs without jumping, and Sprint gives a
+  drone a one-second burst of speed with an eight-second cooldown.
 - **Bots:** they path through the building (stairs, breached holes, barricades they smash),
   react to what they see and hear, reinforce and gadget up in prep, plant, disable, escort and
-  revive. Choose Recruit, Normal or Realistic.
+  revive. They use their whole kit: every operator ability, grenades, breaching charges,
+  claymores and traps, and they walk over to a teammate's med station or healing beacon when
+  they can use it. Choose Recruit, Normal or Realistic.
   - **Attack:** the team splits over two or three entrances on different walls (sometimes a
     window near the site: vaulted on the ground floor, or reached on a rope and crashed through
     higher up, falling back to a door if it's reinforced or blocked), and each bot
@@ -169,6 +199,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 | X | Operator ability (Rhea: hold to detonate) |
 | F (hold) | Interact: plant, disable, revive, reinforce, barricade, escort |
 | 5 | Drone (attack) / cameras (defense) |
+| L-Shift (in a drone) | Drone boost: about a second of double speed, then an 8 s cooldown |
 | T | Spot the enemy under your crosshair |
 | Tab | Scoreboard |
 
