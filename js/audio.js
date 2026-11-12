@@ -65,9 +65,11 @@
 
   SFX.shot = function (wdef, pos, local) {
     if (!SFX.ctx) return;
-    const t = wdef.type, d = chain(local ? null : pos, t === 'PISTOL' ? 60 : 90, local ? 0.55 : 0.9);
+    // a suppressed gun: a dull cough that carries a fraction of the distance
+    const t = wdef.type, q = !!wdef.silent, d = chain(local ? null : pos, q ? 24 : t === 'PISTOL' ? 60 : 90, (local ? 0.55 : 0.9) * (q ? 0.4 : 1));
     if (!d) return;
     const t0 = now();
+    if (q) { noise(d, t0, 0.09, 'lowpass', 1100, 0.7, 0.8); noise(d, t0, 0.03, 'bandpass', 2600, 1.2, 0.25); tone(d, t0, 0.07, 140, 60, 0.3, 'sine'); return; }
     const body = t === 'SG' ? 380 : t === 'PISTOL' ? 1400 : t === 'MP' ? 1600 : t === 'DMR' ? 700 : t === 'LMG' ? 820 : t === 'SMG' ? 1300 : 1000;
     noise(d, t0, t === 'SG' ? 0.32 : 0.16, 'lowpass', body * 2.5, 0.8, 0.9);
     noise(d, t0, 0.05, 'highpass', 3000, 0.5, 0.5);
@@ -225,7 +227,7 @@
   }
   // name: [keys(...args) -> candidate keys, pos(...args), range, gain(...args)]
   const OVR = {
-    shot: [(w, p, l) => ['shot.' + w.id, 'shot.' + w.type, 'shot'], (w, p, l) => l ? null : p, 90, (w, p, l) => l ? 0.6 : 0.9],
+    shot: [(w, p, l) => w.silent ? ['shot.' + w.id] : ['shot.' + w.id, 'shot.' + w.type, 'shot'], (w, p, l) => l ? null : p, 90, (w, p, l) => l ? 0.6 : 0.9],
     step: [(p, loud, l, m) => [m === 'metal' ? 'step.metal' : 'step', 'step'], (p, loud, l) => l ? null : p, 18, (p, loud, l, m, soft) => (l ? 0.2 : 0.6) * (loud ? 1 : 0.55) * (soft ? 0.35 : 1)],
     explosion: [(p, big, v) => [v ? 'explosion.' + v : '', 'explosion'], p => p, 140, () => 1],
     crumble: [() => ['crumble'], p => p, 50, () => 0.7],

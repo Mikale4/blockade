@@ -145,8 +145,10 @@
       if (t.team === a.team || t.state === 'dead' || t.hostage || t.dummy) continue;
       if (prep && t.side === 'atk') continue;   // attackers are droning, not on the field
       t.isActor = true;
+      if (t.cloakT > 0 && U.dist3(e, t.pos) > 4) continue;       // a cloaked operator: only seen up close
       const p = canSee(a, t, e); if (!p) continue;
       let d = U.dist3(e, p);
+      if (d > 7 && GAME.dark(a.team)) continue;                   // blackout: a few metres of sight
       // a target we've already poured shots into for nothing (behind a shield or cover the
       // bullets can't get through) is left alone for a while, unless it's close or hurting us
       if (b.futile && b.futile.get(t) > G.time && d > 6 && !hurt) continue;
@@ -178,9 +180,14 @@
         if (!g.alive || g.team === a.team || g.team < 0 || g.bulletproof || !GAD.TRAPS.has(g.type) && g.type !== 'drone' && g.type !== 'photon' && g.type !== 'beacon' && g.type !== 'claymore') continue;
         if (b.entIgnore && b.entIgnore.get(g) > G.time) continue;   // already tried and missed it
         if (g.type === 'drone' && a.side === 'atk') continue;
-        const d = U.dist3(e, g.pos); if (d > 14) continue;
-        const to = g.pos.clone().sub(e).normalize(); if (to.dot(a.fwd(V())) < 0.5) continue;
-        if (!G.world.los(e, g.pos)) continue;
+        // a body double looks like a defender holding an angle, a turret is a threat from further
+        // off (and is noticed at once when it is the thing shooting you); Quill's scanner finds
+        // traps at 25 m
+        const gp = g.aimPos || g.pos, far = g.type === 'mannequin' ? 30 : g.type === 'turret' ? 20 : (a.op.ability && a.op.ability.id === 'scanner') ? 25 : 14;
+        const d = U.dist3(e, gp); if (d > far) continue;
+        const to = gp.clone().sub(e).normalize(); if (to.dot(a.fwd(V())) < 0.5 && !(g.type === 'turret' && hurt)) continue;
+        if (!G.world.los(e, gp)) continue;
+        if (d > 7 && GAME.dark(a.team)) continue;
         b.entTarget = g; break;
       }
     }
@@ -213,6 +220,8 @@
       else aim = b.wantHead ? t.headPos(V()) : t.chestPos(V());
       // lead a little
       aim.addScaledVector(t.vel, 0.05);
+      // Marlow's spotter scope: whoever she has in her sights is marked for the team
+      if (a.op.ability && a.op.ability.id === 'spotter' && t.state === 'alive' && G.time > (b.spotT || 0)) { b.spotT = G.time + 3; GAME.mark(t, a.team, 6, true); }
     } else aim = t.pos.clone();
     // error decays toward a residual wobble
     b.errY *= Math.exp(-dt * 1.4); b.errP *= Math.exp(-dt * 1.4);
@@ -336,6 +345,15 @@
     const phase = GAME.phase;
     if (phase === 'prep' && a.side === 'atk') { a.mf = a.mr = 0; return; }
     if (phase === 'post' || phase === 'end') { a.mf = a.mr = 0; return; }
+    // Tusk: head down, straight at the wall, until it gives or the charge runs out
+    if (b.ramRun) {
+      if (G.time > b.ramRun.until || a.ramT <= 0) b.ramRun = null;
+      else { a.yaw = b.ramRun.yaw; a.pitch = 0; if (a.stance) a.setStance(0); a.mf = 1; a.mr = 0; a.sprint = true; return; }
+    }
+    // Moor: hurt and far from home, snap back to the anchor
+    if (a.ability && a.ability.id === 'recall' && a.anchor && a.anchor.alive && a.busy <= 0 && a.hp < a.maxHp * 0.45 && G.time - (b.hurtT || -99) < 2 && U.dist3(a.pos, a.anchor.pos) > 8) {
+      if (GAD.ability(a)) { b.goal = null; b.path = null; b.target = null; b.roamGoal = null; return; }
+    }
     // on a rope or mid-vault through a window: finish getting in first
     if (b.winStep && (a.rappel || a.vault)) { if (windowStep(a, dt)) return; }
     else if (a.rappel) a.ropeLetGo();
@@ -356,9 +374,12 @@
       if (b.entT > 3) { (b.entIgnore || (b.entIgnore = new Map())).set(b.entTarget, G.time + 30); b.entTarget = null; b.entShot = null; }
     }
     if (b.entTarget && b.entTarget.alive) {
-      const off = faceTo(a, b.entTarget.pos, dt, 7);
+      const g = b.entTarget, off = faceTo(a, g.aimPos || g.pos, dt, 7);
       a.mf = a.mr = 0;
-      if (off < 0.06) a.trigger = true;
+      if (off < 0.06) {
+        if (a.ability && a.ability.id === 'hijack' && a.ability.count > 0 && g.elec && a.busy <= 0) { GAD.ability(a); b.entTarget = null; }
+        else a.trigger = true;
+      }
       return;
     }
     // reload in a lull
@@ -373,6 +394,7 @@
         b.taskT = 0;
       }
     }
+    if (!b.task) supplyRun(a);   // between jobs, not only once the list is empty
     if (b.task || nextTask(a)) { if (runTask(a, dt)) return; }
     // at the wall under a window entry: vault in, or hook on
     if (b.winStep) { if (windowStep(a, dt)) return; }
@@ -380,6 +402,26 @@
     AI.job(a, dt);
   };
 
+  /* team supplies: every defender collects the +40 overheal from a friendly Med Station once,
+     and a hurt attacker walks into a friendly Field Beacon's healing */
+  function supplyRun(a) {
+    const b = a.bot;
+    if (G.time < (b.supplyT || 0) || a.carry || GAME.phase === 'post') return;
+    b.supplyT = G.time + 1.5 + Math.random();
+    if (urgentFor(a)) return;
+    for (const g of G.ents) {
+      if (!g.alive || g.team !== a.team) continue;
+      let need = false, stay = 0.5;
+      if (g.type === 'medstation') need = g.uses > 0 && !g.used.has(a);
+      else if (g.type === 'beacon') { need = a.hp < a.maxHp * 0.7 && U.dist3(a.pos, g.pos) > 3; stay = 3; }
+      if (!need || U.dist3(a.pos, g.pos) > 45) continue;
+      const n = NAV.nearest(g.pos.clone().add(V().set(Math.sin(a.id) * 0.8, 0, Math.cos(a.id) * 0.8)), 2); if (n < 0) continue;
+      const at = NAV.nodePos(n); if (U.dist3(at, g.pos) > 1.5) continue;
+      b.task = { at, look: g.pos.clone().setY(g.pos.y + 0.4), time: stay, r: 0.7, run: x => { if (g.alive && g.type === 'medstation') g.use(x); } }; b.taskT = 0;
+      return;
+    }
+  }
+  AI.supplyRun = supplyRun;
   /* what to do with no enemy in sight and no task */
   AI.job = function (a, dt) {
     const b = a.bot, plan = AI.teams[a.team] || {};
@@ -450,7 +492,7 @@
   AI.useKit = function (a, dt) {
     const b = a.bot; b.util -= dt;
     if (b.util > 0 || GAME.phase !== 'action') return;
-    b.util = 1 + Math.random();
+    b.util = (b.target ? 0.5 : 1) + Math.random();   // quicker on the draw with kit while in a fight
     const ab = a.ability, g = a.gadget;
     const plan = AI.teams[a.team] || {};
     const obj = plan.objCenter;
@@ -458,8 +500,43 @@
     // nothing lethal goes off near the hostage: harming them loses the round
     const hz = GAME.obj && GAME.obj.hostage;
     const safe = p => !(hz && hz.state !== 'dead' && p && U.dist3(hz.pos, p) < 6);
-    // Vesper sonar
-    if (ab && ab.id === 'sonar' && ab.cd <= 0 && nearObj) GAD.ability(a);
+    const S = situation(a.team), act = GAME.phase === 'action';
+    // Vesper sonar: near the objective, once inside, or while hunting the last defenders
+    if (ab && ab.id === 'sonar' && ab.cd <= 0 && (nearObj || b.entered || S.mode === 'hunt')) GAD.ability(a);
+    // ---- seasons 4-9
+    if (ab && act) {
+      // Wraith: cloak for the last stretch to the objective
+      if (ab.id === 'cloak' && ab.count > 0 && a.cloakT <= 0 && !b.target && obj && U.dist3(a.pos, obj) < 22 && (b.entered || GAME.arcade)) { GAD.ability(a); return; }
+      // Dynamo: Overdrive as the fight starts
+      if (ab.id === 'overdrive' && ab.count > 0 && a.odT <= 0 && a.exhT <= 0 && (b.target && b.target.isActor || (b.alert > 0 && nearObj && b.entered))) { GAD.ability(a); return; }
+      // Gaff: drag a defender out of where they are holding
+      if (ab.id === 'harpoon' && ab.count > 0 && b.target && b.target.isActor && b.target.state === 'alive') {
+        const t = b.target, d = U.dist3(a.pos, t.pos);
+        if (d > 5 && d < 15 && Math.random() < 0.75 && G.world.los(a.eye(V()), t.chestPos(V()))) { faceTo(a, t.chestPos(V()), 1, 99); GAD.ability(a); return; }
+      }
+      // Triad: a listening post on the way in, another once inside
+      if (ab.id === 'triang' && ab.count > 0 && !b.target && obj && U.dist3(a.pos, obj) < 24 && G.time > (b.triT || 0)) {
+        const p = V().set(a.pos.x, G.world.groundBelow(a.pos.x, a.pos.y + 0.5, a.pos.z) + 0.01, a.pos.z);
+        GAD.deployAt(a, 'triang', p, null, a.yaw); ab.count--; b.triT = G.time + 25; return;
+      }
+      // Nox: lights out when the attack is on the objective
+      if (ab.id === 'blackout' && ab.count > 0 && !(GAME.blackout && GAME.blackout.until > G.time)) {
+        const close = S.known && obj && U.dist3(S.known, obj) < 12 && G.time - S.kt < 6;
+        if (S.threat || close) { GAD.ability(a); return; }
+      }
+      // Moor: no anchor out, and standing in a site room: set one before roaming again
+      if (ab.id === 'recall' && ab.count > 0 && !(a.anchor && a.anchor.alive) && !b.target && plan.rooms && plan.rooms.includes(G.map.roomAt(a.pos))) {
+        GAD.deployAt(a, 'anchor', V().set(a.pos.x, a.pos.y + 0.01, a.pos.z)); return;
+      }
+    }
+    // Halcyon: a beacon where someone is down, or when she is badly hurt herself
+    if (ab && ab.id === 'beacon' && ab.count > 0 && !b.target && (a.hp < a.maxHp * 0.55 || G.actors.some(t => t.team === a.team && t.state === 'dbno' && U.dist3(t.pos, a.pos) < 5))) { GAD.ability(a); return; }
+    // a claymore behind you once you are in position (holding the plant, or set up on the objective)
+    if (g && g.id === 'claymore' && g.count > 0 && act && !b.target && a.side === 'atk' && obj && U.dist3(a.pos, obj) < 10 && (S.planted || b.entered) && Math.random() < 0.3) {
+      const yaw = Math.atan2(-(a.pos.x - obj.x), -(a.pos.z - obj.z));   // facing away from the objective
+      const p = V().set(a.pos.x - Math.sin(yaw) * 0.9, a.pos.y, a.pos.z - Math.cos(yaw) * 0.9); p.y = G.world.groundBelow(p.x, a.pos.y + 0.5, p.z) + 0.01;
+      if (Math.abs(p.y - a.pos.y) < 0.4 && NAV.walkable(p)) { GAD.deployAt(a, 'claymore', p, null, yaw); g.count--; return; }
+    }
     // throw a grenade at a recently seen enemy behind cover
     if (g && g.count > 0 && b.lastSeen && G.time - b.lastSeenT > 1 && G.time - b.lastSeenT < 5 && !b.target) {
       const d = U.dist3(a.pos, b.lastSeen);
@@ -763,6 +840,28 @@
         if (G.world.boxHits(p.x - 0.2, p.y + 0.1, p.z - 0.2, p.x + 0.2, p.y + 1.5, p.z + 0.2) || !NAV.walkable(p)) p = st.clone();
         GAD.deployAt(x, 'floodlight', p, null, Math.atan2(-(c.x - p.x), -(c.z - p.z))); x.ability.count--;
       }, 0.8) || { time: 0 }); break;
+      // ---- seasons 4-9
+      // Warden: the turret set back from an entry, covering it
+      case 'turret': { const t = atEntry(0, (x, op, st, inw, c) => {
+        let p = c.clone().addScaledVector(inw, 3.2); p.y = st.y;
+        if (G.world.boxHits(p.x - 0.25, p.y + 0.1, p.z - 0.25, p.x + 0.25, p.y + 1, p.z + 0.25) || !NAV.walkable(p)) p = st.clone();
+        GAD.deployAt(x, 'turret', p, null, Math.atan2(-(c.x - p.x), -(c.z - p.z))); x.ability.count--;
+      }, 1.0); if (t) b.tasks.push(t); break; }
+      // Ferro: coils just inside two entries, so a push arrives with jamming guns
+      case 'jamfield': place(Math.min(2, Math.max(1, ents.length)), i => atEntry(i + 1, (x, op, st, inw, c) => {
+        let p = c.clone().addScaledVector(inw, 2.2); p.y = st.y; if (!NAV.walkable(p)) p = st.clone();
+        GAD.deployAt(x, 'jamfield', p, null, 0); x.ability.count--;
+      }, 0.8) || { time: 0 }); break;
+      // Mimic: doubles standing where a defender would hold, each facing a way in
+      case 'mannequin': place(3, i => { const p = inner(); return { at: p, time: 0.7, run: x => {
+        const op = ents.length ? ents[i % ents.length] : null, c = op ? GAD.opCenter(op) : V().set(r.cx, r.fy, r.cz);
+        const yaw = Math.atan2(-(c.x - p.x), -(c.z - p.z)), q = p.clone().add(V().set(-Math.sin(yaw) * 0.8, 0, -Math.cos(yaw) * 0.8));
+        GAD.deployAt(x, 'mannequin', NAV.walkable(q) ? q : p.clone(), null, yaw); x.ability.count--;
+      } }; }); break;
+      // Veil: a null field over each site room
+      case 'nullfield': place(2, i => { const rr = plan.rooms[i % plan.rooms.length], p = NAV.randomIn(rr); return { at: p, time: 0.6, run: x => { GAD.deployAt(x, 'nullfield', p.clone().setY(p.y + 0.01), null, 0); x.ability.count--; } }; }); break;
+      // Moor: an anchor on the objective before she goes roaming
+      case 'recall': { const p = inner(); b.tasks.push({ at: p, time: 0.5, run: x => { GAD.deployAt(x, 'anchor', p.clone().setY(p.y + 0.01)); } }); b.role = 'roam'; break; }
       case 'rcharge': {
         // open a rotation hole from the site into a neighbour
         const pan = AI.roomPanels(r)[0];
@@ -960,6 +1059,19 @@
         break;
       }
     }
+    // Tusk: back off a few paces from a soft site wall, then straight through it
+    if (id === 'ram') {
+      // (a wall that leads in from outside the objective first: one between two site rooms is a last resort)
+      const outOf = p => p.look.clone().addScaledVector(V().copy(p.look).sub(p.stand).setY(0).normalize(), 2.8).setY(r.fy);
+      const pans = U.shuffle(AI.roomPanels(r).filter(p => !GAME.reinforced.includes(p))).sort((p, q) => (plan.rooms.includes(G.map.roomAt(outOf(p))) ? 1 : 0) - (plan.rooms.includes(G.map.roomAt(outOf(q))) ? 1 : 0));
+      for (const p of pans) {
+        const out = outOf(p);
+        if (!NAV.walkable(out) || !G.world.los(out.clone().setY(out.y + 1), p.look.clone().addScaledVector(V().copy(p.look).sub(p.stand).setY(0).normalize(), 0.4).setY(out.y + 1))) continue;
+        const pth = NAV.path(a.pos, out); if (!pth || !pth.length || U.dist3(pth[pth.length - 1], out) > 0.8) continue;
+        b.tasks.push({ at: out, look: p.look, time: 0.5, run: x => { faceTo(x, p.look.clone().setY(x.pos.y + 1.5), 1, 99); x.pitch = 0; if (GAD.ability(x)) x.bot.ramRun = { yaw: x.yaw, until: G.time + 2.4 }; } });
+        break;
+      }
+    }
     // soft breach into the site
     const soft = id === 'rivet' || id === 'spike' || (a.gadget && a.gadget.id === 'breach');
     if (soft) {
@@ -985,7 +1097,8 @@
         // post-plant: spread out to separate spots that can see the defuser (a crossfire on
         // it), each watching a different way in, instead of crouching in a pile beside it
         if (!b.guard || U.dist3(b.guard, obj.defuser.pos) > 12) { const g = guardSpot(a, obj.defuser); b.guard = g.p; b.guardLook = g.look; }
-        return { pos: b.guard, r: 0.8, kind: 'guard', look: b.guardLook, crouch: true };
+        // (Crag plants his shield where he holds, facing the way in he is watching)
+        return { pos: b.guard, r: 0.8, kind: 'guard', look: b.guardLook, crouch: true, act: x => { if (x.ability && x.ability.id === 'plant' && x.shieldUp && !(x.shieldPlanted && x.shieldPlanted.alive) && x.busy <= 0 && b.guardLook && faceTo(x, b.guardLook, 0.05, 6) < 0.3) GAD.ability(x); } };
       }
       // a dropped defuser: the nearest bot goes and gets it, and anyone close by covers it
       if (obj.dropped && obj.dropped.alive && (!obj.carrier || obj.carrier.state !== 'alive')) {

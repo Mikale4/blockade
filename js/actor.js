@@ -43,6 +43,10 @@
       this.onGround = false; this.stepAcc = 0; this.moving = 0;
       this.state = 'alive'; this.bleed = 0; this.downedBy = null; this.revivedBy = null; this.reviving = null;
       this.stun = 0; this.blind = 0; this.blindK = 0; this.rooted = 0; this.slow = 0; this.revealed = 0; this.deaf = 0;
+      // seasons 4-9: cloakT / ramT / odT (Overdrive) / exhT (winded after it) count down in seconds;
+      // misfire and nullT are times until which a Misfire Coil / Null Field has hold of you;
+      // knock is a shove that overrides your movement for a moment (a harpoon pull)
+      this.cloakT = 0; this.ramT = 0; this.odT = 0; this.exhT = 0; this.misfire = 0; this.nullT = 0; this.knock = null; this.anchor = null;
       this.vault = null; this.rappel = null; this.busy = 0; this.busyLabel = '';
       this.carry = null;  // 'defuser' | hostage actor
       this.followTarget = null; // hostage: who it follows
@@ -79,6 +83,7 @@
       this.state = 'alive'; this.hp = this.maxHp; this.over = 0; this.bleed = 0; this.downedBy = null; this.reviving = null;
       this.stance = 0; this.h = STAND; this.eyeH = EYE[0]; this.lean = this.leanT = 0; this.ads = 0; this.trigger = false; this.sprint = false; this.mf = this.mr = 0;
       this.stun = this.blind = this.blindK = this.rooted = this.slow = this.revealed = this.deaf = 0;
+      this.cloakT = this.ramT = this.odT = this.exhT = this.misfire = this.nullT = 0; this.knock = null;
       this.vault = null; this.rappel = null; this.busy = 0; this.carry = null; this.interact = null;
       this.dmgBy = new Map(); this.deathT = 0; this.marks = {};
       const gun = this.wpn && this.wpn.id;
@@ -266,10 +271,13 @@
       v *= 1 - this.ads * 0.38;
       const w = this.wpn; if (w) v *= w.def.mob || 1;
       if (this.shieldOp && this.shieldUp) v *= 0.92 * (1 - this.ads * 0.2);   // and slower still while aiming past it
-      if (this.slow > 0) v *= 0.38;
-      if (this.stun > 0) v *= 0.6;
+      const od = this.odT > 0;
+      if (od) v *= 1.3; else if (this.exhT > 0) v *= 0.75;
+      if (this.ramT > 0 && run) v *= 1.12;
+      if (this.slow > 0 && !od) v *= 0.38;
+      if (this.stun > 0 && !od) v *= 0.6;
       if (this.carry && this.carry.hostage) v *= 0.85;
-      if (this.rooted > 0) v = 0;
+      if (this.rooted > 0 && !od) v = 0;
       if (this.state === 'dbno') v = 0.45;
       if (this.hostage) v = this.followTarget ? 3.4 : 0;
       return v;
@@ -299,6 +307,9 @@
       const acc = this.onGround ? 14 : 3;
       this.vel.x = U.smooth(this.vel.x, tx, acc, dt);
       this.vel.z = U.smooth(this.vel.z, tz, acc, dt);
+      // a shove (a harpoon dragging you): for a moment it moves you, whatever your legs want
+      if (this.knock) { this.vel.x = this.knock.vx; this.vel.z = this.knock.vz; this.knock.t -= dt; if (this.knock.t <= 0) this.knock = null; }
+      if (this.ramT > 0 && !GAME.client) this.ramProbe();
       this.vel.y -= GRAV * dt;
       // integrate per axis
       const p = this.pos, h = this.h;
@@ -360,7 +371,7 @@
         const stride = hs > 4 ? 0.8 : 0.62;
         if (this.stepAcc > stride) {
           this.stepAcc = 0;
-          const quiet = (this.op && this.op.ability && this.op.ability.id === 'decoy') || this.stance === 2;
+          const quiet = (this.op && this.op.ability && this.op.ability.id === 'decoy') || this.stance === 2 || this.cloakT > 0 || this.nullT > G.time;
           const loud = hs > 3.6, soft = this.walk && !loud;
           if (!quiet || loud) {
             const m = W.get(Math.floor(p.x * 4), Math.floor(p.y * 4 - 0.5), Math.floor(p.z * 4));
@@ -616,6 +627,38 @@
       if (Math.abs(up) + Math.abs(side) > 0.3) { this.stepAcc += dt; if (this.stepAcc > 0.45) { this.stepAcc = 0; SFX.step(p, false, this.isPlayer); GAME.noise(p, 9, this, 'step'); } }
     }
 
+    /* Tusk's Battering Charge: running into a soft wall or a barricade with it active bursts a
+       body-sized hole through and staggers whoever is just beyond. Hard and reinforced walls don't
+       give. (The host does this for everyone, from where they are and how fast they're going.) */
+    ramProbe() {
+      const hs = Math.hypot(this.vel.x, this.vel.z);
+      if (hs < 3 || this.state !== 'alive') return;
+      const W = G.world, dx = this.vel.x / hs, dz = this.vel.z / hs, p = this.pos;
+      const cx = p.x + dx * 0.55, cz = p.z + dz * 0.55;
+      if (!W.boxHits(cx - 0.2, p.y + 0.3, cz - 0.2, cx + 0.2, p.y + 1.5, cz + 0.2)) return;
+      // the slab of wall ahead: 1.5 m wide, 2 m tall, three voxels deep
+      const ax = Math.abs(dx) > Math.abs(dz);
+      const vx = Math.floor(cx * 4), vz = Math.floor(cz * 4), vy = Math.floor(p.y * 4 + 0.5);
+      const sx = Math.sign(dx) || 1, sz = Math.sign(dz) || 1;
+      const soft = md => (md.xp && !md.reinf) || md.melee || md.see;
+      const n = ax ? W.carve(vx - sx, vy, vz - 3, vx + sx * 2, vy + 8, vz + 3, soft, 60) : W.carve(vx - 3, vy, vz - sz, vx + 3, vy + 8, vz + sz * 2, soft, 60);
+      if (!n) return;
+      this.ramT = 0;
+      const at = new THREE.Vector3(cx + dx * 0.4, p.y + 1, cz + dz * 0.4);
+      SFX.crumble(at, n); SFX.wood(at, true); FX.puff(at, 1.4, 0.8, 0xc8b8a0);
+      GAME.noise(at, 45, this, 'breach');
+      for (const b of G.actors) {
+        if (b === this || b.state !== 'alive' || b.team === this.team || b.hostage) continue;
+        if (U.dist3(b.center(new THREE.Vector3()), at) > 2.2) continue;
+        b.hurt(20, { src: this, kind: 'melee', dir: new THREE.Vector3(dx, 0, dz) });
+        b.stun = Math.max(b.stun, 1.6); b.slow = Math.max(b.slow, 1.2);
+        b.knock = { vx: dx * 6, vz: dz * 6, t: 0.2 };
+        if (b.net && window.NP) NP.push({ k: 'knock', to: b.net, v: [dx * 6, dz * 6], t: 0.2 });
+        WPN.aimPunch(b, 1);
+      }
+      G.emit && G.emit('breach');
+    }
+
     /* ------------------------------------------------------------------ damage */
     hurt(dmg, info) {
       info = info || {};
@@ -673,6 +716,8 @@
     }
     statusTick(dt) {
       this.stun = Math.max(0, this.stun - dt); this.blind = Math.max(0, this.blind - dt); this.rooted = Math.max(0, this.rooted - dt);
+      this.cloakT = Math.max(0, this.cloakT - dt); this.ramT = Math.max(0, this.ramT - dt); this.exhT = Math.max(0, this.exhT - dt);
+      if (this.odT > 0) { this.odT -= dt; if (this.odT <= 0) { this.odT = 0; this.exhT = 3; } }
       this.slow = Math.max(0, this.slow - dt); this.revealed = Math.max(0, this.revealed - dt); this.deaf = Math.max(0, this.deaf - dt);
       if (this.over > 0) this.over = Math.max(0, this.over - dt * 0.6);
       this.shieldTick(dt);
@@ -688,6 +733,13 @@
       this.updateRope();
       const r = this.rig; if (!r) return;
       r.root.visible = visible;
+      const cl = this.cloakT > 0 && this.state === 'alive';
+      if (cl || r.cloaked) {
+        const mine = G.player && this.team === G.player.team;
+        r.mat.transparent = cl; r.mat.depthWrite = !cl;
+        r.mat.opacity = cl ? (mine ? 0.42 : 0.05 + Math.min(0.12, (this.moving || 0) * 0.03)) : 1;
+        r.cloaked = cl;
+      }
       if (!visible) return;
       r.root.position.copy(this.pos);
       r.root.rotation.y = this.yaw;

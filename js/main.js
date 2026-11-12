@@ -41,6 +41,14 @@
     G.camera.aspect = w / h; G.camera.updateProjectionMatrix();
     G.vmCam.aspect = w / h; G.vmCam.updateProjectionMatrix();
   };
+  /* Nox's Blackout, for whoever it is dark for: the fog closes in to a few metres and goes black */
+  let darkOn = false, fogSave = null;
+  MAIN.setDark = function (on) {
+    const f = G.scene.fog; if (!f || on === darkOn) return;
+    darkOn = on;
+    if (on) { fogSave = { c: f.color.getHex(), near: f.near, far: f.far }; f.color.setHex(0x020308); f.near = 1.5; f.far = 9; G.renderer.setClearColor(0x020308); sky.visible = false; }
+    else if (fogSave) { f.color.setHex(fogSave.c); f.near = fogSave.near; f.far = fogSave.far; G.renderer.setClearColor(fogSave.c); sky.visible = true; }
+  };
   function applyTheme(t) {
     const top = new THREE.Color(t.sky[0]), hor = new THREE.Color(t.sky[1]), c = new THREE.Color();
     const pos = sky.geometry.attributes.position, col = sky.geometry.attributes.color;
@@ -48,6 +56,7 @@
     col.needsUpdate = true;
     G.scene.fog = new THREE.Fog(t.fog, 30, t.fogFar || 150);
     G.renderer.setClearColor(t.fog);
+    darkOn = false; sky.visible = true;
     outer.material.color.setHex(t.water ? 0x0d2236 : t.outer);
     outer.position.y = t.water ? 2.6 : 3.24;
   }
@@ -126,6 +135,7 @@
       if (a.ability && a.ability.cd > 0) a.ability.cd -= dt;
       a.statusTick(dt);
       if (!a.dummy && !a.remote) a.physics(dt);
+      else if (a.remote && a.ramT > 0) a.ramProbe();   // a guest's Battering Charge: the host breaks the wall
       if (!a.hostage && !a.dummy && !a.remote) WPN.update(a, dt);
     }
     separate();
@@ -173,6 +183,7 @@
       if (PLAYER.vm) PLAYER.vm.root.visible = false;
     }
     MUSIC.update();
+    MAIN.setDark(!!(playing && G.mode === 'match' && GAME.dark(G.player.team) && !KC.play));
     sky.position.copy(G.camera.position);
     G.renderer.clear();
     G.renderer.render(G.scene, G.camera);

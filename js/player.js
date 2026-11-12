@@ -229,7 +229,12 @@
     if (P.view === 'drone' && P.drone) {
       const h = P.held, d = P.drone;
       if (!d.alive) { P.leaveDrone(); }
-      else { d.mf = (h('forward') ? 1 : 0) - (h('back') ? 1 : 0); d.mr = (h('right') ? 1 : 0) - (h('left') ? 1 : 0); }
+      else {
+        d.mf = (h('forward') ? 1 : 0) - (h('back') ? 1 : 0); d.mr = (h('right') ? 1 : 0) - (h('left') ? 1 : 0);
+        // booster (the sprint key). The cooldown is kept here too, so a guest's HUD can show it
+        P.dBoostCd = Math.max(0, (P.dBoostCd || 0) - dt);
+        if (h('sprint') && P.dBoostCd <= 0) { d.boost = true; P.dBoostCd = GAD.Drone.BOOST_CD; P.dBoostSend = true; }
+      }
     }
     if (P.view === 'cams' && P.cam && !P.cam.alive) P.cycleCam(1);
     if (a.state === 'dead') {
@@ -245,7 +250,7 @@
   };
   P.onFire = function (d) {
     const a = G.player;
-    const m = (a.stance === 1 ? 0.85 : a.stance === 2 ? 0.7 : 1) * (1 - a.ads * 0.15);
+    const m = (a.stance === 1 ? 0.85 : a.stance === 2 ? 0.7 : 1) * (1 - a.ads * 0.15) * (d.bipod && a.stance >= 1 ? 0.45 : 1) * (a.exhT > 0 ? 1.3 : 1);
     const up = d.rv * m * (0.85 + Math.random() * 0.3) * D2R, side = (Math.random() - 0.45) * 2 * d.rh * m * D2R;
     if (P.view === 'body') { a.pitch = U.clamp(a.pitch + up * 0.65, -1.45, 1.45); a.yaw -= side * 0.65; }
     P.rec.p += up * 0.35; P.rec.y += side * 0.35; P.kick = Math.min(1, P.kick + 0.6);

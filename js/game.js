@@ -32,7 +32,7 @@
     GAME.mode = cfg.mode; GAME.mapId = cfg.map;
     GAME.startSide = cfg.side === 'random' ? (Math.random() < 0.5 ? 'atk' : 'def') : cfg.side;
     GAME.round = 0; GAME.score = [0, 0]; GAME.sandbox = false; GAME.active = true;
-    GAME.stats = new Map(); GAME.seats = null;
+    GAME.stats = new Map(); GAME.seats = null; GAME.bans = [];
     GAME.ranked = !!cfg.ranked;
     // ranked plays by its own rules: first to four, bots as good as your rank
     if (cfg.ranked && !cfg.online) { if (!GAME.prevSettings) GAME.prevSettings = { r: G.settings.roundsToWin, d: G.settings.difficulty, s: G.settings.swapEveryRound }; G.settings.roundsToWin = cfg.rounds || 4; if (cfg.diff != null) G.settings.difficulty = cfg.diff; G.settings.swapEveryRound = true; }
@@ -40,7 +40,36 @@
     MAIN.loadMap(cfg.map);
     if (GAME.net && NP.host) NP.hookWorld();
     if (window.Net && Auth.user && !GAME.net) Net.setStatus('play', 'Playing ' + DATA.MODES[cfg.mode].name + ' against bots');
-    GAME.prepareRound();
+    // ranked opens with a ban phase: each team takes one attacker and one defender off the table
+    if (GAME.ranked && !GAME.arcade) GAME.banPhase(); else GAME.prepareRound();
+  };
+  /* ---- ranked ban phase. Before round one each team bans one attacker and one defender, and
+     nobody on either team can play them for the rest of the match. Against bots you ban for
+     your team and the bots ban for theirs; online each team's captain (its first player) bans,
+     and a team with no players on it has its bots ban at random. */
+  GAME.bans = [];
+  GAME.banned = id => GAME.bans.includes(id);
+  GAME.cleanBans = p => {
+    const out = [];
+    if (Array.isArray(p)) for (const side of ['atk', 'def']) { const id = p.find(x => DATA.OPMAP[x] && DATA.OPMAP[x].side === side); if (id) out.push(id); }
+    return out;
+  };
+  GAME.randomBans = function (taken) {
+    const out = [];
+    for (const side of ['atk', 'def']) { const pool = OPS.filter(o => o.side === side && !(taken || []).includes(o.id)); if (pool.length) out.push(U.pick(pool).id); }
+    return out;
+  };
+  GAME.banPhase = function () {
+    GAME.phase = 'ban';
+    if (GAME.net) return NP.banPhase();
+    MENU.banSelect({
+      captain: true, time: 30, map: G.map,
+      onPick: p => {
+        const mine = GAME.cleanBans(p), theirs = GAME.randomBans(mine);
+        GAME.bans = mine.concat(theirs);
+        MENU.banReveal({ teams: [mine, theirs], my: 0, onDone: () => { if (GAME.active && GAME.phase === 'ban') GAME.prepareRound(); } });
+      },
+    });
   };
   /* choose the objective and open operator select */
   GAME.prepareRound = function () {
@@ -79,13 +108,13 @@
     const ch = GAME.playerChoice, map = G.map;
     if (GAME.net) { G.mode = 'match'; MENU.hide(); HUD.show(true); }
     MAIN.resetWorld();
-    GAME.reinforced = []; GAME.feed = []; GAME.obj = {}; G.actors = []; G.player = null; GAME.lastElim = null;
+    GAME.reinforced = []; GAME.feed = []; GAME.obj = {}; G.actors = []; G.player = null; GAME.lastElim = null; GAME.blackout = null;
     GAME.siteRooms = GAME.siteNames.map(n => map.roomByName[n][0]);
     GAME.obj.rooms = GAME.siteRooms;
     // ---- operators: the humans, then bots to fill each team to five (Deathmatch: ten players,
     // each on a team of their own)
     const ffa = GAME.ffa, arcade = GAME.arcade;
-    const pick = (side, taken, n) => U.shuffle(OPS.filter(o => (side === 'any' || o.side === side) && !taken.includes(o.id))).slice(0, Math.max(0, n));
+    const pick = (side, taken, n) => U.shuffle(OPS.filter(o => (side === 'any' || o.side === side) && !taken.includes(o.id) && !GAME.banned(o.id))).slice(0, Math.max(0, n));
     const humans = GAME.net ? NP.humanPicks() : [{ team: 0, op: ch.op, loadout: ch.loadout, spawn: ch.spawn, name: (Auth.user && Auth.name) || 'YOU', local: true, r: Auth.S ? Auth.S.rank.rating : 1000 }];
     // a bot seat keeps its name, rating and looks for the whole match, like a real player would
     const seatOf = key => {
@@ -397,7 +426,11 @@
     }
   };
   /* reveal an actor to a team */
+  /* Nox's Blackout: is it dark for this team right now? (everyone but the team that threw it) */
+  GAME.dark = team => !!(GAME.blackout && G.time < GAME.blackout.until && team !== GAME.blackout.by);
   GAME.mark = function (t, team, dur, announce) {
+    // a cloaked operator, or anyone inside a friendly Null Field, cannot be marked by anything
+    if (t.cloakT > 0 || t.nullT > G.time) return;
     if (!t.marks) t.marks = {};
     t.marks[team] = Math.max(t.marks[team] || 0, G.time + dur);
     if (announce) for (const a of G.actors) if (a.bot && a.team === team && a.state === 'alive' && !a.bot.target) { a.bot.lastSeen = t.pos.clone(); a.bot.lastSeenT = G.time - 1.3; }
@@ -414,10 +447,11 @@
   };
   function camIntel() {
     if (GAME.phase !== 'action') return;
-    const atk = GAME.atkTeam(), def = 1 - atk;
-    for (const c of GAD.cams(def)) {
+    for (const c of G.ents) {
+      if (!c.alive || (c.type !== 'cam' && c.type !== 'bpcam') || c.team < 0) continue;
+      const def = c.team;
       for (const a of G.actors) {
-        if (a.team !== atk || a.state !== 'alive' || a.hostage) continue;
+        if (a.team === def || a.state !== 'alive' || a.hostage || a.cloakT > 0) continue;
         if (U.dist3(c.pos, a.pos) > 22) continue;
         const e = a.eye(V());
         const to = e.clone().sub(c.pos).normalize(), f = V().set(-Math.sin(c.yaw), 0, -Math.cos(c.yaw));

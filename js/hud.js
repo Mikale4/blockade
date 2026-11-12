@@ -185,7 +185,9 @@
     e.hpover.style.width = Math.min(100, a.over / a.maxHp * 100) + '%';
     e.hpnum.textContent = Math.ceil(a.hp + a.over);
     e.hp.classList.toggle('low', a.hp < 30);
-    e.status.textContent = a.state === 'dbno' ? 'DOWN · bleeding out ' + Math.ceil(a.bleed) + 's' : a.rooted > 0 ? 'SNARED' : a.stun > 0 ? 'CONCUSSED' : a.slow > 0 ? 'IN WIRE' : a.over > 0 ? 'OVERHEALED' : a.carry === 'defuser' ? 'CARRYING DEFUSER' : a.walk && a.moving > 0.3 ? 'WALKING · quiet' : '';
+    e.status.textContent = a.state === 'dbno' ? 'DOWN · bleeding out ' + Math.ceil(a.bleed) + 's' :
+      a.cloakT > 0 ? 'CLOAKED' + (GAME.client ? '' : ' ' + Math.ceil(a.cloakT) + 's') : a.odT > 0 ? 'OVERDRIVE ' + Math.ceil(a.odT) + 's' : a.exhT > 0 ? 'WINDED' : a.ramT > 0 ? 'BATTERING CHARGE ' + Math.ceil(a.ramT) + 's · sprint into a soft wall' :
+      a.misfire > G.time ? 'MISFIRE COIL NEARBY · weapon jamming' : GAME.dark && GAME.dark(a.team) ? 'BLACKOUT' : a.nullT > G.time ? 'NULL FIELD · you cannot be marked' : a.rooted > 0 ? 'SNARED' : a.stun > 0 ? 'CONCUSSED' : a.slow > 0 ? 'IN WIRE' : a.over > 0 ? 'OVERHEALED' : a.carry === 'defuser' ? 'CARRYING DEFUSER' : a.walk && a.moving > 0.3 ? 'WALKING · quiet' : '';
     // ---- weapon & slots
     const w = a.wpn;
     if (w) {
@@ -213,7 +215,7 @@
     // ---- view mode overlay
     const P = PLAYER;
     let vtxt = '';
-    if (P.view === 'drone') vtxt = 'DRONE' + (P.drone && P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} drive · {vault} jump · {fire} spot' + (P.drone && P.drone.surge ? ' · {aim} surge (' + a.ability.zaps + ')' : '') + ' · {device} exit</small>');
+    if (P.view === 'drone') vtxt = 'DRONE' + (P.drone && P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} drive · {sprint} boost ' + (P.dBoostCd > 0.05 ? '(' + Math.ceil(P.dBoostCd) + 's)' : '(ready)') + ' · {vault} jump · {fire} spot' + (P.drone && P.drone.surge ? ' · {aim} surge (' + a.ability.zaps + ')' : '') + ' · {device} exit</small>');
     else if (P.view === 'cams') vtxt = (P.cam ? P.cam.name : 'CAMERA') + KEYS.fmt('<small>{left}/{right} switch · {fire} spot · {device} exit</small>');
     else if (P.view === 'spectate') vtxt = 'SPECTATING ' + (P.spec ? P.spec.op.name : '—') + KEYS.fmt('<small>{fire}/{aim} switch · {device} ' + (a.side === 'atk' ? 'drones' : 'cameras') + '</small>');
     else if (a.state === 'dbno') vtxt = 'DOWN<small>wait for a teammate to revive you</small>';

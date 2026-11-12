@@ -7,8 +7,11 @@
   GAD.tell = (a, x, c) => { if (window.NP) NP.tell(a, x, c); else if (a && a.isPlayer) HUD.toast(x, c); };
   GAD.tellTeam = (team, x, alarm) => { if (window.NP) NP.tellTeam(team, x, alarm); };
   const V = () => new THREE.Vector3();
-  const ELEC = new Set(['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight']);
-  const TRAPS = new Set(['snare', 'wire', 'sensor', 'c4', 'rcharge', 'dampener', 'scrambler', 'seeker', 'decoy', 'bpcam', 'cam', 'floodlight']);
+  const ELEC = new Set(['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight', 'turret', 'jamfield', 'triang', 'nullfield', 'anchor']);
+  const TRAPS = new Set(['snare', 'wire', 'sensor', 'c4', 'rcharge', 'dampener', 'scrambler', 'seeker', 'decoy', 'bpcam', 'cam', 'floodlight', 'turret', 'jamfield', 'nullfield', 'anchor', 'mannequin']);
+  const NAMES = { turret: 'Watchdog turret', jamfield: 'Misfire coil', triang: 'Triangulator', nullfield: 'Null field', anchor: 'Recall anchor', mannequin: 'Body double', cam: 'Camera', bpcam: 'Armored camera',
+    snare: 'Snare line', sensor: 'Proximity sensor', scrambler: 'Scrambler', dampener: 'Dampener', seeker: 'Hunter seeker', floodlight: 'Floodlight', c4: 'Detonator pack', rcharge: 'Rotation charge', decoy: 'Decoy emitter', claymore: 'Claymore', beacon: 'Field beacon' };
+  GAD.nameOf = e => NAMES[e.type] || e.type;
   /* meshes for gadgets that models.js has no builder for (the season 2 and 3 kit); online
      guests build theirs the same way, through GAD.mesh */
   const EXTRA = {
@@ -19,6 +22,35 @@
     },
     foam: g => { g.box(-2, -2, -3, 2, 2, 3, 0x6a8f7a); g.box(-1, -1, -4, 1, 1, -4, 0xd9cf9e); },
     irritant: g => { g.box(-2, -2, -2, 2, 3, 2, 0x8a7a2a); g.box(-1, 4, -1, 1, 4, 1, 0x333333); },
+    // ---- seasons 4-9
+    turret: g => {
+      for (const [x, z] of [[-7, 5], [7, 5], [0, -8]]) g.box(x, 0, z, x, 14, z, 0x33363c);
+      g.box(-2, 12, -2, 2, 20, 2, 0x2a2c30);
+      g.box(-5, 20, -5, 5, 27, 6, 0x4a1a26); g.box(-4, 21, -6, 4, 26, -6, 0x2a2c30);
+      g.box(-1, 22, -16, 1, 24, -6, 0x1a1c20); g.box(-3, 25, -7, -2, 26, -7, MD.glow(0xff3050));
+      g.box(4, 21, 0, 6, 25, 5, 0x6a6e76);
+    },
+    jamfield: g => {
+      g.box(-5, 0, -5, 5, 2, 5, 0x3a3026);
+      for (let y = 3; y <= 15; y += 3) { g.box(-4, y, -4, 4, y + 1, 4, 0xb87333); g.box(-3, y, -3, 3, y + 1, 3, 0x000000); }
+      for (let y = 3; y <= 16; y++) g.box(-1, y, -1, 1, y, 1, 0x6a6e76);
+      g.box(-2, 17, -2, 2, 19, 2, MD.glow(0xffa040));
+    },
+    triang: g => {
+      for (const [x, z] of [[-6, 4], [6, 4], [0, -7]]) g.box(x, 0, z, x, 18, z, 0x33363c);
+      g.box(-1, 16, -1, 1, 30, 1, 0x4a5058);
+      g.box(-7, 30, -1, 7, 31, 1, 0x2e3e3a); g.box(-7, 32, 0, -7, 36, 0, 0x2e3e3a); g.box(7, 32, 0, 7, 36, 0, 0x2e3e3a); g.box(0, 32, 0, 0, 38, 0, 0x2e3e3a);
+      g.box(-1, 26, -2, 1, 28, -2, MD.glow(0x7ce8c0));
+    },
+    nullfield: g => {
+      g.box(-7, 0, -7, 7, 2, 7, 0x26342f); g.box(-5, 3, -5, 5, 3, 5, 0x1a2420);
+      for (const [x, z] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) g.box(x, 3, z, x, 9, z, MD.glow(0x7ce8c0));
+      g.box(-1, 4, -1, 1, 12, 1, 0x3a5048); g.box(-2, 13, -2, 2, 14, 2, MD.glow(0x7ce8c0));
+    },
+    anchor: g => {
+      g.box(-1, 0, -1, 1, 14, 1, 0x2a4a60); g.box(-5, 2, -1, 5, 3, 1, 0x2a4a60); g.box(-5, 4, -1, -5, 6, 1, 0x2a4a60); g.box(5, 4, -1, 5, 6, 1, 0x2a4a60);
+      g.box(-2, 14, -1, 2, 16, 1, 0x2a4a60); g.box(-1, 17, -1, 1, 18, 1, MD.glow(0x7cd0ff));
+    },
   };
   const extraGeo = new Map();
   GAD.mesh = function (model) {
@@ -350,8 +382,222 @@
       // ---- season 2 / 3 defenders
       case 'patch': { if (!need()) return false; const n = GAD.patch(a); if (!n) { GAD.tell(a, 'Aim at a hole in a wall, floor or hatch'); return false; } return spend(); }
       case 'floodlight': { if (!need()) return false; const p = GAD.floorAhead(a, 1.0); if (!p) return false; new Floodlight(a, p, a.yaw); return spend(); }
+      // ---- seasons 4-9 attackers
+      case 'cloak': {
+        if (a.cloakT > 0) return false;
+        if (!need()) return false;
+        a.cloakT = 6; ab.count--; a.busy = 0.25; a.marks = {};
+        SFX.whoosh(a.pos); FX.puff(a.center(V()), 0.9, 0.5, 0x8a7cff);
+        return true;
+      }
+      case 'harpoon': {
+        if (!need()) return false;
+        const e = a.eye(V()), f = a.fwd(V()), R = 16;
+        const wall = G.world.raycast(e, f, R, true);
+        let bt = wall ? wall.dist : R, hitA = null, hitE = null;
+        for (const b of G.actors) { if (b === a || b.state === 'dead' || b.team === a.team || b.hostage) continue; const h = b.rayHit(e, f, bt); if (h && h.t < bt) { bt = h.t; hitA = b; hitE = null; } }
+        for (const x of G.ents) {
+          if (!x.alive || x.team === a.team || x.type === 'defuser' || x.type === 'biohazard' || x.type === 'fire' || x.type === 'irritant' || x.type === 'dropped') continue;
+          const to = x.pos.clone().sub(e), t = to.dot(f); if (t < 0.3 || t > bt + 0.25) continue;
+          if (to.addScaledVector(f, -t).length() < Math.max(0.3, (x.hitR || 0.2) + 0.12)) { bt = Math.min(bt, t); hitE = x; hitA = null; }
+        }
+        const end = e.clone().addScaledVector(f, bt);
+        FX.tracer(GAD.throwStart(a), end, 0x7cd0ff); SFX.metal(a.pos); SFX.whoosh(end); GAME.noise(e, 25, a, 'shot');
+        a.cloakT = 0;
+        if (hitA) {
+          // dragged five metres toward the thrower, winded and off balance
+          const dx = a.pos.x - hitA.pos.x, dz = a.pos.z - hitA.pos.z, L = Math.hypot(dx, dz) || 1, d = Math.min(5, Math.max(0, L - 1.3));
+          const T = 0.36, vx = dx / L * d / T, vz = dz / L * d / T;
+          hitA.knock = { vx, vz, t: T }; hitA.rappel = null;
+          if (hitA.net && window.NP) NP.push({ k: 'knock', to: hitA.net, v: [vx, vz], t: T });
+          hitA.hurt(15, { src: a, kind: 'melee', dir: V().set(-dx / L, 0, -dz / L) });
+          if (!(hitA.odT > 0)) { hitA.stun = Math.max(hitA.stun, 1.3); hitA.slow = Math.max(hitA.slow, 1.6); }
+          WPN.aimPunch(hitA, 1); GAME.mark(hitA, a.team, 2, true);
+          GAD.tell(a, 'Hooked ' + GAME.who(hitA), 'kill'); GAD.tell(hitA, 'Harpooned!', 'warn');
+        } else if (hitE) { GAD.tell(a, 'Harpoon tore out a ' + GAD.nameOf(hitE).toLowerCase()); hitE.destroy('blast'); }
+        else FX.sparks(end, -f.x, -f.y, -f.z);
+        return spend();
+      }
+      case 'hijack': {
+        if (!need()) return false;
+        const e = a.eye(V()), f = a.fwd(V()), R = 20;
+        const wall = G.world.raycast(e, f, R, true), maxT = wall ? wall.dist + 0.35 : R;
+        let best = null, bt = maxT;
+        for (const x of G.ents) {
+          if (!x.alive || x.team === a.team || !x.elec) continue;
+          const to = x.pos.clone().sub(e), t = to.dot(f); if (t < 0.3 || t > maxT) continue;
+          if (to.addScaledVector(f, -t).length() < Math.max(0.45, (x.hitR || 0.2) + 0.3) && t < bt) { bt = t; best = x; }
+        }
+        FX.tracer(GAD.throwStart(a), e.clone().addScaledVector(f, bt), 0xff5a7a); SFX.zap(a.pos); GAME.noise(e, 14, a, 'shot');
+        a.cloakT = 0;
+        if (best) GAD.hijack(best, a); else GAD.tell(a, 'Hijack dart: no electronics hit');
+        return spend();
+      }
+      case 'ram': {
+        if (a.ramT > 0) return false;
+        if (!need()) return false;
+        a.ramT = 4; ab.count--; a.busy = 0.2; a.cloakT = 0;
+        SFX.whoosh(a.pos); GAD.tell(a, 'Battering charge: sprint into a soft wall or barricade');
+        return true;
+      }
+      case 'overdrive': {
+        if (a.odT > 0 || a.exhT > 0) return false;
+        if (!need()) return false;
+        a.odT = 7; a.slow = a.stun = a.rooted = 0; ab.count--; a.busy = 0.15;
+        SFX.zap(a.pos); FX.burst(a.center(V()), 0xfff06a, 14, 3, 0.05, 0.5, 0);
+        return true;
+      }
+      case 'triang': { if (!need()) return false; const p = GAD.floorAhead(a, 0.9); if (!p) return false; new Triang(a, p, a.yaw); return spend(); }
+      // ---- seasons 4-9 defenders
+      case 'blackout': {
+        if (GAME.blackout && GAME.blackout.until > G.time) { GAD.tell(a, 'The lights are already out'); return false; }
+        if (!need()) return false;
+        GAD.blackout(a.team, 9, a); return spend();
+      }
+      case 'recall': {
+        const anc = a.anchor && a.anchor.alive ? a.anchor : null;
+        if (!anc) {
+          if (!need()) return false;
+          const p = GAD.floorAhead(a, 0.6) || V().set(a.pos.x, a.pos.y + 0.01, a.pos.z);
+          a.anchor = new Anchor(a, p); a.busy = 0.4;
+          GAD.tell(a, 'Anchor set: use the ability again to snap back here');
+          return true;
+        }
+        if (U.dist3(anc.pos, a.pos) < 2.5) { GAD.tell(a, 'You are standing on your anchor'); return false; }
+        const from = a.center(V()), to = anc.pos.clone();
+        FX.flash(from, 2, 0.25); FX.puff(from, 1.0, 0.6, 0x7cd0ff);
+        a.pos.copy(to); a.vel.set(0, 0, 0); a.rappel = null; a.vault = null; a.knock = null;
+        if (a.net && window.NP) NP.push({ k: 'tp', to: a.net, p: [to.x, to.y, to.z].map(v => Math.round(v * 100) / 100) });
+        FX.flash(to.clone().setY(to.y + 1), 2.5, 0.3); FX.puff(to.clone().setY(to.y + 1), 1.2, 0.7, 0x7cd0ff); SFX.zap(to); GAME.noise(to, 18, a, 'step');
+        anc.destroy('used'); a.anchor = null; ab.count--; a.busy = 0.5;
+        return true;
+      }
+      case 'turret': { if (!need()) return false; const p = GAD.floorAhead(a, 1.1); if (!p) return false; new Turret(a, p, a.yaw); return spend(); }
+      case 'jamfield': { if (!need()) return false; const p = GAD.floorAhead(a, 0.9); if (!p) return false; new JamField(a, p, a.yaw); return spend(); }
+      case 'mannequin': { if (!need()) return false; const p = GAD.floorAhead(a, 1.0); if (!p) return false; new Mannequin(a, p, a.yaw); return spend(); }
+      case 'nullfield': { if (!need()) return false; const p = GAD.floorAhead(a, 0.9); if (!p) return false; new NullField(a, p, a.yaw); return spend(); }
     }
     return false;
+  };
+
+  /* ------------------------------------------------ seasons 4-9 kit */
+  /* Splice: an enemy gadget changes sides. Everything it does is decided by its team, so a
+     hijacked snare catches defenders, a sensor reports them, a turret shoots them */
+  GAD.hijack = function (x, a) {
+    const old = x.team;
+    x.team = a.team; x.owner = a; x.hijacked = true; x.t = 0; x.tgt = null; x.lock = 0;
+    if (x.used) x.used = new Set();
+    if (x.mesh && x.mesh.material && x.mesh.material.color) x.mesh.material.color.setRGB(1, 0.55, 0.7);
+    FX.sparks(x.pos, x.normal.x, x.normal.y, x.normal.z, 0xff5a7a); SFX.beep(x.pos, 2600, 0.5);
+    GAD.tell(a, 'HIJACKED: ' + GAD.nameOf(x), 'kill');
+    GAD.tellTeam(old, GAD.nameOf(x) + ' hijacked by the attackers', true);
+  };
+  /* Nox: the lights go out for every team but his. Players get a dark screen, bots lose range. */
+  GAD.blackout = function (team, secs, a) {
+    GAME.blackout = { by: team, until: G.time + secs };
+    if (window.NP) NP.push({ k: 'dark', by: team, t: secs });
+    SFX.zap(a ? a.pos : G.camera.position); SFX.explosion(a ? a.pos : G.camera.position, false);
+    if (G.player) HUD.toast(G.player.team === team ? 'BLACKOUT: night optics on' : 'BLACKOUT: the lights are out', G.player.team === team ? '' : 'warn');
+  };
+  /* Triad: a defender's unsuppressed shot within 25 m of a listening post gives them away */
+  GAD.heardShot = function (a, p) {
+    for (const x of G.ents) {
+      if (!x.alive || x.type !== 'triang' || x.team === a.team || x.disabled) continue;
+      if (U.dist3(x.pos, p) > 25) continue;
+      GAME.mark(a, x.team, 2.5, true);
+      if (G.time > (x.beepT || 0)) { x.beepT = G.time + 0.6; SFX.beep(x.pos, 1900, 0.3); }
+    }
+  };
+  class Triang extends Ent {
+    constructor(a, p, yaw) { super('triang', a, p, { upright: true, yaw, hp: 1, hitR: 0.2 }); }
+    update(dt) { this.t += dt; if (Math.random() < dt * 1.5) FX.burst(this.pos.clone().add(V().set(0, 0.9, 0)), 0x7ce8c0, 1, 0.5, 0.03, 0.5, 0); }
+  }
+  class Anchor extends Ent {
+    constructor(a, p) { super('anchor', a, p, { upright: true, yaw: a.yaw, hp: 1, hitR: 0.18 }); }
+    update(dt) { this.t += dt; if (Math.random() < dt * 2) FX.burst(this.pos.clone().add(V().set(0, 0.5, 0)), 0x7cd0ff, 1, 0.5, 0.03, 0.6, -0.1); }
+    onDestroy(why) { if (this.owner && this.owner.anchor === this) { this.owner.anchor = null; if (why !== 'used') GAD.tell(this.owner, 'Your recall anchor was destroyed', 'warn'); } }
+  }
+  /* Warden: a sentry gun. Sweeps an 80-degree arc, locks on, fires six-round bursts */
+  const TURRET_GUN = { id: 'turret', name: 'WATCHDOG', type: 'SMG', dmg: 7, f0: 10, f1: 18, fmin: 0.6, destr: 1, pellets: 1 };
+  class Turret extends Ent {
+    constructor(a, p, yaw) { super('turret', a, p, { upright: true, yaw, hp: 110, hitR: 0.32 }); this.yaw = yaw; this.aimYaw = yaw; this.lock = 0; this.tgt = null; this.cool = 0; this.left = 6; }
+    sees(b, eye) {
+      if (b.state !== 'alive' || b.team === this.team || b.hostage || b.cloakT > 0) return false;
+      const c = b.center(V()), dx = c.x - eye.x, dz = c.z - eye.z, d = Math.hypot(dx, dz);
+      if (d > 16 || Math.abs(c.y - eye.y) > 4) return false;
+      if (Math.abs(U.wrap(Math.atan2(-dx, -dz) - this.yaw)) > 0.7) return false;
+      return G.world.los(eye, c) && !FX.smokeBlocks(eye, c);
+    }
+    update(dt) {
+      this.t += dt; if (this.t < 1.2) return;                    // setting up
+      if (this.disabled || GAD.jammed(this.pos, this.team, ['scrambler'])) return;
+      this.cool -= dt;
+      const eye = this.pos.clone().add(V().set(0, 0.72, 0));
+      if (!this.tgt || !this.sees(this.tgt, eye)) {
+        let best = null, bd = 99;
+        for (const b of G.actors) { if (!this.sees(b, eye)) continue; const d = U.dist3(b.pos, eye); if (d < bd) { bd = d; best = b; } }
+        if (best !== this.tgt) { this.tgt = best; this.lock = 0; this.left = 6; if (best) SFX.beep(this.pos, 1500, 0.45); }
+      }
+      let want = this.yaw + Math.sin(this.t * 0.9) * 0.6;       // idle: sweep the arc
+      if (this.tgt) {
+        const c = this.tgt.center(V());
+        want = Math.atan2(-(c.x - eye.x), -(c.z - eye.z));
+        this.lock += dt;
+        if (this.lock > 0.55 && this.cool <= 0 && Math.abs(U.wrap(want - this.aimYaw)) < 0.2) {
+          const dir = c.sub(eye).normalize();
+          dir.x += (Math.random() - 0.5) * 0.07; dir.y += (Math.random() - 0.5) * 0.07; dir.z += (Math.random() - 0.5) * 0.07; dir.normalize();
+          const from = eye.clone().addScaledVector(dir, 0.5);
+          const end = WPN.trace(this.owner, from, dir, TURRET_GUN, 30, 1);
+          FX.tracer(from, end, 0xff8a70); if (window.NP) NP.quiet(() => FX.flash(from, 0.35, 0.04)); else FX.flash(from, 0.35, 0.04);
+          SFX.shot(DATA.WEAPONS.salvo9, eye, false); GAME.noise(eye, 30, this.owner, 'shot');
+          this.cool = 0.11; if (--this.left <= 0) { this.left = 6; this.cool = 0.75; }
+        }
+      }
+      this.aimYaw = U.turn(this.aimYaw, want, Math.min(1, dt * 5));
+      if (this.mesh) this.mesh.rotation.y = this.aimYaw;
+    }
+  }
+  /* Ferro: enemies inside the field get misfires and slow reloads (weapons.js reads a.misfire) */
+  class JamField extends Ent {
+    constructor(a, p, yaw) { super('jamfield', a, p, { upright: true, yaw, hp: 40, hitR: 0.22 }); this.r = 6; }
+    update(dt) {
+      this.t += dt; if (this.t < 1 || this.disabled) return;
+      if (Math.random() < dt * 3) FX.burst(this.pos.clone().add(V().set(0, 0.5, 0)), 0xffa040, 1, 0.8, 0.03, 0.4, 0);
+      for (const b of G.actors) if (b.state === 'alive' && b.team !== this.team && !b.hostage && U.dist2(b.pos, this.pos) < this.r && Math.abs(b.pos.y - this.pos.y) < 2.6) b.misfire = G.time + 0.3;
+    }
+  }
+  /* Veil: friends inside can't be marked and walk silently; enemy drones lose signal */
+  class NullField extends Ent {
+    constructor(a, p, yaw) { super('nullfield', a, p, { upright: true, yaw, hp: 30, hitR: 0.22 }); this.r = 7; }
+    update(dt) {
+      this.t += dt; if (this.t < 1 || this.disabled) return;
+      if (Math.random() < dt * 2) FX.burst(this.pos.clone().add(V().set((Math.random() - 0.5) * 3, 0.3, (Math.random() - 0.5) * 3)), 0x7ce8c0, 1, 0.4, 0.03, 0.7, -0.15);
+      for (const b of G.actors) if (b.state !== 'dead' && b.team === this.team && U.dist2(b.pos, this.pos) < this.r && Math.abs(b.pos.y - this.pos.y) < 3) { b.nullT = G.time + 0.4; if (b.marks) b.marks = {}; }
+      for (const d of G.ents) if (d.alive && d.type === 'drone' && d.team !== this.team && U.dist3(d.pos, this.pos) < this.r) d.jam(dt);
+    }
+  }
+  /* Mimic: a still, life-size copy of her. Shooting it marks whoever pulled the trigger */
+  class Mannequin extends Ent {
+    constructor(a, p, yaw) {
+      super('mannequin', a, p, { model: false, hp: 110, hitR: 0 });
+      this.opId = a.op.id; this.wid = a.w[0] ? a.w[0].id : 'p10'; this.cos = a.cos || {}; this.yaw = yaw;
+      this.mesh = GAD.mannequinMesh(this.opId, this.wid, this.cos);
+      this.mesh.position.copy(p); this.mesh.rotation.y = yaw; G.scene.add(this.mesh);
+      this.hitBox = { x0: p.x - 0.25, x1: p.x + 0.25, y0: p.y, y1: p.y + 1.78, z0: p.z - 0.25, z1: p.z + 0.25 };
+      this.aimPos = V().set(p.x, p.y + 1.15, p.z);   // where a fooled bot shoots: its chest
+    }
+    shot(dmg, src) {
+      if (src && src.team !== this.team && src.state === 'alive') {
+        GAME.mark(src, this.team, 5, true);
+        if (G.time > (this.toldT || 0)) { this.toldT = G.time + 2; GAD.tellTeam(this.team, 'Body double shot: ' + GAME.who(src) + ' marked', true); GAD.tell(src, 'That was a decoy: you are marked', 'warn'); }
+      }
+      super.shot(dmg, src);
+    }
+  }
+  GAD.mannequinMesh = function (opId, wid, cos) {
+    const rig = MD.operator(DATA.OPMAP[opId] || DATA.OPS[0], wid, cos);
+    rig.aim.rotation.x = 0.02; rig.torso.rotation.z = 0.04;
+    return rig.root;
   };
   /* hold-to-detonate (Rhea) */
   GAD.detonateAll = function (a, type) { let n = 0; for (const e of a.placed) if (e.alive && e.type === type && e.detonate) { e.detonate(); n++; } return n; };
@@ -717,6 +963,7 @@
       this.mesh = MD.drone(owner.op && owner.op.ability && owner.op.ability.id === 'surge' ? 0xb07cff : 0x5ad8ff);
       G.scene.add(this.mesh);
       this.vel = V(); this.yaw = yaw; this.pitch = 0; this.mf = 0; this.mr = 0; this.jump = false; this.onGround = false;
+      this.boost = false; this.boostT = 0; this.boostCd = 0;   // a short burst of speed, then a cooldown
       this.jamT = 0; this.pilot = null; this.passOwner = true;
       this.surge = owner.op && owner.op.ability && owner.op.ability.id === 'surge';
     }
@@ -728,7 +975,11 @@
       const W = G.world, p = this.pos, r = 0.14, h = 0.16;
       const hit = (x, y, z) => W.boxHits(x - r, y, z - r, x + r, y + h, z + r);
       const jammed = this.jamT > 0.05;
-      const sp = jammed ? 0.8 : 3.4;
+      // booster: about a second at more than double speed, then eight seconds to recharge
+      this.boostT = Math.max(0, this.boostT - dt); this.boostCd = Math.max(0, this.boostCd - dt);
+      if (this.boost && this.boostCd <= 0 && !jammed) { this.boostT = Drone.BOOST_T; this.boostCd = Drone.BOOST_CD; SFX.whoosh(p); }
+      this.boost = false;
+      const sp = jammed ? 0.8 : this.boostT > 0 ? 7.6 : 3.4;
       const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
       const tx = (-sy * this.mf + cy * this.mr) * sp, tz = (-cy * this.mf - sy * this.mr) * sp;
       this.vel.x = U.smooth(this.vel.x, tx, this.onGround ? 8 : 1.5, dt); this.vel.z = U.smooth(this.vel.z, tz, this.onGround ? 8 : 1.5, dt);
@@ -736,8 +987,14 @@
       if (this.jump && this.onGround && !jammed) { this.vel.y = 5.2; SFX.whoosh(p); }
       this.jump = false;
       this.vel.y -= 20 * dt;
-      let nx = p.x + this.vel.x * dt; if (hit(nx, p.y, p.z)) { nx = p.x; this.vel.x = 0; } p.x = nx;
-      let nz = p.z + this.vel.z * dt; if (hit(p.x, p.y, nz)) { nz = p.z; this.vel.z = 0; } p.z = nz;
+      // a step no higher than one voxel (a stair tread, a kerb) is simply driven up: no hop needed
+      const STEP = 0.27;
+      let nx = p.x + this.vel.x * dt;
+      if (hit(nx, p.y, p.z)) { if (this.onGround && !hit(nx, p.y + STEP, p.z) && !hit(p.x, p.y + STEP, p.z)) { p.y += STEP; this.vel.y = Math.max(this.vel.y, 0); } else { nx = p.x; this.vel.x = 0; } }
+      p.x = nx;
+      let nz = p.z + this.vel.z * dt;
+      if (hit(p.x, p.y, nz)) { if (this.onGround && !hit(p.x, p.y + STEP, nz) && !hit(p.x, p.y + STEP, p.z)) { p.y += STEP; this.vel.y = Math.max(this.vel.y, 0); } else { nz = p.z; this.vel.z = 0; } }
+      p.z = nz;
       let ny = p.y + this.vel.y * dt; this.onGround = false;
       if (hit(p.x, ny, p.z)) { if (this.vel.y < 0) { this.onGround = true; ny = Math.floor(ny * 4 + 1) / 4; while (hit(p.x, ny, p.z) && ny < p.y + 0.3) ny += 0.25; } else ny = p.y; this.vel.y = 0; }
       p.y = ny;
@@ -758,6 +1015,7 @@
     }
     destroy(w) { super.destroy(w); if (this.pilot && this.pilot.isPlayer) PLAYER.leaveDrone(); else if (this.pilot && this.pilot.net) { NP.push({ k: 'undrone', to: this.pilot.net }); this.pilot.netDrone = 0; } this.pilot = null; }
   }
+  Drone.BOOST_T = 1.1; Drone.BOOST_CD = 8;
   GAD.Drone = Drone;
   GAD.deployDrone = function (a, prep) {
     if (a.side !== 'atk' || a.drones <= 0) return false;
@@ -797,6 +1055,12 @@
       case 'claymore': return new Claymore(a, p, yaw || 0);
       case 'beacon': return new Beacon(a, p);
       case 'floodlight': return new Floodlight(a, p, yaw || 0);
+      case 'turret': return new Turret(a, p, yaw || 0);
+      case 'jamfield': return new JamField(a, p, yaw || 0);
+      case 'nullfield': return new NullField(a, p, yaw || 0);
+      case 'mannequin': return new Mannequin(a, p, yaw || 0);
+      case 'triang': return new Triang(a, p, yaw || 0);
+      case 'anchor': { const x = new Anchor(a, p); a.anchor = x; return x; }
     }
     return null;
   };

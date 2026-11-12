@@ -209,7 +209,8 @@
     MUSIC.play('select');
     const side = cfg.side, ops = side === 'any' ? OPS.slice() : OPS.filter(o => o.side === side), M = MODES[cfg.mode] || {};
     const last = U.store.get('lastOp_' + side, ops[0].id);
-    let sel = ops.find(o => o.id === last) || ops[0];
+    const banned = o => GAME.banned(o.id);
+    let sel = ops.find(o => o.id === last && !banned(o)) || ops.find(o => !banned(o)) || ops[0];
     let lo = Object.assign({ primary: sel.primaries[0], secondary: sel.secondaries[0], gadget: sel.gadgets[0] }, U.store.get('lo_' + sel.id, {}));
     let spawn = 0;
     const wrap = $('div', { class: 'opsel ' + side });
@@ -221,8 +222,8 @@
         $('div', { class: 'os-info' }, $('b', {}, (M.arcade ? '' : 'ROUND ' + (cfg.round + 1) + ' · ') + cfg.map.name + (GAME.ranked ? ' · RANKED' : '')), $('span', {}, modeTxt)),
         $('div', { class: 'os-score' }, M.arcade ? '' : cfg.score[0] + ' – ' + cfg.score[1])));
       const grid = $('div', { class: 'os-grid' });
-      for (const o of ops) grid.append($('div', { class: 'os-op' + (o === sel ? ' sel' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { sel = o; lo = Object.assign({ primary: o.primaries[0], secondary: o.secondaries[0], gadget: o.gadgets[0] }, U.store.get('lo_' + o.id, {})); SFX.ui(); render(); } },
-        $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null));
+      for (const o of ops) grid.append($('div', { class: 'os-op' + (o === sel ? ' sel' : '') + (banned(o) ? ' ban off' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { if (banned(o)) return; sel = o; lo = Object.assign({ primary: o.primaries[0], secondary: o.secondaries[0], gadget: o.gadgets[0] }, U.store.get('lo_' + o.id, {})); SFX.ui(); render(); } },
+        $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null, banned(o) ? $('em', {}, 'BANNED') : null));
       const prev = $('div', { class: 'os-prev' });
       const right = $('div', { class: 'os-right' }, opDetail(sel, lo, render));
       // every player picks their own spawn: attackers one of the map's outdoor spawns,
@@ -239,6 +240,69 @@
     };
     show(wrap);
     render();
+  };
+
+  /* ------------------------------------------------------------- ranked ban phase */
+  /* cfg: { captain, capName, time, map, online, onPick(ids) }. The captain picks one attacker and
+     one defender and locks them in; when the clock runs out whatever is picked goes in. */
+  MENU.banSelect = function (cfg) {
+    G.mode = 'select'; HUD.show(false); PLAYER.release();
+    MUSIC.play('select');
+    const pick = { atk: null, def: null };
+    let left = cfg.time || 30, done = false, iv = 0;
+    const wrap = $('div', { class: 'opsel bans' });
+    const lock = () => {
+      if (done) return;
+      done = true; clearInterval(iv);
+      cfg.onPick([pick.atk, pick.def].filter(Boolean));
+      if (wrap.isConnected) render();
+    };
+    const render = () => {
+      wrap.innerHTML = '';
+      const can = cfg.captain && !done;
+      wrap.append($('div', { class: 'os-top' },
+        $('div', { class: 'os-side' }, 'BAN PHASE'),
+        $('div', { class: 'os-info' }, $('b', {}, cfg.map.name + ' · RANKED'),
+          $('span', {}, cfg.captain ? 'Ban one attacker and one defender. Nobody on either team can play them this match.' : (cfg.capName || 'Your captain') + ' is choosing the bans for your team.')),
+        $('div', { class: 'os-score ban-clock' }, done ? '' : String(Math.max(0, Math.ceil(left))))));
+      const body = $('div', { class: 'ban-body' });
+      for (const side of ['atk', 'def']) {
+        body.append($('div', { class: 'ban-col ' + side }, $('h3', {}, side === 'atk' ? 'ATTACKERS' : 'DEFENDERS'),
+          $('div', { class: 'os-grid wide' }, ...OPS.filter(o => o.side === side).map(o => $('div', {
+            class: 'os-op' + (pick[side] === o.id ? ' ban' : '') + (can ? '' : ' off'), style: { '--uc': UNITS[o.unit].color },
+            title: o.ability ? o.ability.name + ': ' + o.ability.desc : o.role,
+            onclick: () => { if (!can) return; pick[side] = pick[side] === o.id ? null : o.id; SFX.ui(); render(); },
+          }, $('b', {}, o.name), $('span', {}, o.role), o.season ? $('i', {}, 'S' + o.season) : null, pick[side] === o.id ? $('em', {}, 'BAN') : null)))));
+      }
+      wrap.append(body);
+      const n = (pick.atk ? 1 : 0) + (pick.def ? 1 : 0);
+      wrap.append($('div', { class: 'actions' },
+        btn(cfg.online ? 'LEAVE MATCH' : 'QUIT MATCH', () => { if (cfg.online) Online.leave(); else { GAME.quit(); MENU.home(); } }, 'ghost'),
+        !cfg.captain ? $('span', { class: 'ban-wait' }, 'Waiting for the captains…')
+          : done ? $('span', { class: 'ban-wait' }, 'Bans locked in. Waiting for the other team…')
+            : btn(n === 2 ? 'LOCK IN BANS' : n === 1 ? 'LOCK IN 1 BAN' : 'SKIP BANS', lock, 'big')));
+    };
+    iv = setInterval(() => {
+      if (!wrap.isConnected || done) return clearInterval(iv);
+      left -= 0.25;
+      const c = wrap.querySelector('.ban-clock'); if (c) c.textContent = String(Math.max(0, Math.ceil(left)));
+      if (left <= 0) { if (cfg.captain) lock(); else clearInterval(iv); }
+    }, 250);
+    show(wrap);
+    render();
+  };
+  /* cfg: { teams: [[ids], [ids]], my, onDone } -- what each team took off the table */
+  MENU.banReveal = function (cfg) {
+    G.mode = 'select'; HUD.show(false);
+    const wrap = $('div', { class: 'opsel bans' });
+    const row = (label, ids) => $('div', { class: 'ban-row' }, $('h3', {}, label),
+      $('div', { class: 'ban-list' }, ...((ids || []).length ? ids.map(id => { const o = DATA.OPMAP[id]; return $('div', { class: 'os-op ban off', style: { '--uc': UNITS[o.unit].color } }, $('b', {}, o.name), $('span', {}, o.side === 'atk' ? 'ATTACKER' : 'DEFENDER'), $('em', {}, 'BANNED')); }) : [$('p', { class: 'ban-wait' }, 'No bans')])));
+    wrap.append($('div', { class: 'os-top' }, $('div', { class: 'os-side' }, 'BANNED'),
+      $('div', { class: 'os-info' }, $('b', {}, 'Out for the whole match'), $('span', {}, 'Both teams, attack and defense')), $('div', { class: 'os-score' }, '')));
+    wrap.append($('div', { class: 'ban-reveal' }, row('YOUR TEAM BANNED', cfg.teams[cfg.my]), row('THE OTHER TEAM BANNED', cfg.teams[1 - cfg.my])));
+    show(wrap);
+    SFX.ui();
+    if (cfg.onDone) setTimeout(() => { if (wrap.isConnected) cfg.onDone(); }, 4000);
   };
 
   /* ------------------------------------------------------------- gallery */

@@ -16,11 +16,12 @@
     w.cool -= dt; a.swap = Math.max(0, a.swap - dt);
     w.bloom = Math.max(0, w.bloom - dt * (a.trigger ? 1.5 : 6));
     if (a.sprint && a.mf > 0.3 && a.moving > 3.4 && !a.shieldBrace()) a.sprintT = 0.18; else a.sprintT = Math.max(0, a.sprintT - dt);
-    const adsT = w.def.adsT || 0.25;
+    const adsT = (w.def.adsT || 0.25) * (a.odT > 0 ? 0.45 : a.exhT > 0 ? 1.4 : 1);
     const want = a.adsWant && WPN.canAds(a);
     a.ads = U.clamp(a.ads + (want ? dt : -dt) / adsT, 0, 1);
+    const jammed = a.misfire > G.time;
     if (w.reload > 0) {
-      w.reload -= dt;
+      w.reload -= dt * (a.odT > 0 ? 2 : 1) * (jammed ? 0.6 : 1);
       if (w.def.shell) {
         if (w.reload <= 0) {
           if (w.reserve > 0 && w.mag < w.def.mag) { w.mag++; w.reserve--; SFX.reload(a.pos, a === PLAYER.viewActor(), 1); }
@@ -34,17 +35,28 @@
       } else if (w.reload < w.reloadMax * 0.55 && !w.midSnd) { w.midSnd = true; SFX.reload(a.pos, a === PLAYER.viewActor(), 0); }
     }
     if (!a.trigger) { w.semiLock = false; w.clicked = false; }
-    if (a.trigger && a.state === 'alive') {
+    // a burst weapon finishes the burst it started even if the trigger is let go
+    const bursting = w.def.burst && w.burstLeft > 0;
+    if ((a.trigger || bursting) && a.state === 'alive') {
       if (w.reload > 0 || a.swap > 0 || a.vault || a.busy > 0 || a.sprintT > 0 || w.cool > 0) return;
       if (a.shBash > 0) return;   // mid shield bash
       if (w.mag <= 0) {
+        w.burstLeft = 0;
         if (!w.clicked) { if (a.isPlayer) SFX.empty(); w.clicked = true; }
         if (w.reserve > 0) WPN.reload(a);
         return;
       }
-      if (w.semiLock) return;
+      if (w.semiLock && !bursting) return;
+      // inside a Misfire Coil's field about one shot in five is a dud: a click and a short clear
+      if (jammed && Math.random() < 0.2) {
+        w.cool = 0.4; w.burstLeft = 0; if (!w.auto) w.semiLock = true;
+        if (a.isPlayer) { SFX.empty(); HUD.toast('MISFIRE', 'warn'); } else SFX.impact(a.pos, false);
+        return;
+      }
+      if (w.def.burst && !bursting) w.burstLeft = w.def.burst;
       WPN.fire(a);
-      if (!w.auto) w.semiLock = true;
+      if (w.def.burst) { if (--w.burstLeft <= 0) { w.cool = w.def.burstGap || 0.2; w.semiLock = true; } }
+      else if (!w.auto) w.semiLock = true;
     }
   };
 
@@ -83,7 +95,9 @@
     s += mv * (d.type === 'SG' ? 0.6 : 1.6) * (1 - a.ads * 0.6);
     if (a.stance === 1) s *= 0.85; else if (a.stance === 2) s *= 0.7;
     if (!a.onGround && !a.rappel) s += 2;
-    if (a.stun > 0) s += 2.5;
+    if (a.stun > 0 && !(a.odT > 0)) s += 2.5;
+    if (a.exhT > 0) s += 1.2;                                  // winded after an Overdrive
+    if (d.bipod && a.stance >= 1) s *= 0.7;                    // a bipod settles a belt-fed gun
     // a sidearm fired one-handed from beside the shield is loose; aiming past its edge tightens it
     if (a.shieldOp && a.shieldUp) s += 1.4 * (1 - a.ads);
     if (a.isBot) s += a.bot ? a.bot.extraSpread || 0 : 0;
@@ -93,7 +107,7 @@
   WPN.fire = function (a) {
     const w = a.wpn, d = w.def;
     if (GAME.client && a === G.player) return clientFire(a);
-    a.spawnProt = 0;
+    a.spawnProt = 0; a.cloakT = 0;
     w.mag--; w.cool = 60 / d.rpm;
     const e = a.eye(tmpO.clone()), f = a.fwd();
     const s = WPN.spreadNow(a);
@@ -104,14 +118,17 @@
       const r = WPN.trace(a, e, dir, d, d.pellets > 1 ? 40 : 140, 1);
       if (i === 0 || Math.random() < 0.3) endP = r;
       if (i < 3) ends.push(r);
-      if (i < 3 && (a !== PLAYER.viewActor() || d.pellets > 1 || Math.random() < 0.5)) FX.tracer(muzzlePos(a), r, a.team === (G.player ? G.player.team : 0) ? 0xffe8a0 : 0xffb070);
+      // a suppressed gun shows no tracer to the other team
+      const mine = a.team === (G.player ? G.player.team : 0);
+      if (i < 3 && !(d.silent && !mine) && (a !== PLAYER.viewActor() || d.pellets > 1 || Math.random() < 0.5)) FX.tracer(muzzlePos(a), r, mine ? 0xffe8a0 : 0xffb070);
     }
     KC.shot(a, d.id, muzzlePos(a), ends);
     if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55));
     a.lastShot = G.time; MUSIC.lastShot = G.time;
     const local = a === PLAYER.viewActor();
     SFX.shot(d, e, local);
-    GAME.noise(e, 45, a, 'shot');
+    GAME.noise(e, d.silent ? 10 : 45, a, 'shot');
+    if (!d.silent) GAD.heardShot(a, e);   // Triad's listening posts
     if (local) PLAYER.onFire(d);
     else NP.quiet(() => FX.flash(muzzlePos(a), 0.4, 0.04));
     if (NP.active && NP.host) NP.push({ k: 'shot', s: a.id, o: [e.x, e.y, e.z].map(v => Math.round(v * 100) / 100), e: [[endP.x, endP.y, endP.z].map(v => Math.round(v * 100) / 100)], w: d.id });
@@ -132,7 +149,7 @@
       }
     }
     if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55));
-    a.lastShot = G.time;
+    a.lastShot = G.time; a.cloakT = 0;
     SFX.shot(d, e, true); PLAYER.onFire(d);
     KC.shot(a, d.id, muzzlePos(a), ends);
     NP.shot(e, dirs, d.id);
@@ -194,8 +211,9 @@
   WPN.rayShield = rayShield;
 
   /* walk a bullet: returns end point */
-  WPN.trace = function (shooter, o, dir, d, range, mulIn) {
+  WPN.trace = function (shooter, o, dir, d, range, mulIn, bounced) {
     const W = G.world;
+    let rico = null;
     const hits = [];
     for (const a of G.actors) {
       if (a === shooter || a.state === 'dead') continue;
@@ -238,7 +256,10 @@
       return true;
     };
     W.visit(o, dir, range, (m, x, y, z, t, nx, ny, nz) => {
-      while (hi < hits.length && hits[hi].t < t) { if (apply(hits[hi])) { endT = hits[hi].t; stopped = true; return true; } hi++; }
+      // (hi moves past a hit once it has landed: it used to stay, and the sweep after the walk
+      // applied the same hit a second time, so body shots did double damage whenever anything
+      // solid stood behind the target)
+      while (hi < hits.length && hits[hi].t < t) { if (apply(hits[hi])) { endT = hits[hi].t; hi++; stopped = true; return true; } hi++; }
       if (m === OOB) { endT = t; stopped = true; return true; }
       const md = MAT[m];
       const p = tmpP.set(o.x + dir.x * t, o.y + dir.y * t, o.z + dir.z * t);
@@ -247,19 +268,31 @@
         const broke = W.hitVoxel(x, y, z, d.destr || 1);
         if (broke && md.melee) SFX.wood(p, true);
       }
-      if (md.pen > 0 && mul * md.pen > 0.18) {
+      // penMul (anti-materiel rounds, flechettes): a soft wall takes much less off the bullet
+      const pen = d.penMul && md.pen > 0 ? Math.min(0.97, 1 - (1 - md.pen) / d.penMul) : md.pen;
+      if (md.pen > 0 && mul * pen > 0.18) {
         if (Math.random() < 0.5) FX.dust(p, nx, ny, nz, m);
-        mul *= md.pen; return false;
+        mul *= pen; return false;
       }
       endT = t; stopped = true;
+      if (d.rico && !bounced) rico = { nx, ny, nz };   // a ricochet round skips off a hard surface, once
       if (md.reinf || m === M.METAL || m === M.PIPE || m === M.RAIL) FX.sparks(p, nx, ny, nz); else FX.dust(p, nx, ny, nz, m);
       if (Math.random() < 0.35) SFX.impact(p, !md.reinf);
       return true;
     });
+    let hitBody = false;
     if (!stopped || true) {
-      while (hi < hits.length && hits[hi].t <= endT) { if (apply(hits[hi])) { endT = hits[hi].t; break; } hi++; }
+      while (hi < hits.length && hits[hi].t <= endT) { if (apply(hits[hi])) { endT = hits[hi].t; hitBody = true; break; } hi++; }
     }
-    return new THREE.Vector3().copy(o).addScaledVector(dir, endT);
+    const end = new THREE.Vector3().copy(o).addScaledVector(dir, endT);
+    if (rico && !hitBody) {
+      const dn = dir.x * rico.nx + dir.y * rico.ny + dir.z * rico.nz;
+      const r = new THREE.Vector3(dir.x - 2 * dn * rico.nx, dir.y - 2 * dn * rico.ny, dir.z - 2 * dn * rico.nz).normalize();
+      const from = end.clone().addScaledVector(new THREE.Vector3(rico.nx, rico.ny, rico.nz), 0.04);
+      const end2 = WPN.trace(shooter, from, r, d, 30, mul * 0.75, true);
+      FX.tracer(from, end2, 0xfff0b0);
+    }
+    return end;
   };
 
   /* melee: hits a body in front, or smashes soft voxels / gadgets */

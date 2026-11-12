@@ -47,7 +47,7 @@
     Object.assign(NP, { active: true, host, room, me, picks: new Map(), ev: [], vox: [], lastEnt: new Map(), feedSig: '', byId: new Map(), mirrors: new Map(), snapT: 0, inT: 0, pilot: 0 });
     NP.prevSettings = { diff: G.settings.difficulty, rounds: G.settings.roundsToWin, swap: G.settings.swapEveryRound };
     G.settings.difficulty = room.diff; G.settings.roundsToWin = room.rounds; G.settings.swapEveryRound = true;
-    GAME.net = true; GAME.client = !host; GAME.ranked = !!room.ranked;
+    GAME.net = true; GAME.client = !host; GAME.ranked = !!room.ranked; GAME.bans = []; NP.ban = null;
     const mm = room.members.find(m => m.id === me); GAME.myTeam = mm ? mm.team : 0;
     Online.setPresence();
     MENU.loading('Loading ' + (MAPS.LIST.find(m => m.id === room.map) || {}).name + '…', () => {
@@ -62,7 +62,7 @@
     NP.mirrors.clear();
     if (NP.prevSettings) { G.settings.difficulty = NP.prevSettings.diff; G.settings.roundsToWin = NP.prevSettings.rounds; G.settings.swapEveryRound = NP.prevSettings.swap; }
     GAME.net = false; GAME.client = false; GAME.myTeam = 0;
-    clearTimeout(NP.selT);
+    clearTimeout(NP.selT); clearTimeout(NP.banT); NP.ban = null;
   };
   /* the host's world: every voxel that changes goes to the guests */
   NP.hookWorld = () => {
@@ -82,9 +82,48 @@
     NP.picks.clear();
     const R = NP.room;
     const teams = {}; for (const m of R.members) teams[m.id] = m.team;
-    Online.toAll({ t: 'np.sel', round: GAME.round, score: GAME.score, sites: GAME.siteNames, sd: [GAME.sideOf(0), GAME.sideOf(1)], mode: GAME.mode, teams }, true);
+    Online.toAll({ t: 'np.sel', round: GAME.round, score: GAME.score, sites: GAME.siteNames, sd: [GAME.sideOf(0), GAME.sideOf(1)], mode: GAME.mode, teams, bans: GAME.bans }, true);
     clearTimeout(NP.selT);
     NP.selT = setTimeout(() => { if (NP.active && NP.host && GAME.phase === 'select') { GAME.startRound(); } }, 45000);
+  };
+  /* ---- ranked ban phase: each team's captain (its first player) bans one attacker and one
+     defender; a team with nobody but bots on it has them ban at random */
+  NP.banPhase = () => {
+    const caps = [null, null], names = [null, null], teams = {};
+    for (const m of NP.room.members) { teams[m.id] = m.team; if (caps[m.team] == null) { caps[m.team] = m.id; names[m.team] = m.name; } }
+    NP.ban = { caps, picks: [null, null] };
+    Online.toAll({ t: 'np.ban', caps, names, time: 30, teams }, true);
+    banScreen(caps, names, 30);
+    clearTimeout(NP.banT);
+    NP.banT = setTimeout(NP.banFinish, 33000);   // a captain who never answers doesn't hold the match up
+  };
+  function banScreen(caps, names, time) {
+    const tm = GAME.myTeam;
+    MENU.banSelect({
+      captain: caps[tm] === NP.me, capName: names[tm], time, map: G.map, online: true,
+      onPick: p => { if (NP.host) NP.banPick(NP.me, p); else Online.toHost({ t: 'np.banpick', p }); },
+    });
+  }
+  NP.banPick = (id, p) => {
+    const B = NP.ban; if (!B || !NP.host || GAME.phase !== 'ban') return;
+    const tm = B.caps.indexOf(id); if (tm < 0 || B.picks[tm]) return;
+    B.picks[tm] = GAME.cleanBans(p);
+    NP.banCheck();
+  };
+  NP.banCheck = () => {
+    const B = NP.ban; if (!B || !NP.host || GAME.phase !== 'ban') return;
+    if (B.caps.every((c, t) => c == null || B.picks[t] || !NP.room.members.some(m => m.id === c))) NP.banFinish();
+  };
+  NP.banFinish = () => {
+    clearTimeout(NP.banT);
+    const B = NP.ban; if (!B || !NP.active || !NP.host || GAME.phase !== 'ban') return;
+    NP.ban = null;
+    const teams = [[], []];
+    for (const t of [0, 1]) if (B.caps[t] != null) teams[t] = B.picks[t] || [];
+    for (const t of [0, 1]) if (B.caps[t] == null) teams[t] = GAME.randomBans(teams[1 - t]);
+    GAME.bans = [...new Set(teams[0].concat(teams[1]))];
+    Online.toAll({ t: 'np.bans', teams, bans: GAME.bans }, true);
+    MENU.banReveal({ teams, my: GAME.myTeam, onDone: () => { if (NP.active && NP.host && GAME.phase === 'ban') GAME.prepareRound(); } });
   };
   NP.myPick = c => {
     if (NP.host) { NP.picks.set(NP.me, { op: c.op.id, lo: c.loadout, sp: c.spawn }); NP.tryStart(); }
@@ -100,7 +139,7 @@
       const side = GAME.ffa ? 'any' : GAME.sideOf(m.team), p = NP.picks.get(m.id) || {};
       let op = OPMAP[p.op];
       // Deathmatch: any operator, and two players may pick the same one
-      if (!op || (side !== 'any' && (op.side !== side || taken[m.team].has(op.id)))) op = U.shuffle(OPS.filter(o => (side === 'any' || o.side === side) && !taken[m.team].has(o.id)))[0];
+      if (!op || GAME.banned(op.id) || (side !== 'any' && (op.side !== side || taken[m.team].has(op.id)))) op = U.shuffle(OPS.filter(o => (side === 'any' || o.side === side) && !taken[m.team].has(o.id) && !GAME.banned(o.id)))[0];
       taken[m.team].add(op.id);
       const lo = Object.assign({ primary: op.primaries[0], secondary: op.secondaries[0], gadget: op.gadgets[0] }, p.lo || {});
       if (!op.primaries.includes(lo.primary)) lo.primary = op.primaries[0];
@@ -131,10 +170,12 @@
     const a = NP.actorOf(peer);
     if (a) { a.net = null; a.remote = false; AI.attach(a); if (GAME.arcade) a.bot.role = 'roam'; a.name = NAMES.make(); HUD.toast(name + ' left: a bot took over ' + a.op.name, 'warn'); }
     if (NP.host && GAME.phase === 'select') NP.tryStart();
+    if (NP.host && GAME.phase === 'ban') NP.banCheck();
   };
   NP.hostGot = (id, d) => {
     if (!NP.active || !NP.host) return;
     if (d.t === 'np.pick') { NP.picks.set(id, { op: d.op, lo: d.lo, sp: d.sp }); NP.tryStart(); return; }
+    if (d.t === 'np.banpick') { NP.banPick(id, d.p); return; }
     const a = NP.actorOf(id); if (!a) return;
     if (d.t === 'np.in') return applyIn(a, d);
     if (d.t === 'np.shot') return remoteShot(a, d);
@@ -159,7 +200,7 @@
         if (!quiet || loud) { SFX.step(a.pos, loud && !quiet, false, null, soft); GAME.noise(a.pos, soft ? 2.5 : quiet ? 4 : loud ? 14 : a.stance === 1 ? 4 : 8, a, 'step'); }
       }
     }
-    if (Array.isArray(d.dr) && a.netDrone) { const dr = G.ents.find(e => e.nid === a.netDrone && e.alive); if (dr) { dr.mf = d.dr[0]; dr.mr = d.dr[1]; if (d.dr[2]) dr.jump = true; dr.yaw = d.dr[3]; dr.pitch = d.dr[4]; } }
+    if (Array.isArray(d.dr) && a.netDrone) { const dr = G.ents.find(e => e.nid === a.netDrone && e.alive); if (dr) { dr.mf = d.dr[0]; dr.mr = d.dr[1]; if (d.dr[2]) dr.jump = true; dr.yaw = d.dr[3]; dr.pitch = d.dr[4]; if (d.dr[5]) dr.boost = true; } }
   }
   function remoteShot(a, d) {
     if (a.state !== 'alive') return;
@@ -168,7 +209,9 @@
     const o = V(d.o[0], d.o[1], d.o[2]), ends = [];
     for (const dd of d.d.slice(0, 12)) { const dir = V(dd[0], dd[1], dd[2]).normalize(); ends.push(pv(WPN.trace(a, o, dir, def, def.pellets > 1 ? 40 : 140, 1))); }
     a.lastShot = G.time; MUSIC.lastShot = G.time;
-    GAME.noise(o, 45, a, 'shot');
+    a.cloakT = 0;
+    GAME.noise(o, def.silent ? 10 : 45, a, 'shot');
+    if (!def.silent) GAD.heardShot(a, o);
     NP.push({ k: 'shot', s: a.id, o: d.o, e: ends.slice(0, 3), w: d.w });
     // the host hears and sees it too
     const mz = WPN.muzzlePos(a);
@@ -203,11 +246,13 @@
   /* --- snapshots */
   function actRec(a) {
     const st = a.state === 'alive' ? 0 : a.state === 'dbno' ? 1 : 2;
-    const fl = (a.shieldUp ? 1 : 0) | (a.rappel ? 2 : 0) | (a.carry === 'defuser' ? 4 : 0) | (a.carry && a.carry.hostage ? 8 : 0);
+    const fl = (a.shieldUp ? 1 : 0) | (a.rappel ? 2 : 0) | (a.carry === 'defuser' ? 4 : 0) | (a.carry && a.carry.hostage ? 8 : 0) | (a.cloakT > 0 ? 16 : 0);
     const mk = [a.marks && a.marks[0] > G.time ? r2(a.marks[0] - G.time) : 0, a.marks && a.marks[1] > G.time ? r2(a.marks[1] - G.time) : 0];
     const rec = [a.id, r2(a.pos.x), r2(a.pos.y), r2(a.pos.z), r2(a.yaw), r2(a.pitch), a.stance, r2(a.h), r2(a.lean), Math.ceil(a.hp), Math.ceil(a.over), st, a.wpn ? a.wpn.id : '', r2(a.ads), r2(a.moving || 0), fl,
       r2(a.stun), r2(a.blind), r2(a.blindK), r2(a.rooted), r2(a.slow), r2(a.bleed), mk, a.interact ? r2(a.interact.t / a.interact.it.time) : -1, a.interact ? a.interact.it.label : '', a.followTarget ? a.followTarget.id : 0];
-    if (a.net || a.isPlayer) rec.push([a.gadget ? a.gadget.count : 0, a.ability ? a.ability.count : 0, a.ability ? r2(a.ability.cd) : 0, a.ability ? a.ability.zaps : 0, a.drones, a.placed.filter(e => e.alive && e.detonate && a.gadget && e.type === a.gadget.id).length]);
+    if (a.net || a.isPlayer) rec.push([a.gadget ? a.gadget.count : 0, a.ability ? a.ability.count : 0, a.ability ? r2(a.ability.cd) : 0, a.ability ? a.ability.zaps : 0, a.drones, a.placed.filter(e => e.alive && e.detonate && a.gadget && e.type === a.gadget.id).length,
+      // seasons 4-9: what the player's own game needs to feel (speed, misfires)
+      a.misfire > G.time ? 1 : 0, r2(a.odT), r2(a.exhT), r2(a.ramT), a.anchor && a.anchor.alive ? 1 : 0]);
     return rec;
   }
   function entRec(e) {
@@ -217,6 +262,8 @@
     if (e.type === 'drone') { x.pl = e.pilot ? e.pilot.id : 0; x.sg = e.surge ? 1 : 0; x.j = r2(e.jamT); }
     if (e.type === 'snare' && e.p0) { x.a = pv(e.p0); x.b = pv(e.p1); }
     if (e.type === 'medstation') { x.u = e.uses; x.us = [...e.used].map(q => q.id); }
+    if (e.type === 'mannequin') { x.op = e.opId; x.w = e.wid; x.cs = e.cos; }
+    if (e.hijacked) x.hj = 1;
     if (e.type === 'fire') x.r = e.r;
     if (e.solid) { const b = e.solid; x.bx = [b.x0, b.y0, b.z0, b.x1, b.y1, b.z1].map(r2); }
     if (m && (m.scale.x !== 1 || m.scale.y !== 1)) x.sc = [r2(m.scale.x), r2(m.scale.y), r2(m.scale.z)];
@@ -259,8 +306,9 @@
       this.nid = r[0]; this.type = r[1]; this.team = r[2]; this.alive = true; this.hp = 1; this.mirror = true;
       this.pos = V(r[3], r[4], r[5]); this.tpos = this.pos.clone(); this.normal = V(0, 1, 0);
       this.look = { yaw: 0, pitch: 0 }; this.used = new Set(); this.uses = 4; this.yaw = 0; this.pitch = 0;
-      this.elec = ['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach'].includes(this.type);
+      this.elec = ['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight', 'turret', 'jamfield', 'triang', 'nullfield', 'anchor'].includes(this.type);
       if (this.type === 'drone') this.mesh = MD.drone(r[10] && r[10].sg ? 0xb07cff : 0x5ad8ff);
+      else if (this.type === 'mannequin') { const x = r[10] || {}; this.mesh = GAD.mannequinMesh(x.op, x.w, SHOP.clean(x.cs)); }
       else if (this.type !== 'fire' && this.type !== 'irritant') this.mesh = GAD.mesh(r[9]);
       if (this.mesh) { this.mesh.position.copy(this.pos); G.scene.add(this.mesh); }
       this.set(r, true);
@@ -294,8 +342,22 @@
   NP.guestGot = d => {
     if (!NP.active || NP.host) return;
     switch (d.t) {
+      case 'np.ban': {
+        if (d.teams && d.teams[NP.me] != null) GAME.myTeam = d.teams[NP.me];
+        GAME.phase = 'ban'; GAME.bans = [];
+        banScreen(Array.isArray(d.caps) ? d.caps : [], Array.isArray(d.names) ? d.names : [], Math.min(60, +d.time || 30));
+        break;
+      }
+      case 'np.bans': {
+        const tm = Array.isArray(d.teams) ? d.teams : [];
+        const teams = [GAME.cleanBans(tm[0]), GAME.cleanBans(tm[1])];
+        GAME.bans = [...new Set(teams[0].concat(teams[1]))];
+        MENU.banReveal({ teams, my: GAME.myTeam });
+        break;
+      }
       case 'np.sel': {
         KC.reset();
+        if (Array.isArray(d.bans)) GAME.bans = d.bans.filter(x => OPMAP[x]);
         GAME.round = d.round; NP.sides = d.sd; GAME.siteNames = d.sites; GAME.mode = d.mode;
         if (d.teams && d.teams[NP.me] != null) GAME.myTeam = d.teams[NP.me];
         GAME.score = d.score; GAME.phase = 'select';
@@ -391,7 +453,9 @@
     a.marks = { 0: r[22][0] ? G.time + r[22][0] : 0, 1: r[22][1] ? G.time + r[22][1] : 0 };
     if (me) a.interact = r[23] >= 0 ? { it: { label: r[24], time: 1, kind: 'net', ok: () => true, run: () => { } }, t: r[23], from: a.pos.clone() } : null;
     a.followTarget = r[25] ? NP.byId.get(r[25]) || null : null;
-    if (me && r[26]) { const c = r[26]; if (a.gadget) a.gadget.count = c[0]; if (a.ability) { a.ability.count = c[1]; a.ability.cd = c[2]; a.ability.zaps = c[3]; } a.drones = c[4]; a.netPlaced = c[5]; }
+    if (me && r[26]) { const c = r[26]; if (a.gadget) a.gadget.count = c[0]; if (a.ability) { a.ability.count = c[1]; a.ability.cd = c[2]; a.ability.zaps = c[3]; } a.drones = c[4]; a.netPlaced = c[5];
+      a.misfire = c[6] ? G.time + 0.3 : 0; a.odT = c[7] || 0; a.exhT = c[8] || 0; a.ramT = c[9] || 0; a.netAnchor = !!c[10]; }
+    a.cloakT = (r[15] & 16) ? 1 : 0;
   }
   function playEv(e) {
     switch (e.k) {
@@ -419,6 +483,14 @@
       case 'pilot': if (e.to === NP.me) { NP.pilot = e.nid; tryPilot(); } break;
       case 'undrone': if (e.to === NP.me && PLAYER.view === 'drone') PLAYER.leaveDrone(true); break;
       case 'plant': HUD.banner('DEFUSER PLANTED', e.r, 2, e.tm === GAME.myTeam ? 'win' : 'lose'); break;
+      // seasons 4-9: things the host does to my own operator
+      case 'knock': if (e.to === NP.me && G.player && Array.isArray(e.v)) G.player.knock = { vx: +e.v[0] || 0, vz: +e.v[1] || 0, t: Math.min(0.6, +e.t || 0.3) }; break;
+      case 'tp': if (e.to === NP.me && G.player && Array.isArray(e.p)) { G.player.pos.set(e.p[0], e.p[1], e.p[2]); G.player.vel.set(0, 0, 0); PLAYER.eyeY = null; } break;
+      case 'dark': {
+        GAME.blackout = { by: e.by, until: G.time + (+e.t || 9) };
+        if (G.player) HUD.toast(G.player.team === e.by ? 'BLACKOUT: night optics on' : 'BLACKOUT: the lights are out', G.player.team === e.by ? '' : 'warn');
+        break;
+      }
       case 'spawn': {
         // the host respawned me (Deathmatch / Team Deathmatch): move there and start fresh
         if (e.to !== NP.me || !G.player || !Array.isArray(e.p)) break;
@@ -456,8 +528,9 @@
       NP.inT = 0;
       const d = PLAYER.drone && PLAYER.view === 'drone' ? PLAYER.drone : null;
       Online.toHost({ t: 'np.in', p: pv(a.pos), v: pv(a.vel), yw: r4(a.yaw), pt: r4(a.pitch), st: a.stance, h: r2(a.h), ln: r2(a.lean), ad: r2(a.ads), mv: r2(a.moving || 0), cu: a.cur, sp: a.sprint ? 1 : 0, wk: a.walk ? 1 : 0, mf: a.mf,
-        hd: PLAYER.interactHeld() ? 1 : 0, rp: a.rappel ? 1 : 0, dr: d ? [d.mf || 0, d.mr || 0, d.jump ? 1 : 0, r4(d.yaw), r4(d.pitch)] : 0 });
+        hd: PLAYER.interactHeld() ? 1 : 0, rp: a.rappel ? 1 : 0, dr: d ? [d.mf || 0, d.mr || 0, d.jump ? 1 : 0, r4(d.yaw), r4(d.pitch), PLAYER.dBoostSend ? 1 : 0] : 0 });
       if (d) d.jump = false;
+      PLAYER.dBoostSend = false;
     }
   };
   /* a request to the host, carrying where I am and where I'm looking */
