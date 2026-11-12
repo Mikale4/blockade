@@ -236,7 +236,7 @@
         if (h('sprint') && P.dBoostCd <= 0) { d.boost = true; P.dBoostCd = GAD.Drone.BOOST_CD; P.dBoostSend = true; }
       }
     }
-    if (P.view === 'cams' && P.cam && !P.cam.alive) P.cycleCam(1);
+    if (P.view === 'cams' && P.cam && (!P.cam.alive || P.cam.empT > G.time)) P.cycleCam(1);
     if (a.state === 'dead') {
       P.deadT += dt;
       // Deathmatch / Team Deathmatch: stay down until the respawn, no spectating

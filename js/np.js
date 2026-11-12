@@ -306,7 +306,7 @@
       this.nid = r[0]; this.type = r[1]; this.team = r[2]; this.alive = true; this.hp = 1; this.mirror = true;
       this.pos = V(r[3], r[4], r[5]); this.tpos = this.pos.clone(); this.normal = V(0, 1, 0);
       this.look = { yaw: 0, pitch: 0 }; this.used = new Set(); this.uses = 4; this.yaw = 0; this.pitch = 0;
-      this.elec = ['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight', 'turret', 'jamfield', 'triang', 'nullfield', 'anchor'].includes(this.type);
+      this.elec = ['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight', 'turret', 'jamfield', 'triang', 'nullfield', 'anchor', 'alarm', 'fog'].includes(this.type);
       if (this.type === 'drone') this.mesh = MD.drone(r[10] && r[10].sg ? 0xb07cff : 0x5ad8ff);
       else if (this.type === 'mannequin') { const x = r[10] || {}; this.mesh = GAD.mannequinMesh(x.op, x.w, SHOP.clean(x.cs)); }
       else if (this.type !== 'fire' && this.type !== 'irritant') this.mesh = GAD.mesh(r[9]);

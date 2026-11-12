@@ -201,7 +201,7 @@
       H.slotT = 0.15;
       e.slots.innerHTML = '';
       const slot = (key, name, val, dim) => e.slots.append($('div', { class: 'slot' + (dim ? ' dim' : '') }, $('kbd', {}, key), $('span', {}, name), $('b', {}, val)));
-      if (a.gadget) { const g = GADGETS[a.gadget.id]; const det = a.placed.some(x => x.alive && x.type === a.gadget.id && x.detonate) || a.netPlaced > 0; slot(KEYS.name('gadget'), det ? 'DETONATE' : g.name, a.gadget.count, a.gadget.count <= 0 && !det); }
+      if (a.gadget) { const g = GADGETS[a.gadget.id]; const det = a.placed.some(x => x.alive && x.type === a.gadget.id && x.detonate) || a.netPlaced > 0; slot(KEYS.name('gadget'), det ? (a.gadget.id === 'fog' ? 'RELEASE FOG' : 'DETONATE') : g.name, a.gadget.count, a.gadget.count <= 0 && !det); }
       if (a.ability) {
         const ab = a.op.ability, cnt = ab.cd ? (a.ability.cd > 0 ? Math.ceil(a.ability.cd) + 's' : 'READY') : a.ability.id === 'surge' ? a.ability.zaps + ' zaps' : ab.count >= 99 ? '' : a.ability.count;
         slot(KEYS.name('ability'), ab.name, cnt, ab.count < 99 && a.ability.count <= 0);

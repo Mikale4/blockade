@@ -7,9 +7,9 @@
   GAD.tell = (a, x, c) => { if (window.NP) NP.tell(a, x, c); else if (a && a.isPlayer) HUD.toast(x, c); };
   GAD.tellTeam = (team, x, alarm) => { if (window.NP) NP.tellTeam(team, x, alarm); };
   const V = () => new THREE.Vector3();
-  const ELEC = new Set(['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight', 'turret', 'jamfield', 'triang', 'nullfield', 'anchor']);
-  const TRAPS = new Set(['snare', 'wire', 'sensor', 'c4', 'rcharge', 'dampener', 'scrambler', 'seeker', 'decoy', 'bpcam', 'cam', 'floodlight', 'turret', 'jamfield', 'nullfield', 'anchor', 'mannequin']);
-  const NAMES = { turret: 'Watchdog turret', jamfield: 'Misfire coil', triang: 'Triangulator', nullfield: 'Null field', anchor: 'Recall anchor', mannequin: 'Body double', cam: 'Camera', bpcam: 'Armored camera',
+  const ELEC = new Set(['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight', 'turret', 'jamfield', 'triang', 'nullfield', 'anchor', 'alarm', 'fog']);
+  const TRAPS = new Set(['snare', 'wire', 'sensor', 'c4', 'rcharge', 'dampener', 'scrambler', 'seeker', 'decoy', 'bpcam', 'cam', 'floodlight', 'turret', 'jamfield', 'nullfield', 'anchor', 'mannequin', 'alarm', 'fog']);
+  const NAMES = { alarm: 'Proximity alarm', fog: 'Fog canister', emp: 'EMP grenade',  turret: 'Watchdog turret', jamfield: 'Misfire coil', triang: 'Triangulator', nullfield: 'Null field', anchor: 'Recall anchor', mannequin: 'Body double', cam: 'Camera', bpcam: 'Armored camera',
     snare: 'Snare line', sensor: 'Proximity sensor', scrambler: 'Scrambler', dampener: 'Dampener', seeker: 'Hunter seeker', floodlight: 'Floodlight', c4: 'Detonator pack', rcharge: 'Rotation charge', decoy: 'Decoy emitter', claymore: 'Claymore', beacon: 'Field beacon' };
   GAD.nameOf = e => NAMES[e.type] || e.type;
   /* meshes for gadgets that models.js has no builder for (the season 2 and 3 kit); online
@@ -47,6 +47,9 @@
       for (const [x, z] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) g.box(x, 3, z, x, 9, z, MD.glow(0x7ce8c0));
       g.box(-1, 4, -1, 1, 12, 1, 0x3a5048); g.box(-2, 13, -2, 2, 14, 2, MD.glow(0x7ce8c0));
     },
+    emp: g => { g.box(-2, -3, -2, 2, 3, 2, 0x26344e); g.box(-2, 0, -2, 2, 0, 2, MD.glow(0x5ad8ff)); g.box(-1, 4, -1, 1, 5, 1, 0x8a9098); },
+    fog: g => { g.box(-2, -4, -2, 2, 4, 2, 0x6f7f86); g.box(-2, 2, -2, 2, 2, 2, 0xd9dde0); g.box(-1, 5, -1, 1, 5, 1, MD.glow(0x9fe0ff)); },
+    alarm: g => { g.box(-3, -3, -1, 3, 3, 1, 0x2e3238); g.box(-1, -1, -2, 1, 1, -2, MD.glow(0xff5040)); g.box(-3, 4, 0, -3, 8, 0, 0x6a6e76); },
     anchor: g => {
       g.box(-1, 0, -1, 1, 14, 1, 0x2a4a60); g.box(-5, 2, -1, 5, 3, 1, 0x2a4a60); g.box(-5, 4, -1, -5, 6, 1, 0x2a4a60); g.box(5, 4, -1, 5, 6, 1, 0x2a4a60);
       g.box(-2, 14, -1, 2, 16, 1, 0x2a4a60); g.box(-1, 17, -1, 1, 18, 1, MD.glow(0x7cd0ff));
@@ -163,7 +166,7 @@
   GAD.throwStart = a => a.eye(V()).addScaledVector(a.fwd(V()), 0.4);
   /* is there an enemy jammer of these kinds near p? */
   GAD.jammed = function (p, team, kinds, r) {
-    for (const e of G.ents) if (e.alive && e.team !== team && kinds.includes(e.type) && !e.disabled && U.dist3(e.pos, p) < (r || e.jamR || 2.5)) return e;
+    for (const e of G.ents) if (e.alive && e.team !== team && kinds.includes(e.type) && !e.disabled && !(e.empT > G.time) && U.dist3(e.pos, p) < (r || e.jamR || 2.5)) return e;
     return null;
   };
   GAD.byType = t => G.ents.filter(e => e.alive && e.type === t);
@@ -204,7 +207,7 @@
   GAD.secondary = function (a) {
     const g = a.gadget; if (!g || a.state !== 'alive' || a.busy > 0) return false;
     // detonators first
-    if (g.id === 'breach' || g.id === 'c4') {
+    if (g.id === 'breach' || g.id === 'c4' || g.id === 'fog') {
       const mine = a.placed.find(e => e.alive && e.type === g.id && (e.stuck || e.type === 'breach'));
       if (mine) { mine.detonate(); return true; }
     }
@@ -216,7 +219,7 @@
       case 'stun': new Proj('stun', a, GAD.throwStart(a), GAD.throwVel(a, 15), { fuse: 1.4, onFuse: s => { FX.flash(s.pos, 6, 0.25); SFX.explosion(s.pos, false); GAD.flash(s.pos, 8, a.team, false); for (const b of G.actors) if (b.alive && U.dist3(b.pos, s.pos) < 4) b.stun = Math.max(b.stun, 2); GAME.noise(s.pos, 40, a, 'explosion'); s.destroy('used'); } }); return spend();
       case 'impact': new Proj('impact', a, GAD.throwStart(a), GAD.throwVel(a, 16, 1.5), { impact: true, onFuse: s => { s.destroy('used'); GAD.explode(s.pos, 2.4, 60, a, { voxR: 1.1 }); } }); return spend();
       case 'c4': { const p = new Proj('c4', a, GAD.throwStart(a), GAD.throwVel(a, 11), { sticky: true, hp: 1, intercept: false });
-        p.detonate = () => { if (!p.alive) return; p.destroy('used'); GAD.explode(p.pos, 3.8, 190, a, { voxR: 0.9, snd: 'c4' }); };
+        p.detonate = () => { if (!p.alive) return; if (p.empT > G.time) { SFX.beep(p.pos, 400); GAD.tell(a, 'Detonator is dead: EMP'); return; } p.destroy('used'); GAD.explode(p.pos, 3.8, 190, a, { voxR: 0.9, snd: 'c4' }); };
         a.placed.push(p); return spend(); }
       case 'breach': {
         const h = GAD.aim(a, 2.0);
@@ -224,12 +227,71 @@
         new Breach(a, h); return spend();
       }
       case 'claymore': { const p = GAD.floorAhead(a, 0.9); if (!p) return false; new Claymore(a, p, a.yaw); return spend(); }
+      // ---- the second kit
+      case 'emp': new Proj('emp', a, GAD.throwStart(a), GAD.throwVel(a, 15), { fuse: 1.5, onFuse: s => { s.destroy('used'); GAD.emp(s.pos, 5, 12, a); } }); return spend();
+      case 'stim': {
+        if (a.hp >= a.maxHp) { GAD.tell(a, 'Already at full health'); return false; }
+        a.heal(45); g.count--; a.busy = 1; a.busyLabel = 'STIM';
+        SFX.beep(a.pos, 900, 0.25); GAD.tell(a, 'Stim shot: +45 health');
+        return true;
+      }
+      case 'alarm': {
+        const h = GAD.aim(a, 2.2), p = h && !h.md.see ? h.p : GAD.floorAhead(a, 0.9);
+        if (!p) return false;
+        new Alarm(a, p, h && !h.md.see ? h.n : V().set(0, 1, 0)); return spend();
+      }
+      case 'fog': fogCan(a, GAD.throwStart(a), GAD.throwVel(a, 11)); return spend();
       case 'wire': { const p = GAD.floorAhead(a, 1.2); if (!p) return false; new Wire(a, p, a.yaw); return spend(); }
       case 'dshield': { const p = GAD.floorAhead(a, 1.0); if (!p) return false; new DShield(a, p, a.yaw); return spend(); }
     }
     return false;
   };
 
+  /* a fog canister: thrown, it sticks; set off by its owner it floods the spot with fog */
+  function fogCan(a, pos, vel, stuck) {
+    const p = new Proj('fog', a, pos, vel, { sticky: true, hp: 1, intercept: false });
+    if (stuck) { p.stuck = true; if (p.mesh) p.mesh.rotation.set(-Math.PI / 2, 0, 0); }
+    p.detonate = () => {
+      if (!p.alive) return;
+      if (p.empT > G.time) { SFX.beep(p.pos, 400); GAD.tell(a, 'Canister is dead: EMP'); return; }
+      p.destroy('used'); FX.smoke(p.pos.clone().add(V().set(0, 0.4, 0)), 4.2, 13); SFX.whoosh(p.pos);
+    };
+    a.placed.push(p);
+    return p;
+  }
+  /* An EMP burst: every electronic gadget of the other team within r goes dead for `secs`. It is
+     not destroyed: GAD.update skips it until the time is up, and a camera reports nothing. */
+  GAD.emp = function (p, r, secs, a) {
+    let n = 0;
+    for (const e of G.ents) {
+      if (!e.alive || !e.elec || e.team === a.team || e.team < 0 || U.dist3(e.pos, p) > r) continue;
+      e.empT = G.time + secs; n++;
+      FX.sparks(e.pos, e.normal.x, e.normal.y, e.normal.z, 0x9ad8ff);
+    }
+    FX.puff(p, 1.8, 0.5, 0x9ad8ff); FX.sparks(p, 0, 1, 0, 0x9ad8ff); SFX.beep(p, 220, 0.7); SFX.impact(p, false);
+    GAME.noise(p, 22, a, 'emp');
+    GAD.tell(a, n ? 'EMP: ' + n + ' device' + (n > 1 ? 's' : '') + ' knocked out for ' + secs + ' s' : 'EMP: nothing in range');
+    if (n && !GAME.ffa) GAD.tellTeam(1 - a.team, 'EMP: ' + n + ' of your devices ' + (n > 1 ? 'are' : 'is') + ' down for ' + secs + ' s', true);
+    return n;
+  };
+  /* a proximity alarm: an attacker inside 4 m sets it shrieking (everyone hears where) and is marked
+     for the team that owns it; then it re-arms */
+  class Alarm extends Ent {
+    constructor(a, p, n) { super('alarm', a, p, { normal: n, hp: 1, hitR: 0.12 }); this.cool = 0; SFX.reload(this.pos, a.isPlayer, 1); }
+    update(dt) {
+      this.t += dt; this.cool -= dt;
+      if (this.cool > 0 || this.t < 1.2) return;
+      for (const b of G.actors) {
+        if (!b.alive || b.team === this.team || b.hostage || U.dist3(b.center(V()), this.pos) > 4) continue;
+        GAME.mark(b, this.team, 3, true); this.cool = 6;
+        SFX.beep(this.pos, 3200, 0.6); SFX.beep(this.pos, 2500, 0.6);
+        GAME.noise(this.pos, 30, b, 'alarm');
+        const rm = G.map && G.map.roomAt ? G.map.roomAt(this.pos) : null;
+        GAD.tellTeam(this.team, 'Proximity alarm' + (rm ? ': ' + rm.name : ''), true);
+        return;
+      }
+    }
+  }
   class Breach extends Ent {
     constructor(a, h) {
       super('breach', a, h.p, { normal: h.n, hp: 1 });
@@ -456,6 +518,7 @@
       }
       case 'recall': {
         const anc = a.anchor && a.anchor.alive ? a.anchor : null;
+        if (anc && anc.empT > G.time) { GAD.tell(a, 'Anchor is dead: EMP'); return false; }
         if (!anc) {
           if (!need()) return false;
           const p = GAD.floorAhead(a, 0.6) || V().set(a.pos.x, a.pos.y + 0.01, a.pos.z);
@@ -954,7 +1017,7 @@
     }
   }
   GAD.Cam = Cam;
-  GAD.cams = team => G.ents.filter(e => e.alive && (e.type === 'cam' || e.type === 'bpcam') && e.team === team);
+  GAD.cams = team => G.ents.filter(e => e.alive && !(e.empT > G.time) && (e.type === 'cam' || e.type === 'bpcam') && e.team === team);
 
   /* ================================================================= drones */
   class Drone extends Ent {
@@ -1061,6 +1124,8 @@
       case 'mannequin': return new Mannequin(a, p, yaw || 0);
       case 'triang': return new Triang(a, p, yaw || 0);
       case 'anchor': { const x = new Anchor(a, p); a.anchor = x; return x; }
+      case 'alarm': return new Alarm(a, p, n);
+      case 'fog': return fogCan(a, p, V(), true);
     }
     return null;
   };
@@ -1068,7 +1133,12 @@
   GAD.opCenter = op => { const cy = (op.y0 + op.y1 + 1) / 2 * 0.25, ca = (op.a0 + op.a1 + 1) / 2 * 0.25, cl = (op.line + 0.5) * 0.25; return op.axis === 'z' ? V().set(ca, cy, cl) : V().set(cl, cy, ca); };
   GAD.TRAPS = TRAPS;
   GAD.update = function (dt) {
-    for (const e of G.ents) if (e.alive) e.update(dt);
+    for (const e of G.ents) {
+      if (!e.alive) continue;
+      // knocked out by an EMP (anything but a grenade still in the air): it does nothing, and spits a spark now and then
+      if (e.empT > G.time && e.stuck !== false) { e.t += dt; if (Math.random() < dt * 2.5) FX.sparks(e.pos, e.normal.x, e.normal.y, e.normal.z, 0x9ad8ff); continue; }
+      e.update(dt);
+    }
     if (G.ents.length > 60) G.ents = G.ents.filter(e => e.alive);
   };
   GAD.clear = function () { for (const e of G.ents) if (e.alive) e.destroy('silent'); G.ents = []; };

@@ -92,6 +92,19 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 
   Each operator has an armor/speed rating, two primaries, two secondaries, two gadget choices
   and a unique ability.
+- **13 secondary gadgets.** Every operator picks one. The first nine are frag, smoke and stun
+  grenades, breach charges and trip claymores on attack; razor wire, deployable cover, detonator
+  packs and impact grenades on defense. Four more are carried by the season 4-9 operators and a
+  few of the first (Static, Halcyon, Juno, Lark) as a third choice:
+  - **EMP Grenade** (attack): every defender electronic within 5 m goes dead for 12 seconds,
+    then comes back. Turrets stop firing, sensors and cameras see nothing, coils and fields
+    drop, detonators and recall anchors don't answer.
+  - **Stim Shot** (attack): 45 health back on the spot. It takes a second, and you can't shoot
+    while you do it.
+  - **Proximity Alarm** (defense): stuck to a wall or the floor. An attacker within 4 m sets it
+    shrieking, which everyone nearby hears, and is marked for the defenders. One bullet silences it.
+  - **Fog Canister** (defense): throw it, it sticks; press again to flood the spot with fog
+    nobody can see through for 13 seconds.
 - **Live busts:** wherever you pick an operator (operator select, the ban phase, the gallery,
   the range) each one is shown as a small voxel bust from the chest up, turned three-quarters
   to you and alive: breathing, looking about, glancing off now and then, blinking. The
@@ -217,7 +230,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   react to what they see and hear, reinforce and gadget up in prep, plant, disable, escort and
   revive. They use their whole kit: every operator ability, grenades, breaching charges,
   claymores and traps, and they walk over to a teammate's med station or healing beacon when
-  they can use it. Choose Recruit, Normal or Realistic.
+  they can use it. They throw EMPs at defender electronics, stim when hurt, set
+  alarms at the ways in, and keep a fog canister on the objective for when the attack arrives. Choose Recruit, Normal or Realistic.
   - **Attack:** the team splits over two or three entrances on different walls (sometimes a
     window near the site: vaulted on the ground floor, or reached on a rope and crashed through
     higher up, falling back to a door if it's reinforced or blocked), and each bot

@@ -448,7 +448,7 @@
   function camIntel() {
     if (GAME.phase !== 'action') return;
     for (const c of G.ents) {
-      if (!c.alive || (c.type !== 'cam' && c.type !== 'bpcam') || c.team < 0) continue;
+      if (!c.alive || (c.type !== 'cam' && c.type !== 'bpcam') || c.team < 0 || c.empT > G.time) continue;
       const def = c.team;
       for (const a of G.actors) {
         if (a.team === def || a.state !== 'alive' || a.hostage || a.cloakT > 0) continue;

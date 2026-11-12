@@ -531,6 +531,34 @@
     }
     // Halcyon: a beacon where someone is down, or when she is badly hurt herself
     if (ab && ab.id === 'beacon' && ab.count > 0 && !b.target && (a.hp < a.maxHp * 0.55 || G.actors.some(t => t.team === a.team && t.state === 'dbno' && U.dist3(t.pos, a.pos) < 5))) { GAD.ability(a); return; }
+    // ---- the second kit
+    // a stim shot when hurt and nobody is shooting
+    if (g && g.id === 'stim' && g.count > 0 && !b.target && a.hp < a.maxHp * 0.55 && a.busy <= 0) { GAD.secondary(a); return; }
+    // an EMP on the nearest live defender electronics: in sight, or close enough to lob it blind
+    if (g && g.id === 'emp' && g.count > 0 && a.busy <= 0) {
+      let best = null, bd = 15;
+      const eye = a.eye(V());
+      for (const e of G.ents) {
+        if (!e.alive || !e.elec || e.team === a.team || e.team < 0 || e.empT > G.time || e.type === 'drone') continue;
+        const dd = U.dist3(a.pos, e.pos);
+        if (dd < 3.5 || dd >= bd || Math.abs(e.pos.y - a.pos.y) > 2.5) continue;
+        if (dd > 8 && !G.world.los(eye, e.pos.clone().setY(e.pos.y + 0.3))) continue;
+        best = e; bd = dd;
+      }
+      if (best && Math.random() < 0.6) { lobAt(a, best.pos); GAD.secondary(a); return; }
+    }
+    // a fog canister: set it off when an attacker is on top of it, or when the defuser goes down beside it
+    if (g && g.id === 'fog') {
+      const can = a.placed.find(e => e.alive && e.type === 'fog' && e.detonate && e.stuck && !(e.empT > G.time));
+      if (can) {
+        const near = G.actors.some(t => t.team !== a.team && t.state === 'alive' && !t.hostage && U.dist3(t.pos, can.pos) < 6.5);
+        const df = GAME.obj && GAME.obj.defuser && GAME.obj.defuser.alive ? GAME.obj.defuser : null;
+        if (near || (df && U.dist3(df.pos, can.pos) < 8)) { can.detonate(); return; }
+      } else if (g.count > 0 && !b.target && obj && U.dist3(a.pos, obj) < 6 && a.busy <= 0 && Math.random() < 0.3) {
+        // none set in prep (or it was shot): stick one down where we are holding
+        GAD.deployAt(a, 'fog', V().set(a.pos.x, a.pos.y + 0.05, a.pos.z)); g.count--; return;
+      }
+    }
     // a claymore behind you once you are in position (holding the plant, or set up on the objective)
     if (g && g.id === 'claymore' && g.count > 0 && act && !b.target && a.side === 'atk' && obj && U.dist3(a.pos, obj) < 10 && (S.planted || b.entered) && Math.random() < 0.3) {
       const yaw = Math.atan2(-(a.pos.x - obj.x), -(a.pos.z - obj.z));   // facing away from the objective
@@ -873,6 +901,10 @@
     const g = a.gadget;
     if (g) {
       if (g.id === 'wire') place(g.count, i => atEntry(i + 2, (x, op, st, inw, c) => { const p = c.clone().addScaledVector(inw, -1.4); p.y = G.world.groundBelow(p.x, c.y + 0.5, p.z) + 0.01; if (Math.abs(p.y - st.y) < 0.6) { GAD.deployAt(x, 'wire', p, null, op.axis === 'z' ? 0 : Math.PI / 2); x.gadget.count--; } }) || { time: 0 });
+      // a proximity alarm on the floor just inside two of the ways in
+      if (g.id === 'alarm') place(g.count, i => atEntry(i + 3, (x, op, st, inw, c) => { const p = c.clone().addScaledVector(inw, 1.0); p.y = G.world.groundBelow(p.x, c.y + 0.5, p.z) + 0.02; if (Math.abs(p.y - st.y) < 0.6 && x.gadget.count > 0) { GAD.deployAt(x, 'alarm', p); x.gadget.count--; } }) || { time: 0 });
+      // a fog canister on the objective, kept for when they come in or plant
+      if (g.id === 'fog') { const p = inner(); b.tasks.push({ at: p, time: 0.5, run: x => { if (x.gadget.count > 0) { GAD.deployAt(x, 'fog', p.clone().setY(p.y + 0.05)); x.gadget.count--; } } }); }
       if (g.id === 'dshield') { const p = inner(); b.tasks.push({ at: p, time: 0.6, run: x => { const op = U.pick(ents); const yaw = op ? Math.atan2(-(GAD.opCenter(op).x - p.x), -(GAD.opCenter(op).z - p.z)) : 0; const f = V().set(-Math.sin(yaw), 0, -Math.cos(yaw)); GAD.deployAt(x, 'dshield', p.clone().addScaledVector(f, 0.6), null, yaw); x.gadget.count--; } }); }
     }
   }
