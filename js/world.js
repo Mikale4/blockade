@@ -40,7 +40,7 @@
 
   /* colour of a voxel, before lighting */
   function patColor(m, x, y, z, out) {
-    const b = baseRGB[m], p = MAT[m].pat;
+    const b = baseRGB[m] || (baseRGB[m] = [((MAT[m].c >> 16) & 255) / 255, ((MAT[m].c >> 8) & 255) / 255, (MAT[m].c & 255) / 255]), p = MAT[m].pat;
     let k = 1 + (H(x, y, z) - 0.5) * 0.08;
     let r = b[0], g = b[1], bl = b[2];
     switch (p) {

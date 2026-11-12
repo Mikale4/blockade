@@ -165,7 +165,7 @@
       const M = MODES[c.mode] || {};
       wrap.append($('h2', {}, 'CUSTOM MATCH'), $('div', { class: 'sub' }, M.ffa ? 'You against nine bots, everyone for themselves.' : 'You and four bots against five bots.'));
       wrap.append($('h3', {}, 'MODE'), $('div', { class: 'cards' }, ...Object.keys(MODES).map(k => $('div', { class: 'card' + (c.mode === k ? ' sel' : ''), onclick: () => { c.mode = k; SFX.ui(); render(); } }, $('b', {}, MODES[k].name), $('p', {}, MODES[k].desc)))));
-      wrap.append($('h3', {}, 'MAP'), $('div', { class: 'cards maps' }, ...MAPS.LIST.map(m => $('div', { class: 'card map-' + m.id + (c.map === m.id ? ' sel' : ''), onclick: () => { c.map = m.id; SFX.ui(); render(); } }, $('b', {}, m.name), $('p', {}, m.blurb)))));
+      wrap.append($('h3', {}, 'MAP'), $('div', { class: 'cards maps' }, ...MAPS.LIST.map(m => $('div', { class: 'card map-' + m.id + (c.map === m.id ? ' sel' : ''), style: m.tint ? { backgroundImage: 'linear-gradient(135deg, ' + m.tint + ', transparent)' } : {}, onclick: () => { c.map = m.id; SFX.ui(); render(); } }, $('b', {}, m.name), $('p', {}, m.blurb)))));
       wrap.append($('div', { class: 'row3' },
         M.ffa ? null : $('div', {}, $('h3', {}, M.arcade ? 'YOUR TEAM PLAYS' : 'STARTING SIDE'), $('div', { class: 'seg' }, ...['atk', 'def', 'random'].map(s => $('button', { class: c.side === s ? 'on' : '', onclick: () => { c.side = s; SFX.ui(); render(); } }, s === 'atk' ? 'ATTACK' : s === 'def' ? 'DEFENSE' : 'RANDOM')))),
         $('div', {}, $('h3', {}, 'BOT DIFFICULTY'), $('div', { class: 'seg' }, ...DIFFS.map((d, i) => $('button', { class: G.settings.difficulty === i ? 'on' : '', onclick: () => { G.settings.difficulty = i; G.saveSettings(); SFX.ui(); render(); } }, d.name)))),

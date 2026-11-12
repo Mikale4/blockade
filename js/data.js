@@ -13,9 +13,11 @@
   const M = {};
   let nid = 0;
   function mat(key, c, o) {
+    if (M[key] != null) return M[key];   // map files may ask for the same material twice
     const id = nid++;
     M[key] = id;
     MAT[id] = Object.assign({ id, key, c, hp: 255, pen: 0, xp: false, hb: false, see: false, glow: false, melee: false, pat: null, solid: true, elec: false }, o || {});
+    return id;
   }
   const SOFTW = { hp: 3, pen: 0.72, xp: true, hb: true, melee: true, wall: true };
   mat('AIR', 0x000000, { solid: false });
@@ -370,5 +372,6 @@
     { name: 'REALISTIC', react: 0.32, aimErr: 1.3, head: 0.25, track: 8.0 },
   ];
 
-  window.DATA = { MAT, M, OOB, WEAPONS, GADGETS, UNITS, OPS, OPMAP, ARMOR_HP, SPEED, MODES, DIFFS, COSMETICS, COS_KINDS, RARITY };
+  // mat(key, colour, opts): map files add their own materials with it (ids stay below OOB)
+  window.DATA = { MAT, M, OOB, WEAPONS, GADGETS, UNITS, OPS, OPMAP, ARMOR_HP, SPEED, MODES, DIFFS, COSMETICS, COS_KINDS, RARITY, mat, SOFTW };
 })();

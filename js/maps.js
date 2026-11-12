@@ -1549,10 +1549,17 @@
     }
   }
 
+  /* add a map, or replace one of the same id (other files: js/maps-*.js).
+       { id, name, fn, blurb, cover: a COVER kit name, tint: 'rgba(...)' for its menu card, stretch: 1.4 } */
+  function define(def) {
+    const i = LIST.findIndex(m => m.id === def.id);
+    if (i >= 0) LIST[i] = Object.assign({}, LIST[i], def); else LIST.push(def);
+    if (def.cover) COVER_OF[def.id] = def.cover;
+  }
   function build(id) {
     const def = id === 'range' ? { fn: range } : LIST.find(m => m.id === id);
     const B = def.fn();
-    if (id !== 'range') { stretch(B, STRETCH); placeSpawns(B); }
+    if (id !== 'range') { const s = def.stretch == null ? STRETCH : def.stretch; if (s > 1) stretch(B, s); placeSpawns(B); }
     const meta = B.meta, w = B.w;
     meta.world = w;
     meta.buildings = meta.buildings.map(b => ({ x0: b.x, z0: b.z, x1: b.x1, z1: b.z1, lo: b.lo, hi: b.hi, roofY: b.roofY }));
@@ -1573,5 +1580,5 @@
     return meta;
   }
 
-  window.MAPS = { LIST, THEMES, build, GY, VS, viewpoints, spawnSpots };
+  window.MAPS = { LIST, THEMES, build, GY, VS, viewpoints, spawnSpots, Builder, Bld, COVER, WING, COVER_OF, define };
 })();
