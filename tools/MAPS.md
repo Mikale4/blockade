@@ -166,6 +166,43 @@ maps are, without copying any real game's map:
   hall, a ship's hold, a cloister...) and a layout shaped by it.
 - Finished world no bigger than about 150 × 150 m and 22 M voxels (the checker prints both).
 
+## The layout kit (`js/maps-kit.js`)
+
+Most of the maps are written as floor plans on top of the builder, with `MAPS.KIT` doing the
+repetitive work. See `js/maps-new-d.js` and `js/maps-rework-d.js` for eleven complete examples.
+
+```js
+const K = MAPS.KIT;
+K.begin(B);                                   // after new Builder(...), before anything else
+const b = B.building(...), g = B.building(...);
+K.shells(B);                                  // once every building exists (repairs shared walls)
+b.pal = [M.DRY_BEIGE, M.DRY_SAGE];            // wall colours picked per room; b.pillar, b.plain (no auto floors)
+K.plan(b, 1, `
+  0-36: Dining Room 34 | Great Hall~ 78 | Bar Lounge 112
+  36-48: Lobby Hall 112
+  48-72: Kitchen 28 | - 40 | Reception 66 | Ski Shop 100 | - 112`);
+K.well(b, 'West Stairs', 28, 48, 'z', 0, 3);  // an enclosed switchback stair, levels 0..3, in the "-" gap
+K.atrium(b, 2, 40, 6, 72, 30);                // a railed hole in the floor of level 2 (a double-height hall)
+K.flight(b, 1, 35, 30, '-z', 4);              // an open flight with rails, its ends kept clear of furniture
+// ... your set piece, by hand, with the builder ...
+K.finish({ hatch: 3, cams: 8 });              // doors, ways in, windows, hatches, furniture, cameras
+K.spawns('North Name', 'South Name', 'East Name', 'West Name');
+```
+
+- **`K.plan(b, L, text, cols)`**: each line is a band of rooms, `z0-z1[@x0]: Name x1 | Name x1`.
+  Rooms run from `x0` to each `x1`; `-` leaves a gap; a name ending `~` is left unfurnished (dress
+  it yourself); `/nsew` after a name leaves those walls open. With `cols = true` a line is
+  `x0-x1[@z0]: Name z1 | ...`. Tile each level completely.
+- **`K.well(b, name, lx, lz, axis, lo, hi)`** needs a 13 x 25 gap (`axis: 'z'`, long along z) or
+  25 x 13 (`'x'`). It gets a door at each landing into whatever rooms lie along its long sides,
+  so put a room or corridor there on every level.
+- **`K.finish`** cuts a door between every pair of neighbouring rooms where one is a hall,
+  corridor, gallery or stair (by name), between two ordinary rooms about half the time, and
+  always where rooms would otherwise be cut off. It only cuts where there is clear floor three
+  voxels deep on both sides, so build stairs, atriums and set pieces first. Rooms are furnished
+  by what their names say they are (office, store, bunk, kitchen, lab, plant room, lounge,
+  workshop...).
+
 ## Checking
 
 ```bash

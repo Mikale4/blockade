@@ -12,3 +12,6 @@ sound effects/*.m4a
 
 # agent worktrees
 .claude/worktrees/
+
+# reference images and notes (not part of the game)
+/maps/
