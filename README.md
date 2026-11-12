@@ -4,7 +4,18 @@ An original 5v5 attack-and-defend shooter in voxels. Every wall is made of voxel
 of a metre across: shoot through drywall, blow holes in floors, reinforce walls in steel and
 burn through them again. You play first person, with four bots on your team against five.
 
-**Play:** double-click `Play BLOCKADE.bat`. It starts a small local server and opens
+**Play in your browser:** https://mikale4.github.io/blockade/
+
+**Install it** as an app, to get an icon on your desktop or home screen, full screen, and
+matches against bots that work offline once it has loaded:
+- **Chrome or Edge:** in the game, Settings > Install the game, or the install icon at the right
+  of the address bar.
+- **iPhone or iPad:** in Safari, tap Share, then Add to Home Screen.
+
+Only the live site installs. A copy served from your own computer (below) only runs while its
+server window is open.
+
+**Play locally:** double-click `Play BLOCKADE.bat`. It starts a small local server and opens
 http://localhost:8771 in your browser; close its window when you're done. (Without Python it
 opens `index.html` straight from disk instead, which also works, but your own sound-effect
 files won't load that way.) Click inside the game to capture the mouse; ESC opens the menu.
@@ -81,6 +92,10 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
 
   Each operator has an armor/speed rating, two primaries, two secondaries, two gadget choices
   and a unique ability.
+- **Live busts:** wherever you pick an operator (operator select, the ban phase, the gallery,
+  the range) each one is shown as a small voxel bust from the chest up, turned three-quarters
+  to you and alive: breathing, looking about, glancing off now and then, blinking. The
+  operator you have selected gets a larger one beside their name.
 - **22 primaries and sidearms**, eight of them with a mechanic of their own: the KB-3 (three-round
   bursts), HUSH-45 (suppressed: heard from 10 m instead of 45, no tracer for the enemy, and it
   doesn't set off a Triangulator), HAMMERHEAD .50 (punches through soft walls with most of its
@@ -90,21 +105,58 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   (a two-round burst pistol).
 - **Pick your spawn:** in operator select every player chooses their own spawn. Attackers pick
   one of the map's outdoor spawns; defenders pick the objective or another room in the building.
-- **9 maps**, each with a basement or upper floors, hatches, soft and hard walls, and 3–4
-  bomb-site pairs, plus Secure Area and Hostage rooms:
-  - **Roadhouse**: highway diner and garage, brewery cellar (dusk)
-  - **Summit Lodge**: snowed-in log and stone ski lodge (overcast)
-  - **Homestead**: farmhouse with a bunker underneath, plus a hay barn (afternoon)
-  - **Checkpoint**: border station with a double-height customs hall (noon)
-  - **Helix Labs**: island research campus with a specimen vault (night)
-  - **Cannery**: brick fish cannery on the harbour quay, with a two-storey processing floor
-    under a catwalk, an ice plant below, and a crane and a dry-docked boat outside (foggy morning)
-  - **Observatory**: mountaintop observatory whose telescope hall rises into a dome, ringed by
-    a gallery, with a weather hut and a cable-car stop outside (starry night)
-  - **Rail Depot**: brick station with a clock tower, a freight tunnel underneath, a train you
-    can walk through at the platform, and a signal box down the line (rainy dusk)
-  - **Museum**: natural-history museum with a glass-roofed atrium, a fossil skeleton, a grand
-    stair to the mezzanine and a concrete vault below (evening)
+- **17 maps.** Every map is a compound in several parts: three to five joined buildings, 45 to 70
+  rooms on three or four floors, a double-height centrepiece, a dozen or more ways in from
+  outside, enclosed stairwells and open flights between every pair of floors, 8 to 20 hatches,
+  5 or 6 bomb-site pairs spread over different floors and wings, plus Secure Area and Hostage
+  rooms. The nine original maps were rebuilt to this standard:
+  - **Roadhouse**: a highway truck stop. Diner and bar over a brewery, a two-storey motor
+    workshop with inspection pits, a motel wing round a court, a fuel station (dusk)
+  - **Summit Lodge**: a mountain hotel. A great hall open through two floors round a stone
+    hearth, a guest wing, a spa with a sunken pool, a gondola station, an attic (snow)
+  - **Homestead**: a farm. Farmhouse and attic, a bunker under the yard that runs from the
+    cellar to the barn, a hay barn open through two floors, a dairy and tractor shed (afternoon)
+  - **Checkpoint**: a desert border complex. A double-height customs hall, a vehicle shed over
+    inspection pits, a detention block, barracks and a watchtower round an inner yard (noon)
+  - **Helix Labs**: an island research campus round a glass atrium where a glowing double helix
+    climbs three floors, with a containment wing and a dock house (night)
+  - **Cannery**: a harbour cannery. The canning hall under its catwalk, ice plant and brine
+    cellars, an office block with a smokehouse and net loft, a boat shed with a hull on the
+    slip (foggy morning)
+  - **Observatory**: a summit observatory. The great telescope dome ringed by a gallery, a
+    planetarium, optics workshops, a residence wing, a second dome down a covered link and a
+    tunnel, a cable-car terminal (starry night)
+  - **Rail Depot**: a terminus. A galleried concourse and clock tower, a train you can walk
+    through at the platform, a freight tunnel under the tracks, an engine shed with two
+    locomotives over their pits, a goods warehouse (rainy dusk)
+  - **Museum**: a natural-history museum. Four floors of galleries round a skylit atrium with a
+    fossil skeleton, a dinosaur hall, an antiquities wing, vaults below (evening)
+
+  And eight new ones:
+  - **Aurora Station**: a polar research station. Insulated modules on corridor spokes round a
+    domed hub, a drill hall cored down into the ice, ice tunnels to the generator plant (night,
+    under the aurora)
+  - **Freighter**: a coastal freighter moored in a container port. Cargo holds and the engine
+    room, deckhouses, a three-storey bridge, a customs house and a warehouse on the quay
+    (overcast)
+  - **Ironwood**: a decommissioned penitentiary. A three-tier cell block, a rotunda where the
+    wings meet, a mess and laundry wing, the warden's offices, a fenced yard under two
+    watchtowers (grey, windy day)
+  - **Grand Theatre**: an opera house. The stage under its fly tower, an auditorium with a
+    horseshoe balcony over the orchestra pit, a marble foyer, a backstage annex (wet night)
+  - **Iron Gorge Dam**: a hydro station. Three generators in the turbine hall, inspection
+    galleries the length of the dam wall, an admin tower, a switchyard (overcast)
+  - **Cloister**: a hilltop abbey round an open courtyard. Chapel with stained glass and a
+    crypt, a library and brewery range, a dormitory range, a refectory (dawn)
+  - **Biodome**: a jungle growing under a glass dome, ringed by walkways on two floors, with
+    lab, visitor, arid-house and water-plant wings (late afternoon)
+  - **Foundry**: a steelworks. The casting hall round its blast furnace with glowing runners in
+    the floor, a rolling mill, a power house, an office block (smoky sunset)
+
+  New maps go in their own file (`js/maps-*.js`) and register with `MAPS.define`; see
+  [tools/MAPS.md](tools/MAPS.md). `node tools/mapcheck.js` builds every map headlessly and
+  checks objectives, room reachability, spawn-to-objective routes, staircases and spawn
+  sightlines.
 - **Modes:** Bomb (plant the defuser and protect it, or disable it), Secure Area (hold the room
   with no defenders inside), Hostage (escort the hostage out; harming the hostage loses).
   Sides swap every round (optional), and the first team to N rounds wins.
@@ -151,10 +203,13 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   You can't go prone while holding one.
 - **Down but not out:** lethal non-headshot damage usually downs you; teammates revive (hold
   interact). Headshots kill outright (shotgun pellets just hit harder).
-- **Kill cam:** when you're killed you see the last few seconds again over your killer's
-  shoulder, then you spectate. A round that ends on a kill replays that kill for everyone before
-  the result. The killing shot plays in slow motion, and gadget kills circle the victim. Press
-  the vault key (Space) to skip; turn it off in Settings.
+- **Kill cam:** when you're killed you see the last few seconds again through your killer's
+  eyes, in first person with their gun on screen, the way they saw it. A round that ends on a
+  kill replays that kill for everyone before the result. The killing shot plays in slow motion.
+  A kill by a gadget or explosive circles the victim instead. Press the vault key (Space) to
+  skip; turn it off in Settings.
+- **Spectating:** once you're dead you watch your teammates in first person too: their hands
+  and gun, their sight when they aim, their recoil and reloads. Fire and aim switch teammate.
 - **Intel:** drones (attack), cameras (defense; attackers can shoot them), spotting marks
   enemies for your team. Drones roll straight up stairs without jumping, and Sprint gives a
   drone a one-second burst of speed with an eight-second cooldown.
@@ -274,8 +329,9 @@ match itself are not.
 
 `index.html` · `css/style.css` · `lib/three.min.js` (three.js r128) · `js/`:
 `util` (helpers, settings, key bindings) · `data` (materials, weapons, gadgets, operators) ·
-`world` (voxel storage, meshing, rays, destruction) · `maps` (map builder, 9 maps, range,
-attacker spawns and their cover) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
+`world` (voxel storage, meshing, rays, destruction) · `maps` (map builder, range,
+attacker spawns and their cover) · `maps-kit` (floor-plan layout kit: doors, windows, stairwells,
+hatches and furniture from a room plan) · `maps-new-*` and `maps-rework-*` (the 17 maps) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `gadgets` · `nav` (pathfinding) · `ai` ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
 `range` (range and training) · `killcam` (replays) · `names` (bot names) · `arcade` (Deathmatch and
