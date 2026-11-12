@@ -260,8 +260,9 @@
   P.shake = function (k) { P.shakeT = Math.max(P.shakeT, k); };
   /* aim punch (from a shield bash): the view gets knocked up and sideways and shakes */
   P.punch = function (k) { P.rec.p += 0.2 * k; P.rec.y += (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.12) * k; P.shake(0.5 * k); };
-  P.zoomNow = function () {
-    const a = G.player; if (!a || !a.wpn) return 1;
+  P.zoomNow = () => P.zoomOf(G.player);
+  P.zoomOf = function (a) {
+    if (!a || !a.wpn) return 1;
     const s = a.wpn.def.sight;
     let z = s === 'acog' ? (a.zoom4 ? 4 : 2.5) : s === 'iron' ? 1.12 : 1.22;
     if (a.wpn.def.type === 'SG') z = 1.1;
@@ -310,7 +311,9 @@
     } else if (P.view === 'cams' && P.cam) {
       cam.position.copy(P.cam.pos).add(V().set(0, -0.12, 0)); cam.rotation.set(P.cam.pitch + P.cam.look.pitch, P.cam.yaw + P.cam.look.yaw, 0, 'YXZ'); fov = 70;
     } else if (P.view === 'spectate' && P.spec) {
-      const t = P.spec; cam.position.copy(t.eye(V())); cam.rotation.set(t.pitch, t.yaw, -t.lean * 0.15, 'YXZ'); fov = s.fov / U.lerp(1, 1.2, t.ads);
+      // through a teammate's eyes, their gun on screen (updateVM), their sight's zoom when they aim
+      const t = P.spec; cam.position.copy(t.eye(V())); cam.rotation.set(t.pitch, t.yaw, -t.lean * 0.16, 'YXZ'); fov = s.fov / U.lerp(1, P.zoomOf(t), t.ads || 0);
+      if (t.sprint && t.moving > 3.6) fov += 4;
     } else if (a) {
       const e = a.eye(V());
       // smooth step-ups
@@ -332,8 +335,15 @@
   };
 
   /* ----------------------------------------------------------- viewmodel */
-  P.buildVM = function () {
-    const a = G.player, cos = a.cos || {}, key = a.op.id + ':' + a.wpn.id + ':' + (a.shieldOp && a.shieldUp ? 'S' : '') + ':' + (cos.finish || '') + ':' + (cos.suit || '');
+  /* whose hands and gun are on screen: mine, the teammate I am watching, or the shooter in a
+     kill cam (a stand-in made from the recording: killcam.js) */
+  P.vmSubject = function () {
+    if (P.view === 'spectate') { const t = P.spec; return t && t.state !== 'dead' && t.wpn && !t.hostage ? t : null; }
+    if (P.view === 'replay') return KC.subject();
+    return P.vmVisible ? G.player : null;
+  };
+  P.buildVM = function (a) {
+    const cos = a.cos || {}, key = a.op.id + ':' + a.wpn.id + ':' + (a.shieldOp && a.shieldUp ? 'S' : '') + ':' + (cos.finish || '') + ':' + (cos.suit || '');
     if (key === P.vmKey) return;
     P.vmKey = key;
     if (P.vm) G.vmScene.remove(P.vm.root);
@@ -367,9 +377,10 @@
     x.fillStyle = g; x.fillRect(0, 0, 64, 64); return (P._ft = new THREE.CanvasTexture(c));
   };
   P.updateVM = function (dt) {
-    const a = G.player;
-    if (!a || !P.vmVisible || !a.wpn) { if (P.vm) P.vm.root.visible = false; HUD.reticle(''); HUD.scope(false); return; }
-    P.buildVM();
+    const a = P.vmSubject();
+    if (!a || !a.wpn) { if (P.vm) P.vm.root.visible = false; HUD.reticle(''); HUD.scope(false); return; }
+    P.buildVM(a);
+    if (a !== G.player) { P.swayX = P.swayY = 0; P.meleeT = 0; }       // someone else's hands: my mouse doesn't sway them
     const vm = P.vm; vm.root.visible = true;
     const w = a.wpn, ads = a.ads;
     P.bob += dt * (a.moving > 0.3 && a.onGround ? 4 + a.moving * 1.6 : 0);
@@ -406,10 +417,10 @@
       vm.shield.rotation.set(0.06 + 0.25 * sd, U.lerp(U.lerp(0.32, 0.55, k), 1.15, sd) - 0.25 * bs, 0.05 + 0.25 * sd);
     }
     // scope overlay for magnified optics
-    const scoped = w.def.sight === 'acog' && ads > 0.85 && P.view === 'body';
+    const scoped = w.def.sight === 'acog' && ads > 0.85;
     vm.gun.visible = !scoped;
     HUD.scope(scoped);
-    HUD.reticle(P.view === 'body' && ads > 0.82 && !scoped && w.reload <= 0 ? w.def.sight : '');
+    HUD.reticle(ads > 0.82 && !scoped && w.reload <= 0 ? w.def.sight : '');
     // match world lighting
     const L = G.world.outdoor(a.pos) ? G.world.light.out : G.world.light.in;
     const lk = (L[0] + L[1] + L[2]) / 3;

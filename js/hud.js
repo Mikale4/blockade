@@ -189,9 +189,10 @@
       a.cloakT > 0 ? 'CLOAKED' + (GAME.client ? '' : ' ' + Math.ceil(a.cloakT) + 's') : a.odT > 0 ? 'OVERDRIVE ' + Math.ceil(a.odT) + 's' : a.exhT > 0 ? 'WINDED' : a.ramT > 0 ? 'BATTERING CHARGE ' + Math.ceil(a.ramT) + 's · sprint into a soft wall' :
       a.misfire > G.time ? 'MISFIRE COIL NEARBY · weapon jamming' : GAME.dark && GAME.dark(a.team) ? 'BLACKOUT' : a.nullT > G.time ? 'NULL FIELD · you cannot be marked' : a.rooted > 0 ? 'SNARED' : a.stun > 0 ? 'CONCUSSED' : a.slow > 0 ? 'IN WIRE' : a.over > 0 ? 'OVERHEALED' : a.carry === 'defuser' ? 'CARRYING DEFUSER' : a.walk && a.moving > 0.3 ? 'WALKING · quiet' : '';
     // ---- weapon & slots
-    const w = a.wpn;
+    // (watching a teammate: it is their gun on screen, so their weapon and magazine are shown)
+    const wa = PLAYER.view === 'spectate' && PLAYER.spec && PLAYER.spec.wpn ? PLAYER.spec : a, w = wa.wpn;
     if (w) {
-      e.wname.textContent = (a.shieldOp && a.shieldUp ? 'BULWARK + ' : '') + w.def.name + (w.def.auto ? (w.auto ? '  AUTO' : '  SINGLE') : '');
+      e.wname.textContent = (wa.shieldOp && wa.shieldUp ? 'BULWARK + ' : '') + w.def.name + (w.def.auto ? (w.auto ? '  AUTO' : '  SINGLE') : '');
       e.mag.textContent = w.reload > 0 ? '··' : w.mag; e.res.textContent = '/' + w.reserve;
       e.mag.classList.toggle('low', w.mag <= Math.ceil(w.def.mag * 0.25));
     }

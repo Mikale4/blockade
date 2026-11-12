@@ -134,9 +134,11 @@
     const q = fn => (window.NP && NP.quiet ? NP.quiet(fn) : fn());
     if (e.k === 'shot') {
       const d = DATA.WEAPONS[e.w];
-      if (d) SFX.shot(d, e.o, false);
+      // the shooter we are looking through: their gun kicks and flashes in our hands
+      const own = !!(d && KC.play && KC.play.fp && KC.play.follow === e.a);
+      if (d) SFX.shot(d, e.o, own);
       const col = G.player && e.a.team === G.player.team ? 0xffe8a0 : 0xffb070;
-      q(() => FX.flash(e.o, 0.4, 0.04));
+      if (own) PLAYER.onFire(d); else q(() => FX.flash(e.o, 0.4, 0.04));
       for (const p of e.e) FX.tracer(e.o, p, col);
     } else if (e.k === 'explosion') { q(() => { FX.explosion(e.p, e.x || 3); SFX.explosion(e.p, (e.x || 3) > 3); }); }
     else if (e.k === 'blood') FX.blood(e.p, e.x || V().set(0, 1, 0));
@@ -172,31 +174,35 @@
   };
   KC.unpose = function (a, s) { a.pos.set(s.x, s.y, s.z); for (const key of KEYS_SAVED) a[key] = s[key]; };
   KC.hidden = a => !!(KC.play && KC.play.fp && a === KC.play.follow);
+  /* the shooter as the viewmodel sees them: a stand-in built from the recording, so the replay
+     shows their hands and gun the way they had them (weapon, aiming, sprinting, shield) */
+  KC.subject = function () {
+    const P = KC.play; if (!P || !P.follow || !P.fp) return null;
+    const f = at(P), s = lerpPose(f.A.d[P.list.indexOf(P.follow)], f.B.d[P.list.indexOf(P.follow)], f.k);
+    const def = s && s.w ? DATA.WEAPONS[s.w] : null;
+    if (!def || s.state === 'dead') return null;
+    const a = P.follow, u = P.sub || (P.sub = { wpn: { reload: 0, reloadMax: 1 }, busy: 0, swap: 0, ability: null, onGround: true, pos: V() });
+    u.op = a.op; u.cos = a.cos; u.wpn.id = s.w; u.wpn.def = def; u.zoom4 = a.zoom4;
+    u.ads = s.ads; u.moving = s.moving; u.sprint = s.sprint; u.state = s.state; u.stance = s.stance;
+    u.shieldOp = a.shieldOp; u.shieldUp = !!a.shieldOp && /PISTOL|MP/.test(def.type); u.shSide = s.shSide; u.shBash = s.shBash;
+    u.pos.set(s.x, s.y, s.z);
+    return u;
+  };
 
-  /* the camera: over the killer's right shoulder looking where they aim, or circling the victim */
+  /* the camera: through the killer's eyes, their gun on screen; a gadget kill circles the victim */
   KC.camera = function (cam, dt) {
     const P = KC.play; if (!P) return G.settings.fov;
     const f = at(P), W = G.world;
-    let pos, yaw, pitch, fov = 70;
+    let pos, yaw, pitch, roll = 0, fov = 70;
     if (P.follow) {
       const i = P.list.indexOf(P.follow), s = lerpPose(f.A.d[i], f.B.d[i], f.k);
       const eye = V().set(s.x, s.y + Math.max(0.3, s.h - 0.15), s.z);
       if (s.lean) { const kk = s.lean * 0.38; eye.x += Math.cos(s.yaw) * kk; eye.z -= Math.sin(s.yaw) * kk; }
-      const back = V().set(Math.sin(s.yaw), 0, Math.cos(s.yaw)), right = V().set(Math.cos(s.yaw), 0, -Math.sin(s.yaw));
-      // the right shoulder, or the left one when a wall is in the way; too cramped for either
-      // (a narrow corridor) and it's the killer's own eyes, with their model hidden
-      let best = null;
-      for (const side of P.side ? [P.side, -P.side] : [1, -1]) {
-        const want = eye.clone().addScaledVector(back, 1.75).addScaledVector(right, 0.62 * side).add(V().set(0, 0.18 - s.pitch * 0.35, 0));
-        const dir = want.clone().sub(eye), L = dir.length(); dir.normalize();
-        const h = W.raycast(eye, dir, L, true), dist = h ? Math.max(0, h.dist - 0.22) : L;
-        if (!best || dist > best.dist + 0.2) best = { dir, dist, side };
-        if (dist > L - 0.05) break;
-      }
-      P.side = best.side;
-      P.fp = best.dist < (P.fp ? 1.45 : 1.25);   // a little hysteresis so it doesn't flicker
-      pos = P.fp ? eye : eye.clone().addScaledVector(best.dir, best.dist);
-      yaw = s.yaw; pitch = s.pitch; fov = 70 / U.lerp(1, 1.3, s.ads);
+      // first person: the killer's own eyes, their model hidden, their viewmodel drawn by player.js
+      P.fp = true;
+      pos = eye; yaw = s.yaw; pitch = s.pitch; roll = -(s.lean || 0) * 0.16;
+      fov = G.settings.fov / U.lerp(1, PLAYER.zoomOf(KC.subject()), s.ads || 0);
+      if (s.sprint && s.moving > 3.6) fov += 4;
     } else {
       const s = lerpPose(f.A.d[P.vi], f.B.d[P.vi], f.k);
       const c = V().set(s.x, s.y + 0.9, s.z), ang = P.orbit0 == null ? (P.orbit0 = s.yaw + 2.4) : P.orbit0;
@@ -210,10 +216,10 @@
     // ease the camera so wall collisions and snappy bot aim don't jerk it around
     if (!P.cam) P.cam = { p: pos.clone(), yaw, pitch };
     else {
-      const k = 1 - Math.exp(-dt * 14), ka = 1 - Math.exp(-dt * 20);
+      const k = 1 - Math.exp(-dt * (P.follow ? 40 : 14)), ka = 1 - Math.exp(-dt * (P.follow ? 28 : 20));
       P.cam.p.lerp(pos, k); P.cam.yaw = U.turn(P.cam.yaw, yaw, ka); P.cam.pitch = U.lerp(P.cam.pitch, pitch, ka);
     }
-    cam.position.copy(P.cam.p); cam.rotation.set(P.cam.pitch, P.cam.yaw, 0, 'YXZ');
+    cam.position.copy(P.cam.p); cam.rotation.set(P.cam.pitch, P.cam.yaw, roll, 'YXZ');
     return fov;
   };
 

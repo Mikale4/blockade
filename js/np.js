@@ -469,7 +469,9 @@
         const s = NP.byId.get(e.s); if (!s || s === G.player) break;
         const def = WEAPONS[e.w]; if (!def) break;
         const o = V(...e.o), mz = WPN.muzzlePos(s);
-        SFX.shot(def, o, PLAYER.viewActor() === s); oF.flash(mz, 0.4, 0.04);
+        // a teammate I am watching: their gun kicks and flashes in my view, like my own
+        const own = PLAYER.viewActor() === s;
+        SFX.shot(def, o, own); if (own) PLAYER.onFire(def); else oF.flash(mz, 0.4, 0.04);
         for (const p of e.e || []) FX.tracer(mz, V(...p), 0xffb070);
         KC.shot(s, def.id, mz, (e.e || []).map(p => V(...p)));
         s.lastShot = G.time; MUSIC.lastShot = G.time;
