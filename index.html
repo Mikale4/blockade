@@ -4,7 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0c0e12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BLOCKADE">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>BLOCKADE — Tactical Voxel Breach</title>
+<script>
+  /* INSTALL: the game as an app -- an icon on the desktop or home screen, full screen, and
+     playable against bots offline once it has loaded (manifest.webmanifest, sw.js). Chrome and
+     Edge offer it, and Settings has the button (menu.js); on an iPhone or iPad it is Share,
+     then Add to Home Screen. The offer can come before the game's scripts are in, so it is
+     caught here.
+     Only the live site installs. A copy served from this computer (the dev server) has no
+     manifest and no offline copy: an app installed from it would only run while that server
+     is open, and every edit has to show up there at once anyway. (?sw=1 turns both on there,
+     for a test.) */
+  window.AppInstall = {
+    evt: null, changed: null,
+    local: /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/.test(location.hostname) && !/[?&]sw=1/.test(location.search),
+    installed: matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches || navigator.standalone === true,
+    ios: /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)),
+    prompt: async function () {
+      var e = AppInstall.evt; if (!e) return false;
+      e.prompt();
+      try { var c = await e.userChoice; if (c && c.outcome === "accepted") AppInstall.evt = null; } catch (x) {}
+      return true;
+    },
+  };
+  if (!AppInstall.local) document.write('<link rel="manifest" href="manifest.webmanifest">');
+  addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); AppInstall.evt = e; if (AppInstall.changed) AppInstall.changed(); });
+  addEventListener("appinstalled", function () {
+    AppInstall.installed = true; AppInstall.evt = null;
+    if (window.UI && UI.toast) UI.toast("Installed: BLOCKADE now has its own icon.");
+    if (AppInstall.changed) AppInstall.changed();
+  });
+  if ("serviceWorker" in navigator && !AppInstall.local) addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600;700&display=swap">

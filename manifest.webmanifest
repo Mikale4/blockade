@@ -1,0 +1,19 @@
+{
+  "name": "BLOCKADE: Tactical Voxel Breach",
+  "short_name": "BLOCKADE",
+  "description": "An original 5v5 voxel tactical shooter: breach, reinforce, drone and defend across 17 maps, against bots or online with friends.",
+  "id": "./index.html",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#0c0e12",
+  "theme_color": "#0c0e12",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

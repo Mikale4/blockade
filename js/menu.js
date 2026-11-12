@@ -354,8 +354,35 @@
       toggle('Swap sides every round', 'swapEveryRound'),
       toggle('Kill cam (replay your death and the round-ending kill)', 'killcam'),
       toggle('Show FPS', 'showFps'),
+      installRow(),
       $('div', { class: 'actions' }, back(onBack))), overlay);
   };
+  /* Installing the game as an app (index.html keeps AppInstall): the button when the browser
+     offers it, the steps on an iPhone or iPad, and a word once it is installed. */
+  function installRow() {
+    const box = $('div', { class: 'set-install' });
+    const A = window.AppInstall;
+    if (!A) return box;
+    const draw = () => {
+      box.innerHTML = '';
+      box.append($('b', {}, 'INSTALL THE GAME'));
+      // a copy served from this computer only runs while its server does: install the live one
+      if (A.local) {
+        box.append($('p', {}, 'This copy is served from this computer and only runs while that server is open, so it does not install. Install the live game instead: open ',
+          $('a', { href: 'https://mikale4.github.io/blockade/', target: '_blank', rel: 'noopener' }, 'mikale4.github.io/blockade'), ' in Chrome or Edge, then Settings, Install the game.'));
+        return;
+      }
+      if (!A.installed && A.evt) box.append($('button', { class: 'btn', onclick: async () => { SFX.init(); SFX.ui(); await A.prompt(); draw(); } }, '⤓ INSTALL BLOCKADE'));
+      box.append($('p', {}, A.installed ? 'You are playing the installed app.'
+        : A.evt ? 'An icon on your desktop or home screen, full screen, and matches against bots work offline once it has loaded.'
+          : A.ios ? 'On an iPhone or iPad: tap Share (the square with the arrow) in Safari, then Add to Home Screen. It opens full screen from its icon.'
+            : 'Your browser can install it as an app: in Chrome or Edge, use the install icon at the right of the address bar, or the menu: Install BLOCKADE. On a phone, use the browser menu: Add to Home Screen.'));
+    };
+    draw();
+    // the offer can arrive while Settings is open: show the button then
+    A.changed = () => { if (box.isConnected) draw(); };
+    return box;
+  }
   /* key bindings: click a binding, press a key or mouse button */
   MENU.controls = function (onBack, overlay) {
     const s = G.settings, wrap = $('div', { class: 'panel controls' });

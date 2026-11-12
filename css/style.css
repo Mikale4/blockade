@@ -215,6 +215,11 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .lo-info { font-size: 13px; color: #c3c9d3; margin-top: 8px; } .lo-info p { margin: 4px 0; }
 .g-unit { margin-top: 12px; } .g-unit b { font: 800 16px var(--f); letter-spacing: 0.1em; } .g-unit p { margin: 4px 0; font-size: 13px; color: var(--dim); }
 .g-kit p { font-size: 13px; margin: 4px 0; color: #c3c9d3; } .g-kit b { font: 700 12px var(--f); letter-spacing: 0.15em; color: var(--dim); }
+.set-install { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: center; }
+.set-install b { font: 800 15px var(--f); letter-spacing: 0.16em; color: var(--gold); }
+.set-install .btn { grid-column: 2; grid-row: 1; }
+.set-install p { grid-column: 1 / -1; margin: 0; font: 400 13px var(--f2); color: var(--dim); line-height: 1.45; }
+.set-install a { color: var(--def); }
 .settings .set-row { display: grid; grid-template-columns: 260px 1fr 60px; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .settings label { font: 600 16px var(--f); letter-spacing: 0.05em; }
 .settings input[type=range] { width: 100%; accent-color: var(--atk); }
