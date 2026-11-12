@@ -38,6 +38,84 @@
   };
   MENU.stopPreview = () => { if (pr) pr.run = false; };
 
+  /* ------------------------------------------------------------- busts */
+  /* Every operator card, and the head of the detail panel, shows the operator as a live voxel
+     bust: from the chest up, turned three-quarters to the camera, breathing, looking about,
+     glancing off now and then, blinking. One small WebGL renderer draws them all, one after
+     another, into each card's own 2D canvas, about 24 times a second, and only while a card
+     that asked for one is on screen. */
+  const BUST = { r: null, scene: null, cam: null, rigs: new Map(), slots: [], raf: 0, last: 0, at: 0, dead: false };
+  function bustInit() {
+    if (BUST.r) return true;
+    if (BUST.dead) return false;
+    try {
+      const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      r.setPixelRatio(1); r.setSize(192, 192, false); r.setClearColor(0x000000, 0);
+      // framed from mid-chest to just over the tallest helmet
+      const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20), mid = 1.57, dist = 0.45 / Math.tan(15 * Math.PI / 180);
+      cam.position.set(0.3, mid + dist * 0.06, dist); cam.lookAt(0, mid, 0);
+      Object.assign(BUST, { r, scene: new THREE.Scene(), cam });
+      return true;
+    } catch (e) { BUST.dead = true; return false; }
+  }
+  function bustRig(op, cos) {
+    const key = op.id + '|' + ((cos && cos.suit) || '');
+    let b = BUST.rigs.get(key);
+    if (b) return b;
+    const rig = MD.operator(op, 'p10', cos || null), S = 1 / 16, lids = [];
+    rig.gun.visible = false;                                   // hands at their sides: it is a portrait
+    rig.armR.rotation.set(0.1, 0, -0.1); rig.armL.rotation.set(0.1, 0, 0.1);
+    // eyelids, for the heads that show eyes
+    if (!/visor|gasmask|beanie/.test(op.look.head || '')) {
+      const lm = new THREE.MeshBasicMaterial({ color: op.look.skin });
+      lm.color.multiplyScalar(0.86);
+      for (const x of [-1, 1]) { const l = new THREE.Mesh(new THREE.BoxGeometry(S * 1.08, S * 1.08, S * 0.2), lm); l.position.set(x * S, 2 * S, -3.45 * S); l.visible = false; rig.head.add(l); lids.push(l); }
+    }
+    rig.root.visible = false;
+    BUST.scene.add(rig.root);
+    let h = 0; for (let i = 0; i < op.id.length; i++) h = (h * 31 + op.id.charCodeAt(i)) % 9973;
+    b = { rig, lids, h: h / 9973, torsoY: rig.torso.position.y, glance: 0, gTo: 0, gNext: 1.5 + (h % 50) / 10 };
+    BUST.rigs.set(key, b);
+    return b;
+  }
+  function bustDraw(s, t) {
+    const b = bustRig(s.op, s.cos), r = b.rig, h = b.h;
+    if (t > b.gNext) { b.gTo = b.gTo ? 0 : (U.hash3(Math.floor(t), 3, h * 97) < 0.5 ? -0.55 : 0.5); b.gNext = t + (b.gTo ? 0.8 + h : 3.5 + h * 4); }
+    b.glance += (b.gTo - b.glance) * 0.2;
+    r.root.rotation.y = Math.PI - 0.42 + Math.sin(t * 0.31 + h * 6) * 0.05;
+    r.torso.position.y = b.torsoY + Math.sin(t * 1.7 + h * 9) * 0.004;
+    r.torso.rotation.x = Math.sin(t * 1.7 + h * 9) * 0.012;
+    r.head.rotation.y = Math.sin(t * 0.47 + h * 5) * 0.16 + b.glance;
+    r.head.rotation.x = Math.sin(t * 0.39 + h * 3) * 0.05 - 0.02;
+    const blink = (t + h * 7) % (3.2 + h * 2.4) < 0.13;
+    for (const l of b.lids) l.visible = blink;
+    r.root.visible = true;
+    BUST.r.render(BUST.scene, BUST.cam);
+    r.root.visible = false;
+    const x = s.c.getContext('2d');
+    x.clearRect(0, 0, s.c.width, s.c.height);
+    x.drawImage(BUST.r.domElement, 0, 0, s.c.width, s.c.height);
+  }
+  function bustTick(now) {
+    BUST.raf = 0;
+    BUST.slots = BUST.slots.filter(s => s.c.isConnected || now - s.born < 1500);
+    if (!BUST.slots.length) return;                            // nothing showing: stop until a card asks again
+    BUST.raf = requestAnimationFrame(bustTick);
+    if (now - BUST.last < 42) return;
+    BUST.last = now;
+    for (let i = Math.min(BUST.slots.length, 10); i > 0; i--) { BUST.at = (BUST.at + 1) % BUST.slots.length; bustDraw(BUST.slots[BUST.at], now / 1000); }
+  }
+  /* a canvas `px` square showing `op`'s bust (drawn at twice that, for sharp edges) */
+  MENU.bust = function (op, px, cos) {
+    const c = $('canvas', { class: 'bust', width: px * 2, height: px * 2 });
+    if (!bustInit()) return c;
+    const s = { c, op, cos: cos || (window.SHOP && Auth.user ? SHOP.look() : null), born: performance.now() };
+    BUST.slots.push(s);
+    try { bustDraw(s, s.born / 1000); } catch (e) { BUST.dead = true; return c; }
+    if (!BUST.raf) BUST.raf = requestAnimationFrame(bustTick);
+    return c;
+  };
+
   /* ----------------------------------------------------------------- title */
   /* the title screen: sign in (or make a player) first, as in our other games */
   MENU.title = function () {
@@ -186,9 +264,10 @@
   function opDetail(op, lo, onChange) {
     const u = UNITS[op.unit];
     const d = $('div', { class: 'op-detail' });
-    d.append($('div', { class: 'op-title' }, $('b', {}, op.name), $('span', { class: 'unit', style: { background: u.color } }, u.name), op.season ? $('span', { class: 'season' }, 'SEASON ' + op.season) : null));
-    d.append($('div', { class: 'op-real' }, op.real + ' · ' + op.role));
-    d.append($('div', { class: 'op-stats' }, $('span', {}, 'ARMOR ', pips(op.armor, 3)), $('span', {}, 'SPEED ', pips(op.speed, 3))));
+    d.append($('div', { class: 'op-head', style: { '--uc': u.color } }, MENU.bust(op, 96), $('div', {},
+      $('div', { class: 'op-title' }, $('b', {}, op.name), $('span', { class: 'unit', style: { background: u.color } }, u.name), op.season ? $('span', { class: 'season' }, 'SEASON ' + op.season) : null),
+      $('div', { class: 'op-real' }, op.real + ' · ' + op.role),
+      $('div', { class: 'op-stats' }, $('span', {}, 'ARMOR ', pips(op.armor, 3)), $('span', {}, 'SPEED ', pips(op.speed, 3))))));
     d.append($('div', { class: 'op-ab' }, $('kbd', {}, KEYS.name('ability')), $('b', {}, op.ability.name), $('p', {}, op.ability.desc)));
     d.append($('p', { class: 'op-bio' }, op.bio));
     if (lo) {
@@ -222,8 +301,8 @@
         $('div', { class: 'os-info' }, $('b', {}, (M.arcade ? '' : 'ROUND ' + (cfg.round + 1) + ' · ') + cfg.map.name + (GAME.ranked ? ' · RANKED' : '')), $('span', {}, modeTxt)),
         $('div', { class: 'os-score' }, M.arcade ? '' : cfg.score[0] + ' – ' + cfg.score[1])));
       const grid = $('div', { class: 'os-grid' });
-      for (const o of ops) grid.append($('div', { class: 'os-op' + (o === sel ? ' sel' : '') + (banned(o) ? ' ban off' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { if (banned(o)) return; sel = o; lo = Object.assign({ primary: o.primaries[0], secondary: o.secondaries[0], gadget: o.gadgets[0] }, U.store.get('lo_' + o.id, {})); SFX.ui(); render(); } },
-        $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null, banned(o) ? $('em', {}, 'BANNED') : null));
+      for (const o of ops) grid.append($('div', { class: 'os-op wb' + (o === sel ? ' sel' : '') + (banned(o) ? ' ban off' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { if (banned(o)) return; sel = o; lo = Object.assign({ primary: o.primaries[0], secondary: o.secondaries[0], gadget: o.gadgets[0] }, U.store.get('lo_' + o.id, {})); SFX.ui(); render(); } },
+        MENU.bust(o, 56), $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null, banned(o) ? $('em', {}, 'BANNED') : null));
       const prev = $('div', { class: 'os-prev' });
       const right = $('div', { class: 'os-right' }, opDetail(sel, lo, render));
       // every player picks their own spawn: attackers one of the map's outdoor spawns,
@@ -269,10 +348,10 @@
       for (const side of ['atk', 'def']) {
         body.append($('div', { class: 'ban-col ' + side }, $('h3', {}, side === 'atk' ? 'ATTACKERS' : 'DEFENDERS'),
           $('div', { class: 'os-grid wide' }, ...OPS.filter(o => o.side === side).map(o => $('div', {
-            class: 'os-op' + (pick[side] === o.id ? ' ban' : '') + (can ? '' : ' off'), style: { '--uc': UNITS[o.unit].color },
+            class: 'os-op wb row' + (pick[side] === o.id ? ' ban' : '') + (can ? '' : ' off'), style: { '--uc': UNITS[o.unit].color },
             title: o.ability ? o.ability.name + ': ' + o.ability.desc : o.role,
             onclick: () => { if (!can) return; pick[side] = pick[side] === o.id ? null : o.id; SFX.ui(); render(); },
-          }, $('b', {}, o.name), $('span', {}, o.role), o.season ? $('i', {}, 'S' + o.season) : null, pick[side] === o.id ? $('em', {}, 'BAN') : null)))));
+          }, MENU.bust(o, 44), $('b', {}, o.name), $('span', {}, o.role), o.season ? $('i', {}, 'S' + o.season) : null, pick[side] === o.id ? $('em', {}, 'BAN') : null)))));
       }
       wrap.append(body);
       const n = (pick.atk ? 1 : 0) + (pick.def ? 1 : 0);
@@ -296,7 +375,7 @@
     G.mode = 'select'; HUD.show(false);
     const wrap = $('div', { class: 'opsel bans' });
     const row = (label, ids) => $('div', { class: 'ban-row' }, $('h3', {}, label),
-      $('div', { class: 'ban-list' }, ...((ids || []).length ? ids.map(id => { const o = DATA.OPMAP[id]; return $('div', { class: 'os-op ban off', style: { '--uc': UNITS[o.unit].color } }, $('b', {}, o.name), $('span', {}, o.side === 'atk' ? 'ATTACKER' : 'DEFENDER'), $('em', {}, 'BANNED')); }) : [$('p', { class: 'ban-wait' }, 'No bans')])));
+      $('div', { class: 'ban-list' }, ...((ids || []).length ? ids.map(id => { const o = DATA.OPMAP[id]; return $('div', { class: 'os-op wb row ban off', style: { '--uc': UNITS[o.unit].color } }, MENU.bust(o, 44), $('b', {}, o.name), $('span', {}, o.side === 'atk' ? 'ATTACKER' : 'DEFENDER'), $('em', {}, 'BANNED')); }) : [$('p', { class: 'ban-wait' }, 'No bans')])));
     wrap.append($('div', { class: 'os-top' }, $('div', { class: 'os-side' }, 'BANNED'),
       $('div', { class: 'os-info' }, $('b', {}, 'Out for the whole match'), $('span', {}, 'Both teams, attack and defense')), $('div', { class: 'os-score' }, '')));
     wrap.append($('div', { class: 'ban-reveal' }, row('YOUR TEAM BANNED', cfg.teams[cfg.my]), row('THE OTHER TEAM BANNED', cfg.teams[1 - cfg.my])));
@@ -314,7 +393,7 @@
       const list = $('div', { class: 'g-list' });
       for (const side of ['atk', 'def']) {
         list.append($('h3', {}, side === 'atk' ? 'ATTACKERS' : 'DEFENDERS'));
-        list.append($('div', { class: 'os-grid' }, ...OPS.filter(o => o.side === side).map(o => $('div', { class: 'os-op' + (o === sel ? ' sel' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { sel = o; SFX.ui(); render(); } }, $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null))));
+        list.append($('div', { class: 'os-grid' }, ...OPS.filter(o => o.side === side).map(o => $('div', { class: 'os-op wb' + (o === sel ? ' sel' : ''), style: { '--uc': UNITS[o.unit].color }, onclick: () => { sel = o; SFX.ui(); render(); } }, MENU.bust(o, 56), $('b', {}, o.name), $('span', {}, UNITS[o.unit].name), o.season ? $('i', {}, 'S' + o.season) : null))));
       }
       const u = UNITS[sel.unit];
       const prev = $('div', { class: 'os-prev' });
@@ -486,7 +565,7 @@
       wrap.innerHTML = '';
       wrap.append($('h2', {}, 'SHOOTING RANGE'), $('div', { class: 'sub' }, 'Pick any operator. Targets at 5–50 m, a breach house with soft, reinforced and barricaded surfaces, and a drone course. Press B in the range to come back here.'));
       wrap.append($('div', { class: 'seg' }, ...['atk', 'def'].map(s => $('button', { class: side === s ? 'on' : '', onclick: () => { side = s; render(); } }, s === 'atk' ? 'ATTACKERS' : 'DEFENDERS'))));
-      wrap.append($('div', { class: 'os-grid wide' }, ...OPS.filter(o => o.side === side).map(o => $('div', { class: 'os-op', style: { '--uc': UNITS[o.unit].color }, onclick: () => { SFX.ui(); if (inRange) { MENU.hide(); G.paused = false; RANGE.setOp(o.id); PLAYER.lock(); } else RANGE.start(o.id); } }, $('b', {}, o.name), $('span', {}, o.role)))));
+      wrap.append($('div', { class: 'os-grid wide' }, ...OPS.filter(o => o.side === side).map(o => $('div', { class: 'os-op wb row', style: { '--uc': UNITS[o.unit].color }, onclick: () => { SFX.ui(); if (inRange) { MENU.hide(); G.paused = false; RANGE.setOp(o.id); PLAYER.lock(); } else RANGE.start(o.id); } }, MENU.bust(o, 44), $('b', {}, o.name), $('span', {}, o.role)))));
       wrap.append($('div', { class: 'actions' }, inRange ? btn('RESUME', () => { MENU.hide(); G.paused = false; PLAYER.lock(); }) : back(MENU.title)));
     };
     render(); show(wrap, inRange);
