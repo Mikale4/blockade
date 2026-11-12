@@ -455,7 +455,7 @@
       box.append($('p', {}, A.installed ? 'You are playing the installed app.'
         : A.evt ? 'An icon on your desktop or home screen, full screen, and matches against bots work offline once it has loaded.'
           : A.ios ? 'On an iPhone or iPad: tap Share (the square with the arrow) in Safari, then Add to Home Screen. It opens full screen from its icon.'
-            : 'Your browser can install it as an app: in Chrome or Edge, use the install icon at the right of the address bar, or the menu: Install BLOCKADE. On a phone, use the browser menu: Add to Home Screen.'));
+            : 'No install offer from this browser yet. In Chrome or Edge it shows up a few seconds after the page loads: use the install icon at the right of the address bar, or the ⋮ menu > Cast, save and share > Install page as app. It is not offered in an Incognito or Guest window, or if BLOCKADE is already installed (then the address bar shows Open in app). On a phone, use the browser menu: Add to Home Screen.'));
     };
     draw();
     // the offer can arrive while Settings is open: show the button then

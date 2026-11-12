@@ -15,6 +15,9 @@
      Edge offer it, and Settings has the button (menu.js); on an iPhone or iPad it is Share,
      then Add to Home Screen. The offer can come before the game's scripts are in, so it is
      caught here.
+     The manifest has no "id" on purpose: a relative id is resolved against the site's origin,
+     not the game's folder, so "./index.html" gave this game the same identity as every other
+     game on the same site, and Chrome treated it as already installed.
      Only the live site installs. A copy served from this computer (the dev server) has no
      manifest and no offline copy: an app installed from it would only run while that server
      is open, and every edit has to show up there at once anyway. (?sw=1 turns both on there,

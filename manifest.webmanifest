@@ -2,7 +2,6 @@
   "name": "BLOCKADE: Tactical Voxel Breach",
   "short_name": "BLOCKADE",
   "description": "An original 5v5 voxel tactical shooter: breach, reinforce, drone and defend across 17 maps, against bots or online with friends.",
-  "id": "./index.html",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
