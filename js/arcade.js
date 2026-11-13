@@ -91,9 +91,15 @@
   /* a bot's job with nobody in sight: go where an enemy was last seen or heard, otherwise
      roam the map, drifting toward where the fighting is */
   ARC.goal = function (a) {
-    const b = a.bot;
-    if (b.lastSeen && G.time - b.lastSeenT < 10 && U.dist3(a.pos, b.lastSeen) > 2) return { pos: b.lastSeen, r: 1.2, kind: 'hunt', sprint: U.dist3(a.pos, b.lastSeen) > 12 };
-    if (!b.roamGoal || G.time > (b.roamT || 0) || U.dist2(a.pos, b.roamGoal) < 1.5) {
+    const b = a.bot, t = AI.TR(a);
+    // the aggressive chase every sighting across the map; patient players only close ones, and
+    // otherwise sit on a doorway for a while (see below)
+    const chase = b.lastSeen && G.time - b.lastSeenT < 10 && U.dist3(a.pos, b.lastSeen) > 2 && (b.ag > 0.45 || U.dist3(a.pos, b.lastSeen) < 6 + t.aggr * 10);
+    if (chase) return { pos: b.lastSeen, r: 1.2, kind: 'hunt', sprint: U.dist3(a.pos, b.lastSeen) > 12 && t.stealth < 0.7 };
+    const there = b.roamGoal && U.dist2(a.pos, b.roamGoal) < 1.5;
+    if (there && !b.roamArr) b.roamArr = G.time; else if (!there) b.roamArr = 0;
+    if (!b.roamGoal || G.time > (b.roamT || 0) || (there && G.time - b.roamArr > t.patience * 9 * (1 - b.ag * 0.6))) {
+      b.roamArr = 0;
       // toward a random enemy's rough area (gunfire carries), or anywhere on the map
       const foes = G.actors.filter(t => t.team !== a.team && t.state === 'alive' && !t.hostage);
       let p = null;
@@ -102,9 +108,16 @@
         const n = NAV.nearest(j, 6); if (n >= 0) p = NAV.nodePos(n);
       }
       if (!p && ARC.spots.length) p = U.pick(ARC.spots).clone();
-      b.roamGoal = p; b.roamT = G.time + 12 + Math.random() * 10; b.roamRun = Math.random() < 0.7;
+      b.roamGoal = p; b.roamT = G.time + 12 + Math.random() * 10 + t.patience * 14; b.roamRun = Math.random() < 0.9 - t.stealth * 0.7;
+      // once there, watch one of the room's ways in (from cover, for those who like it)
+      const r = p && G.map.roomAt(p), ops = r ? AI.roomOpenings(r) : [];
+      b.roamLook = null; b.roamLean = 0;
+      if (ops.length) {
+        const c = GAD.opCenter(U.pick(ops)); b.roamLook = c.setY(c.y + 0.6);
+        if (Math.random() < t.cover * 0.8) { const pk = AI.coverPeek(a, b.roamLook, 1.3, p); if (pk) { b.roamGoal = pk.pos; b.roamLean = pk.side; } }
+      }
     }
-    return b.roamGoal ? { pos: b.roamGoal, r: 1.5, kind: 'roam', sprint: b.roamRun && U.dist3(a.pos, b.roamGoal) > 14 } : null;
+    return b.roamGoal ? { pos: b.roamGoal, r: 1.5, kind: 'roam', sprint: b.roamRun && U.dist3(a.pos, b.roamGoal) > 14, look: b.roamLook, lean: b.roamLean } : null;
   };
 
   window.ARC = ARC;

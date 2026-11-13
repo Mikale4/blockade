@@ -123,14 +123,15 @@
       if (i < 3 && !(d.silent && !mine) && (a !== PLAYER.viewActor() || d.pellets > 1 || Math.random() < 0.5)) FX.tracer(muzzlePos(a), r, mine ? 0xffe8a0 : 0xffb070);
     }
     KC.shot(a, d.id, muzzlePos(a), ends);
-    if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55));
+    // bloom: a gun that kicks less (grips, a brake or a compensator) stays tighter over a burst
+    if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55) * (d.recoilK || 1));
     a.lastShot = G.time; MUSIC.lastShot = G.time;
     const local = a === PLAYER.viewActor();
     SFX.shot(d, e, local);
     GAME.noise(e, d.silent ? 10 : 45, a, 'shot');
     if (!d.silent) GAD.heardShot(a, e);   // Triad's listening posts
     if (local) PLAYER.onFire(d);
-    else NP.quiet(() => FX.flash(muzzlePos(a), 0.4, 0.04));
+    else if (!d.noFlash) NP.quiet(() => FX.flash(muzzlePos(a), d.bigFlash ? 0.6 : 0.4, 0.04));   // (a suppressor or flash hider: no flash)
     if (NP.active && NP.host) NP.push({ k: 'shot', s: a.id, o: [e.x, e.y, e.z].map(v => Math.round(v * 100) / 100), e: [[endP.x, endP.y, endP.z].map(v => Math.round(v * 100) / 100)], w: d.id });
   };
   /* a guest's own shot: drawn here at once, traced and judged by the host */
@@ -148,7 +149,7 @@
         if (h && i === 0 && h.m !== DATA.OOB) FX.dust(end, h.nx, h.ny, h.nz, h.m);
       }
     }
-    if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55));
+    if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55) * (d.recoilK || 1));
     a.lastShot = G.time; a.cloakT = 0;
     SFX.shot(d, e, true); PLAYER.onFire(d);
     KC.shot(a, d.id, muzzlePos(a), ends);

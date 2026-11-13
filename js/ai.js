@@ -1,6 +1,20 @@
 /* ai.js -- bot brains. Each bot perceives (sight, hearing, team intel), picks a
    job from its team plan (defend a site, push an objective, plant, defuse,
-   escort, revive) and fights with difficulty-scaled reaction and aim.       */
+   escort, revive) and fights with difficulty-scaled reaction and aim.
+
+   Every bot is also a PLAYER with a playstyle (persona.js). Its traits decide
+   how it fights (peek from cover and lean, swing wide, hold, push, back off and
+   come again from another angle), where it goes (straight at the site, room by
+   room, round the side, up on a long sightline, behind a teammate to trade,
+   alone and quiet far from everyone), what it does with what it hears, and
+   when it gives a position up. The situation still decides in the end: a
+   flanker defends when the objective needs it, an entry fragger backs off when
+   it is hurt and alone.
+
+   One update per frame: decide() picks what to do (it may ask for a lean or
+   name what it is watching, b.focus), then leanCtl() turns that into a lean.
+   The expensive looks (line-of-sight fans for cover and leaning) run a few
+   times a second, never every frame.                                         */
 (function () {
   'use strict';
   const { M, MAT, DIFFS } = DATA;
@@ -9,15 +23,137 @@
   const D2R = Math.PI / 180;
 
   AI.attach = function (a) {
+    PERSONA.forBot(a);
     a.bot = {
       state: 'idle', path: null, pi: 0, goal: null, repathT: 0, goalKind: '', hold: null, holdLook: null,
       target: null, seenT: 0, reactT: 0, lastSeen: null, lastSeenT: -99, think: Math.random() * 0.2,
       errY: 0, errP: 0, strafeT: 0, strafeDir: 1, burst: 0, burstPause: 0, stuckT: 0, lastPos: V(), meleeT: 0,
       tasks: [], task: null, taskT: 0, heard: null, extraSpread: 0, wantHead: false, role: 'entry', util: 0, scanT: 0,
       crouchT: 0, alert: 0, entT: 0, entTarget: null,
+      // playstyle state: mood (aggression after the situation), the fight posture, leaning
+      ag: a.persona.t.aggr, morale: 0, kills0: 0, mateDown0: 0, visN: 0, threats: [], contact: null, fight: null,
+      focus: null, leanReq: null, leanCur: 0, leanHold: 0, leanNext: 0, attn: null, stats: { lean: 0, peeks: 0, retreats: 0, relocs: 0, slices: 0, walk: 0 },
     };
   };
   const diff = () => DIFFS[G.settings.difficulty] || DIFFS[1];
+  /* the bot's playstyle: traits, variation flags */
+  const TR = a => (a.persona || PERSONA.forBot(a)).t;
+  const FL = a => (a.persona || PERSONA.forBot(a)).f;
+  const PID = a => (a.persona || PERSONA.forBot(a)).id;
+  AI.TR = TR;
+
+  /* ------------------------------------------------------- leaning & cover */
+  const LEAN = 0.38;   // how far a lean moves the eye (actor.js)
+  const eyeAt = (p, h, out) => (out || V()).set(p.x, p.y + h, p.z);
+  /* the eye a lean to side s would put at standing spot p, facing point P */
+  function leanEye(p, h, P, s, out) {
+    const dx = P.x - p.x, dz = P.z - p.z, L = Math.hypot(dx, dz) || 1;
+    return (out || V()).set(p.x - dz / L * LEAN * s, p.y + h - 0.08, p.z + dx / L * LEAN * s);
+  }
+  const headRoom = e => !G.world.boxHits(e.x - 0.12, e.y - 0.12, e.z - 0.12, e.x + 0.12, e.y + 0.12, e.z + 0.12);
+  /* other enemies this bot knows about (seen in the last few seconds), apart from near `but` */
+  function otherThreats(a, but) {
+    const b = a.bot; return b.threats.filter(t => G.time - t.t < 5 && (!but || U.dist3(t.p, but) > 2.5));
+  }
+  /* which way to lean to see P that the bot can't see standing straight: -1, 1, or 0 (none
+     needed, or none works). A lean that would show it to another enemy it knows about is
+     no good: one corner at a time */
+  function sideFor(a, P) {
+    const h = a.eyeH, e0 = eyeAt(a.pos, h);
+    if (G.world.los(e0, P)) return 0;
+    const b = a.bot, others = otherThreats(a, P);
+    const order = b.leanCur ? [b.leanCur, -b.leanCur] : (Math.random() < 0.5 ? [-1, 1] : [1, -1]);
+    for (const s of order) {
+      const e = leanEye(a.pos, h, P, s);
+      if (!headRoom(e) || !G.world.los(e, P)) continue;
+      if (others.some(t => G.world.los(e, t.p) && !G.world.los(e0, t.p))) continue;
+      return s;
+    }
+    return 0;
+  }
+  /* a spot within R of `from` where the body is hidden from P (chest and hips) and a lean
+     clears the edge: hold an angle, or trade shots, with only a head and shoulder showing */
+  function coverPeek(a, P, R, from) {
+    const o = from || a.pos, dx = P.x - o.x, dz = P.z - o.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, rx = -uz, rz = ux;
+    const h = a.stance === 1 ? a.eyeH : 1.6, c = V(), chest = V(), hip = V(), e = V();
+    let best = null, bs = -1e9;
+    for (const off of [0, -0.35, 0.35, -0.7, 0.7, -1.1, 1.1, -1.5, 1.5]) {
+      if (Math.abs(off) > R) continue;
+      for (const back of [0, 0.5]) {
+        c.set(o.x + rx * off - ux * back, o.y, o.z + rz * off - uz * back);
+        const n = NAV.nearest(c, 1); if (n < 0) continue;
+        const q = NAV.nodePos(n);
+        if (Math.abs(q.y - o.y) > 0.6 || U.dist2(q, c) > 0.55) continue;
+        if (G.world.los(P, chest.set(q.x, q.y + 1.1, q.z)) || G.world.los(P, hip.set(q.x, q.y + 0.7, q.z))) continue;
+        for (const s of [-1, 1]) {
+          leanEye(q, h, P, s, e);
+          if (!headRoom(e) || !G.world.los(e, P)) continue;
+          const sc = -U.dist2(q, o) - back * 0.4 + Math.random() * 0.25;
+          if (sc > bs) { bs = sc; best = { pos: q, side: s, P: P.clone() }; }
+        }
+      }
+    }
+    return best;
+  }
+  AI.coverPeek = coverPeek;
+  /* a spot within R that P can't see at all (to back off to): nearest first, away from P */
+  function hideFrom(a, P, R) {
+    const o = a.pos, c = V(), chest = V(), head = V();
+    let best = null, bs = -1e9;
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2 + Math.random() * 0.3, r = 1.5 + (i % 3) * (R - 1.5) / 2;
+      c.set(o.x + Math.cos(ang) * r, o.y, o.z + Math.sin(ang) * r);
+      const n = NAV.nearest(c, 1); if (n < 0) continue;
+      const q = NAV.nodePos(n);
+      if (Math.abs(q.y - o.y) > 1.3) continue;
+      if (G.world.los(P, chest.set(q.x, q.y + 1.1, q.z)) || G.world.los(P, head.set(q.x, q.y + 1.6, q.z))) continue;
+      const sc = -U.dist2(q, o) * 0.8 + U.dist2(q, P) * 0.3 + Math.random();
+      if (sc > bs) { bs = sc; best = q; }
+    }
+    return best;
+  }
+  /* the lean itself: asked for outright (a peek, a held angle), or worked out from what the bot
+     is watching. A lean is held a moment once chosen (no twitching between sides), and never
+     while running, prone, on a rope, behind a shield or carrying the hostage */
+  function leanCtl(a, dt) {
+    const b = a.bot;
+    const can = !a.sprint && a.stance !== 2 && !a.rappel && !a.vault && !a.shieldOp && !(a.carry && a.carry.hostage) && GAME.phase !== 'prep';
+    if (!can) { b.leanCur = 0; a.leanT = 0; return; }
+    if (b.leanReq != null) { b.leanCur = b.leanReq; b.leanHold = G.time + 0.3; }
+    else if (b.focus && (a.moving || 0) < 2.8) {
+      if (G.time >= b.leanNext) {
+        b.leanNext = G.time + 0.22 + Math.random() * 0.1;
+        // how readily this bot leans at all: careful players do, wide-swinging ones step out instead
+        if (b.focusKey !== b.focusKeyDone) { b.focusKeyDone = b.focusKey; b.leanWilling = Math.random() < 0.2 + TR(a).cover * 0.8; }
+        const s = b.leanWilling ? sideFor(a, b.focus) : 0;
+        if (s !== b.leanCur && (s !== 0 || G.time > b.leanHold)) { if (s) b.stats.peeks++; b.leanCur = s; b.leanHold = G.time + 0.45; }
+      }
+    } else if (G.time > b.leanHold) b.leanCur = 0;
+    a.leanT = b.leanCur;
+    if (b.leanCur) b.stats.lean += dt;
+  }
+  AI.leanCtl = leanCtl;
+  /* what this bot is watching right now (the lean controller looks there) */
+  const watch = (a, p, key) => { const b = a.bot; b.focus = p; b.focusKey = key || ((p.x * 2 | 0) + ':' + (p.z * 2 | 0)); };
+
+  /* how the bot feels about the fight right now: its aggression moved by the numbers, its
+     health, the clock and how the round has gone for it (kills lift it, teammates going down
+     around it drop it). Re-read a few times a second */
+  function mood(a) {
+    const b = a.bot, t = TR(a), S = situation(a.team);
+    if (a.kills > b.kills0) { b.morale = Math.min(1, b.morale + 0.4 * (a.kills - b.kills0)); b.kills0 = a.kills; }
+    const down = G.actors.filter(x => x.team === a.team && x !== a && !x.hostage && x.state !== 'alive' && U.dist3(x.pos, a.pos) < 18).length;
+    if (down > b.mateDown0) b.morale = Math.max(-1, b.morale - 0.3 * (down - b.mateDown0) * (1.2 - t.conf));
+    b.mateDown0 = down;
+    b.morale *= 0.995;
+    let ag = t.aggr + U.clamp(S.adv, -3, 3) * 0.07 + b.morale * 0.15 - (1 - a.hp / a.maxHp) * (1 - t.conf) * 0.6;
+    if (S.late && a.side === 'atk') ag += 0.3;
+    if (S.threat && a.side === 'def') ag += 0.25;
+    // a Chameleon reads the round: ahead, it presses; behind, it gets careful
+    if (FL(a).adapt) ag += U.clamp(S.adv, -2, 2) * 0.12;
+    b.ag = U.clamp(ag, 0, 1);
+  }
+  AI.mood = mood;
 
   /* ------------------------------------------------------------- helpers */
   function faceTo(a, p, dt, rate, eyeOverride) {
@@ -69,14 +205,34 @@
     while (Math.hypot(dx, dz) < 0.32 && b.pi < b.path.length - 1) { b.pi++; n = b.path[b.pi]; dx = n.x - a.pos.x; dz = n.z - a.pos.z; }
     if (b.pi === b.path.length - 1 && Math.hypot(dx, dz) < 0.3) { b.pi++; a.mf = a.mr = 0; return true; }
     let speed = 1;
+    const tr = TR(a);
     // clear the room: stepping into a new one in the action phase, sweep its corners and other
-    // doorways at head height, a little slower, instead of staring down the route
+    // doorways at head height, a little slower, instead of staring down the route. A careful
+    // player sweeps all of it; a fast one checks the obvious corners, or none
     const fight = GAME.phase === 'action' && !a.sprint;
     const room = G.map.roomAt(a.pos);
-    if (room !== b.room) { b.room = room; b.clear = fight && room ? clearLooks(a, room, dx, dz) : null; b.clearT = 0; }
+    if (room !== b.room) {
+      b.room = room; b.clearT = 0;
+      if (room) markCleared(a, room);
+      b.clear = fight && room && Math.random() < 0.35 + tr.caution * 0.65 ? clearLooks(a, room, dx, dz).slice(0, tr.caution > 0.6 ? 4 : 2) : null;
+    }
+    // slicing the doorway: about to step into a room nobody on the team has checked, a careful
+    // player stops at the threshold and leans round it, a corner at a time, before going in
+    if (fight && lookAhead !== false && !b.slice && G.time > (b.sliceCd || 0)) checkSlice(a, room);
+    if (b.slice) {
+      if (G.time > b.slice.until || !b.slice.pts.length || b.target) { b.slice = null; b.sliceCd = G.time + 4; }
+      else {
+        const p = b.slice.pts[0]; faceTo(a, p, dt, 9); watch(a, p, 'slice' + b.slice.pts.length);
+        if ((b.slice.t += dt) > 0.55) { b.slice.pts.shift(); b.slice.t = 0; }
+        a.mf = a.mr = 0; return false;
+      }
+    }
     if (fight && b.clear && b.clear.length && lookAhead !== false) {
-      faceTo(a, b.clear[0], dt, 10); speed = 0.65;
-      if ((b.clearT += dt) > 0.32) { b.clear.shift(); b.clearT = 0; }
+      faceTo(a, b.clear[0], dt, 10); watch(a, b.clear[0]); speed = 0.55 + 0.35 * (1 - tr.caution);
+      if ((b.clearT += dt) > 0.22 + tr.caution * 0.2) { b.clear.shift(); b.clearT = 0; }
+    } else if (b.attn && G.time < b.attn.until && lookAhead !== false) {
+      // heard something: keep walking, gun on where it came from
+      faceTo(a, b.attn.p, dt, 7); watch(a, b.attn.p); speed = 0.75;
     } else if (lookAhead !== false) { const la = b.path[Math.min(b.path.length - 1, b.pi + 2)]; faceTo(a, V().set(la.x, a.pos.y + a.eyeH - 0.05, la.z), dt, 6); }
     // spacing: ease off rather than walk up a teammate's back, so a team moves as a spread-out
     // group (and one grenade or one spray can't catch them all) instead of a conga line
@@ -97,6 +253,41 @@
       else if (b.stuckT > 2) { b.path = null; b.goal = null; b.stuckT = 0; a.mr = Math.random() < 0.5 ? 1 : -1; }
     }
     return false;
+  }
+  /* the team has walked through this room (careful players don't re-slice it for a while) */
+  function markCleared(a, room) { const p = AI.teams[a.team]; if (p) (p.cleared || (p.cleared = new Map())).set(room, G.time); }
+  function checkSlice(a, room) {
+    const b = a.bot, tr = TR(a);
+    if (!(FL(a).slice || tr.caution > 0.55) || a.carry || b.target || !b.path || urgentFor(a)) return;
+    // the first room ahead on the route that isn't this one (a doorway's own cells are in no room)
+    let ahead = null, nr = null;
+    for (let i = b.pi; i < Math.min(b.path.length, b.pi + 6); i++) {
+      const n = b.path[i]; if (U.dist2(a.pos, n) > 2.6) break;
+      const r = G.map.roomAt(n); if (r && r !== room) { ahead = n; nr = r; break; }
+    }
+    if (!nr) return;
+    const p = AI.teams[a.team], cl = p && p.cleared && p.cleared.get(nr);
+    if (cl && G.time - cl < 25) return;
+    b.sliceCd = G.time + 3;
+    if (Math.random() > 0.35 + tr.caution * 0.65) return;
+    const pts = clearLooks(a, nr, ahead.x - a.pos.x, ahead.z - a.pos.z); if (!pts.length) return;
+    b.slice = { pts, t: 0, until: G.time + 0.8 + tr.caution * 1.4 };
+    b.stats.slices++;
+  }
+  /* footsteps: walk (near silent, half pace) when it pays to be quiet. Lurkers and quiet
+     roamers nearly always; careful players close to the enemy; never in a hurry */
+  function wantWalk(a) {
+    const b = a.bot, tr = TR(a);
+    if (G.time < (b.walkT || 0)) return b.walkOn;
+    b.walkT = G.time + 1.2 + Math.random();
+    const S = situation(a.team), plan = AI.teams[a.team] || {};
+    let on = false;
+    if (GAME.phase === 'action' && !b.target && !a.carry && !urgentFor(a) && !S.late) {
+      const near = (S.known && G.time - S.kt < 10 && U.dist3(S.known, a.pos) < 14) || (a.side === 'atk' && plan.objCenter && U.dist3(a.pos, plan.objCenter) < 13);
+      on = (tr.stealth > 0.75 && (near || PID(a) === 'lurker' || b.role === 'roam')) || (near && Math.random() < tr.stealth * 0.8);
+    }
+    b.walkOn = on; if (on) b.stats.walk++;
+    return on;
   }
   /* smash barricades / soft clutter in the body-sized box ahead */
   function breakThrough(a, f) {
@@ -124,7 +315,9 @@
     if (d > 70) return null;
     const f = a.fwd(V()), to = c.clone().sub(e).normalize();
     const dot = to.dot(f);
-    if (dot < 0.25 && d > 3.5) return null;
+    // a laser on someone's gun (not aiming) shows from well off to the side
+    const beam = t.isActor && t.wpn && t.wpn.def.laser && t.ads < 0.5 && d < 30;
+    if (dot < (beam ? -0.2 : 0.25) && d > 3.5) return null;
     if (a.blind > 0.4 && a.blindK > 0.4) return null;
     if (!G.world.los(e, c)) {
       if (tp) return null;
@@ -138,9 +331,10 @@
   }
   function perceive(a) {
     const b = a.bot, e = a.eye(V());
-    let best = null, bd = 1e9, bp = null;
+    let best = null, bd = 1e9, bp = null, vis = 0;
     const prep = GAME.phase === 'prep' && G.mode === 'match';
     const hurt = G.time - (b.hurtT || -99) < 2.5;
+    const tr = TR(a), vulture = FL(a).vulture || PID(a) === 'opportunist';
     for (const t of G.actors) {
       if (t.team === a.team || t.state === 'dead' || t.hostage || t.dummy) continue;
       if (prep && t.side === 'atk') continue;   // attackers are droning, not on the field
@@ -149,13 +343,23 @@
       const p = canSee(a, t, e); if (!p) continue;
       let d = U.dist3(e, p);
       if (d > 7 && GAME.dark(a.team)) continue;                   // blackout: a few metres of sight
+      vis++;
+      // every enemy in sight is remembered a few seconds (what a lean must not show us to)
+      const th = b.threats.find(x => x.a === t); if (th) { th.p.copy(p); th.t = G.time; } else b.threats.push({ a: t, p: p.clone(), t: G.time });
       // a target we've already poured shots into for nothing (behind a shield or cover the
       // bullets can't get through) is left alone for a while, unless it's close or hurting us
       if (b.futile && b.futile.get(t) > G.time && d > 6 && !hurt) continue;
       if (t === b.target) d *= 0.6;
       if (t.state === 'dbno') d *= 1.8;
+      // who to shoot first: the careful deal with whoever is looking at them; an opportunist
+      // goes for the hurt and the distracted (looking at someone else)
+      const toMe = U.v1.copy(e).sub(t.pos).normalize(), facing = t.fwd(U.v2).dot(toMe) > 0.6;
+      if (facing) d *= 1 - tr.caution * 0.25;
+      if (vulture) { if (t.hp < t.maxHp * 0.5) d *= 0.55; if (!facing) d *= 0.7; }
       if (d < bd) { bd = d; best = t; bp = p; }
     }
+    b.visN = vis;
+    if (b.threats.length > 6 || (b.threats.length && G.time - b.threats[0].t > 8)) b.threats = b.threats.filter(x => G.time - x.t < 8 && x.a.state !== 'dead').slice(-6);
     // drones are targets for defenders
     if (!best && a.side === 'def') for (const t of G.ents) {
       if (!t.alive || t.type !== 'drone' || t.team === a.team) continue;
@@ -165,14 +369,26 @@
     if (best) {
       if (best !== b.target) {
         const d = diff();
-        b.reactT = d.react * U.rnd(0.75, 1.3) * (b.alert > 0 ? 0.65 : 1) * (best.isActor ? 1 : 1.4);
-        b.errY = U.rnd(-1, 1) * d.aimErr * 2.2 * D2R; b.errP = U.rnd(-1, 1) * d.aimErr * 1.4 * D2R;
-        b.wantHead = Math.random() < d.head;
+        // positioning beats reflexes: someone who was already aiming at that spot (holding the
+        // angle, pre-aiming a sound) is much quicker on it than someone caught walking; a bot
+        // that is moving fast, or leaning out blind, is slower
+        const to = U.v1.copy(bp).sub(e).normalize(), aimed = a.fwd(U.v2).dot(to);
+        const pre = aimed > 0.985 ? 0.55 : aimed > 0.94 ? 0.75 : 1;
+        const moving = (a.moving || 0) > 3 ? 1.15 : 1;
+        b.reactT = d.react * U.rnd(0.75, 1.3) * tr.react * pre * moving * (b.alert > 0 ? 0.7 : 1) * (best.isActor ? 1 : 1.4);
+        const steady = 1.1 - tr.aware * 0.2;
+        b.errY = U.rnd(-1, 1) * d.aimErr * 2.2 * D2R * steady; b.errP = U.rnd(-1, 1) * d.aimErr * 1.4 * D2R * steady;
+        b.wantHead = Math.random() < d.head * (0.8 + tr.aware * 0.4);
         b.target = best; b.burst = 0;
       }
       b.lastSeen = (best.pos || bp).clone(); b.lastSeenT = G.time; b.seenP = bp; b.alert = 6;
       if (best.isActor && G.time > (b.calloutT || 0)) { b.calloutT = G.time + 1.5; GAME.intel(best, a.team, 20); }
-    } else if (b.target && (G.time - b.lastSeenT > 0.4)) { b.target = null; }
+    } else if (b.target && (G.time - b.lastSeenT > 0.4)) {
+      // contact broken: what now depends on who this is (contact() carries it on)
+      if (b.target.isActor && b.target.state !== 'dead') startContact(a, b.target, b.lastSeen);
+      else if (b.target.isActor) afterKill(a);
+      b.target = null;
+    }
     // enemy gadgets worth shooting
     b.entTarget = null;
     if (!best && a.wpn && a.side === 'atk' || !best && a.side === 'def') {
@@ -198,15 +414,34 @@
     if (b.target) return;
     const start = b.heard && G.time - b.heard.t < 3 ? b.heard.start : G.time;
     b.heard = { pos: pos.clone(), t: G.time, type, fake, start };
+    // the gun goes to where it came from: an aware player turns for footsteps too
+    const tr = TR(a);
+    if (U.dist3(pos, a.pos) < 25 && (type !== 'step' || Math.random() < 0.25 + tr.aware * 0.75)) b.attn = { p: pos.clone().setY(pos.y + 1.3), until: G.time + 1.2 + tr.aware * 2.5 };
   };
-  /* should this bot walk over to a sound? */
+  /* should this bot walk over to a sound? The aggressive go to gunfire from further off, and
+     the most aggressive to footsteps too; a defender only leaves its post for it if it roams */
   function chases(a, h) {
-    const b = a.bot;
+    const b = a.bot, f = FL(a);
     if (G.time < (b.deafUntil || 0)) return false;
     if (a.carry) return false;
     if (G.time - h.start > 9) { b.deafUntil = G.time + 6; b.heard = null; return false; }
-    if (a.side === 'def') return b.role === 'roam';
-    return (h.type === 'shot' || h.type === 'explosion') && U.dist3(h.pos, a.pos) < 22;
+    const d = U.dist3(h.pos, a.pos), loud = h.type === 'shot' || h.type === 'explosion';
+    if (a.side === 'def') return b.role === 'roam' && (b.ag > 0.35 || f.chaseAll) && (loud || b.ag > 0.6) && d < 10 + 25 * b.ag;
+    return (loud || ((f.chaseAll || b.ag > 0.75) && h.type === 'step')) && d < 8 + 22 * b.ag;
+  }
+  /* shot by someone it can't see: turn to it. A held position that has been found is given up
+     by those willing to move */
+  function shotFromNowhere(a) {
+    const b = a.bot, s = a.hurtBy;
+    if (!s || !s.pos || b.target) return;
+    // no muzzle flash (a suppressor or flash hider) and it is much harder to tell where it came from
+    const hid = s.wpn && s.wpn.def.noFlash ? 4.5 : 1.5;
+    const p = s.pos.clone().add(V().set(U.rnd(-hid, hid), 1.3, U.rnd(-hid, hid)));
+    b.attn = { p, until: G.time + 2.5 }; b.alert = 6;
+    b.heard = { pos: s.pos.clone(), t: G.time, type: 'shot', start: G.time };
+    if (b.hold && Math.random() < TR(a).repos + 0.3) { b.hold = null; b.holdRoom = null; b.holdLean = 0; b.goal = null; b.stats.relocs++; }
+    // badly hurt and the shooter unseen: get out of their line first
+    if (a.hp < a.maxHp * 0.5 && !b.contact) startContact(a, s, s.pos.clone(), 'retreat');
   }
 
   /* ------------------------------------------------------------- combat */
@@ -225,12 +460,17 @@
     } else aim = t.pos.clone();
     // error decays toward a residual wobble
     b.errY *= Math.exp(-dt * 1.4); b.errP *= Math.exp(-dt * 1.4);
-    const wob = d.aimErr * 0.35 * D2R;
     const e = a.eye(V());
     const dx = aim.x - e.x, dy = aim.y - e.y, dz = aim.z - e.z, dist = Math.hypot(dx, dy, dz);
-    const yaw = Math.atan2(-dx, -dz) + b.errY + Math.sin(G.time * 3.1 + a.id) * wob;
-    const pitch = Math.atan2(dy, Math.hypot(dx, dz)) + b.errP + Math.sin(G.time * 2.3 + a.id * 2) * wob * 0.6;
-    const k = 1 - Math.exp(-d.track * dt * (a.stun > 0 ? 0.4 : 1));
+    // the sight on the gun: magnification steadies the aim at range, and a scope up close is
+    // slow to track (attachments, attach.js)
+    const zoom = a.wpn ? ATT.zoom(a.wpn.def.sight, a.zoom4) : 1, aiming = a.ads > 0.6;
+    const steadyK = aiming && dist > 12 ? 1 / (1 + (zoom - 1) * 0.35) : 1;
+    const trackK = aiming && dist < 7 && zoom >= 2.4 ? 0.7 : 1;
+    const wob = d.aimErr * 0.35 * D2R * steadyK;
+    const yaw = Math.atan2(-dx, -dz) + b.errY * steadyK + Math.sin(G.time * 3.1 + a.id) * wob;
+    const pitch = Math.atan2(dy, Math.hypot(dx, dz)) + b.errP * steadyK + Math.sin(G.time * 2.3 + a.id * 2) * wob * 0.6;
+    const k = 1 - Math.exp(-d.track * trackK * dt * (a.stun > 0 ? 0.4 : 1));
     a.yaw += U.wrap(yaw - a.yaw) * k; a.pitch += (pitch - a.pitch) * k;
     const off = Math.abs(U.wrap(yaw - a.yaw)) + Math.abs(pitch - a.pitch);
     b.reactT -= dt;
@@ -248,8 +488,10 @@
       if (along > 0 && along < L + 0.5 && to.addScaledVector(seg, -along).length() < spread) fire = false;
     }
     const w = a.wpn;
+    // bursts at range: a gun that kicks less (grips, brake, compensator) holds a longer one
     if (fire && w && w.def.auto && dist > 14) {
-      b.burst += dt; if (b.burst > 0.45) { fire = false; if (b.burst > 0.75) b.burst = 0; }
+      const len = 0.45 / (w.def.recoilK || 1);
+      b.burst += dt; if (b.burst > len) { fire = false; if (b.burst > len + 0.3) b.burst = 0; }
     }
     a.trigger = fire && !(a.ability && a.ability.on);
     if (!w.def.auto && a.trigger && Math.random() < 0.35) a.trigger = false; // tap fire
@@ -265,17 +507,214 @@
       b.target = null; b.engTgt = null; a.trigger = false;
       return;
     }
-    // movement while fighting
-    b.strafeT -= dt;
-    if (b.strafeT <= 0) { b.strafeT = U.rnd(0.35, 1.1); b.strafeDir = Math.random() < 0.5 ? -1 : 1; if (Math.random() < 0.25) b.strafeDir = 0; }
-    const S = situation(a.team);
-    const pushing = a.side === 'atk' && b.role !== 'hold' && (dist > 8 || (dist > 3.5 && (S.late || S.mode === 'hunt')));
-    a.mr = b.strafeDir * (dist < 3 ? 1 : 0.7);
-    a.mf = pushing ? 0.5 : 0;
-    a.sprint = false;
-    if (dist > 12 && a.stance === 0 && Math.random() < dt * 0.4 && !a.shieldOp) a.setStance(1);
-    if (dist < 6 && a.stance === 1 && Math.random() < dt) a.setStance(0);
+    watch(a, aim, 'fight');
+    if (b.shootAt == null || U.dist2(a.pos, b.shootFrom || a.pos) > 2) { b.shootFrom = a.pos.clone(); b.shootAt = G.time; }
+    // ---- how to fight it: re-thought a few times a second, not every frame
+    if (G.time >= (b.cmT || 0)) { b.cmT = G.time + 0.25 + Math.random() * 0.15; combatPlan(a, t, dist); }
+    combatMove(a, t, dist, dt);
     if (w.mag === 0 && w.reserve === 0 && a.w[1]) WPN.swap(a, 1);
+  }
+  /* the fight, by who this is and how it is going.
+       retreat  hurt / alone against two / reloading up close (and not too proud to): back off
+                out of their sight, then come again (contact())
+       peek     there is cover beside us: stand behind it and lean out to shoot, back in to
+                reload or after taking hits (jiggle)
+       push     the aggressive, with the odds: close the distance, wide and fast
+       hold     anchors and marksmen on their spot: still, crouched, let them come
+       duel     no cover, no reason to move: strafe it out */
+  function combatPlan(a, t, dist) {
+    const b = a.bot, tr = TR(a), f = FL(a), w = a.wpn, S = situation(a.team);
+    mood(a);
+    const hpK = a.hp / a.maxHp;
+    const allies = G.actors.filter(x => x !== a && x.team === a.team && x.state === 'alive' && !x.hostage && U.dist3(x.pos, a.pos) < 9).length;
+    const outnumbered = b.visN >= 2 && allies === 0;
+    const tHurt = t.isActor && (t.state === 'dbno' || t.hp < t.maxHp * 0.45);
+    const dry = w.reload > 0 || w.mag <= Math.max(1, w.def.mag * 0.12);
+    const critical = (b.task && b.task.critical) || (a.side === 'def' && S.threat && GAME.obj.defuser && GAME.obj.defuser.alive && U.dist3(a.pos, GAME.obj.defuser.pos) < 12);
+    let fear = (1 - hpK) * 1.3 + (outnumbered ? 0.7 : 0) + (dry && dist < 12 ? 0.6 : 0) + Math.max(0, b.visN - 1) * 0.25 + (a.carry ? 0.35 : 0)
+      - tr.conf * 0.8 - tr.risk * 0.4 - (tHurt ? 0.4 : 0) - allies * 0.15 - b.morale * 0.2;
+    const prev = b.fight && b.fight.t === t ? b.fight : null;
+    let mode = 'duel';
+    if (t.isActor && fear > 0.55 && !critical && dist > 2.5) mode = 'retreat';
+    else {
+      // cover to fight from: looked for now and then, kept while it still works
+      let pk = prev && prev.peek && U.dist3(prev.peek.P, b.seenP || t.pos) < 2.5 ? prev.peek : null;
+      if (!pk && t.isActor && dist > 4.5 && G.time > (b.peekCd || 0) && Math.random() < 0.25 + tr.cover * 0.75) {
+        b.peekCd = G.time + 1.5;
+        pk = coverPeek(a, (b.seenP || t.eye(V())).clone(), 0.6 + tr.cover * 1.0);
+      }
+      const holder = (a.side === 'def' && b.role !== 'roam' && b.hold && U.dist2(a.pos, b.hold) < 2.5) || (PID(a) === 'marksman' && dist > 8) || f.perch;
+      if (pk && (tr.cover > 0.4 || hpK < 0.6)) { mode = 'peek'; b.fpeek = pk; }
+      else if (b.ag > 0.6 && (dist > tr.range * 0.8 || tHurt || f.closeQuarters && dist > 3.5) && !holder) mode = 'push';
+      else if (holder || (tr.patience > 0.75 && b.ag < 0.45)) mode = 'hold';
+    }
+    if (mode === 'retreat' && (!prev || prev.mode !== 'retreat')) {
+      const spot = hideFrom(a, (b.seenP || t.pos).clone(), 7);
+      if (!spot) mode = 'duel'; else { b.retreatTo = spot; b.stats.retreats++; }
+    }
+    if (!prev || prev.mode !== mode) b.fight = { t, mode, since: G.time, peek: mode === 'peek' ? b.fpeek : null, out: true, cyc: G.time + U.rnd(0.6, 1.4) * (0.6 + b.ag) };
+    else if (mode === 'peek') prev.peek = b.fpeek || prev.peek;
+  }
+  function combatMove(a, t, dist, dt) {
+    const b = a.bot, tr = TR(a), F = b.fight || { mode: 'duel' }, w = a.wpn;
+    a.sprint = false; a.mf = a.mr = 0;
+    const toward = (p, k) => { const dx = p.x - a.pos.x, dz = p.z - a.pos.z; steer(a, dx, dz, k); };
+    switch (F.mode) {
+      case 'retreat': {
+        const s = b.retreatTo;
+        if (s && U.dist2(a.pos, s) > 0.35) { toward(s, 1); a.trigger = a.trigger && dist < 6; }
+        else { F.mode = 'duel'; startContact(a, t, (b.seenP || t.pos).clone(), 'retreat'); }
+        if (a.stance !== 0) a.setStance(0);
+        return;
+      }
+      case 'peek': {
+        const pk = F.peek;
+        if (!pk) { F.mode = 'duel'; return; }
+        if (U.dist2(a.pos, pk.pos) > 0.3) { toward(pk.pos, 0.8); return; }
+        // in position: lean out to shoot, back in (body and head hidden) to reload, after
+        // being hit, or for a beat between bursts; a patient player stays in longer
+        const hit = G.time - (b.hurtT || -99) < 0.35;
+        if (F.out && (G.time > F.cyc || w.reload > 0 || hit)) { F.out = false; F.cyc = G.time + U.rnd(0.35, 0.9) * (0.6 + tr.caution); }
+        else if (!F.out && G.time > F.cyc && w.reload <= 0) { F.out = true; F.cyc = G.time + U.rnd(0.6, 1.5) * (0.6 + b.ag); b.stats.peeks++; }
+        b.leanReq = F.out ? pk.side : 0;
+        if (!F.out) a.trigger = false;
+        if (dist > 9 && tr.cover > 0.6 && a.stance === 0 && a.canStand(1.2)) a.setStance(1);
+        return;
+      }
+      case 'push': {
+        b.strafeT -= dt;
+        if (b.strafeT <= 0) { b.strafeT = U.rnd(0.25, 0.7); b.strafeDir = Math.random() < 0.5 ? -1 : 1; }
+        a.mf = dist > 2.5 ? 1 : 0; a.mr = b.strafeDir * 0.8;
+        if (a.stance !== 0) a.setStance(0);
+        // a crouch-spam at close range
+        if (dist < 7 && tr.aggr > 0.7 && Math.random() < dt * 1.5) a.setStance(a.stance ? 0 : 1);
+        return;
+      }
+      case 'hold': {
+        b.strafeT -= dt;
+        if (b.strafeT <= 0) { b.strafeT = U.rnd(0.6, 1.6); b.strafeDir = Math.random() < 0.7 ? 0 : (Math.random() < 0.5 ? -1 : 1); }
+        a.mr = b.strafeDir * 0.4;
+        if (dist > 5 && a.stance === 0) a.setStance(1);
+        // too close for a long-range player: give ground
+        if (dist < tr.range * 0.3 && tr.range > 14) a.mf = -0.7;
+        return;
+      }
+      default: {
+        b.strafeT -= dt;
+        if (b.strafeT <= 0) { b.strafeT = U.rnd(0.35, 1.1); b.strafeDir = Math.random() < 0.5 ? -1 : 1; if (Math.random() < 0.25 + (1 - b.ag) * 0.2) b.strafeDir = 0; }
+        const S = situation(a.team);
+        const pushing = a.side === 'atk' && b.role !== 'hold' && b.ag > 0.3 && (dist > tr.range * 1.2 || (dist > 3.5 && (S.late || S.mode === 'hunt')));
+        a.mr = b.strafeDir * (dist < 3 ? 1 : 0.7);
+        a.mf = pushing ? 0.5 : dist < tr.range * 0.35 && tr.range > 14 ? -0.6 : 0;
+        if (dist > 12 && a.stance === 0 && Math.random() < dt * (0.2 + tr.caution * 0.6) && !a.shieldOp) a.setStance(1);
+        if (dist < 6 && a.stance === 1 && Math.random() < dt) a.setStance(0);
+      }
+    }
+  }
+
+  /* ---------------------------------------------------- after contact breaks */
+  /* the enemy went out of sight. What a player does next is who they are:
+       hold     wait on the angle they went round, leaning to see it, a few seconds
+       peek     go on peeking from the same cover
+       push     follow them round the corner
+       flank    come at that spot from another way
+       retreat  (it was going badly) get out of sight, reload, then hold the way they'd come
+       relocate move somewhere they don't know about, then carry on */
+  function startContact(a, t, pos, force) {
+    const b = a.bot, tr = TR(a), f = FL(a), F = b.fight && b.fight.t === t ? b.fight : null;
+    if (!pos) return;
+    let mode = force;
+    if (!mode) {
+      if (F && F.mode === 'retreat') mode = 'retreat';
+      else if (F && F.mode === 'peek' && F.peek) mode = 'peek';
+      else if (b.ag > 0.7 || (f.chaseAll && b.ag > 0.5)) mode = 'push';
+      else if ((PID(a) === 'flanker' || PID(a) === 'opportunist' || PID(a) === 'lurker') && tr.repos > 0.5 && U.dist3(a.pos, pos) > 6) mode = 'flank';
+      else if (tr.repos > 0.6 && Math.random() < tr.repos * 0.6) mode = 'relocate';
+      else mode = 'hold';
+    }
+    const len = mode === 'push' ? 6 : mode === 'flank' ? 14 : 3 + tr.patience * 7;
+    b.contact = { t, pos: pos.clone(), mode, until: G.time + len, since: G.time, peek: F && F.peek, out: false, cyc: G.time + U.rnd(0.4, 1) };
+    if (mode === 'relocate' || mode === 'flank') b.stats.relocs++;
+  }
+  function afterKill(a) {
+    const b = a.bot, tr = TR(a);
+    b.fight = null;
+    // just fired from here, and they know it: some move on before the next one comes
+    if (Math.random() < tr.repos * 0.8 && G.time - (b.shootAt || 0) > 1) {
+      b.contact = { t: null, pos: b.lastSeen ? b.lastSeen.clone() : a.pos.clone(), mode: 'relocate', until: G.time + 6, since: G.time };
+      b.stats.relocs++;
+      if (b.hold && a.side === 'def') { b.hold = null; b.holdRoom = null; b.holdLean = 0; }
+    }
+  }
+  /* returns true while the contact posture has the bot */
+  function contact(a, dt) {
+    const b = a.bot, c = b.contact;
+    if (!c) return false;
+    if (G.time > c.until || urgentFor(a) || (c.t && c.t.isActor && c.t.state === 'dead')) { b.contact = null; return false; }
+    const tr = TR(a), w = a.wpn;
+    const look = c.pos.clone().setY(c.pos.y + 1.4);
+    if (w && w.mag < w.def.mag * 0.6 && w.reserve > 0 && w.reload <= 0 && c.mode !== 'push') WPN.reload(a);
+    switch (c.mode) {
+      case 'peek': {
+        const pk = c.peek;
+        if (!pk) { c.mode = 'hold'; return true; }
+        if (U.dist2(a.pos, pk.pos) > 0.3) { if (!b.goal || b.goalKind !== 'peek') AI.moveTo(a, pk.pos, 'peek'); follow(a, dt, false); faceTo(a, look, dt, 8); return true; }
+        a.mf = a.mr = 0; faceTo(a, look, dt, 9); watch(a, look, 'cpeek');
+        if (G.time > c.cyc) { c.out = !c.out; c.cyc = G.time + (c.out ? U.rnd(0.8, 1.8) : U.rnd(0.5, 1.2) * (0.6 + tr.caution)); if (c.out) b.stats.peeks++; }
+        b.leanReq = c.out ? pk.side : 0;
+        return true;
+      }
+      case 'hold': {
+        a.mf = a.mr = 0; faceTo(a, look, dt, 8); watch(a, look, 'chold');
+        if (tr.caution > 0.5 && a.stance === 0 && U.dist3(a.pos, c.pos) > 5) a.setStance(1);
+        return true;
+      }
+      case 'retreat': {
+        const s = b.retreatTo;
+        if (s && U.dist2(a.pos, s) > 0.35 && G.time - c.since < 4) {
+          const dx = s.x - a.pos.x, dz = s.z - a.pos.z; faceTo(a, look, dt, 6); steer(a, dx, dz, 1); return true;
+        }
+        // out of sight: patch up, then hold the way they'd come
+        if (a.gadget && a.gadget.id === 'stim' && a.gadget.count > 0 && a.hp < a.maxHp * 0.6 && a.busy <= 0) GAD.secondary(a);
+        a.mf = a.mr = 0; faceTo(a, look, dt, 7); watch(a, look, 'cret');
+        if (a.stance === 0 && a.canStand(1.2)) a.setStance(1);
+        return true;
+      }
+      case 'push': {
+        if (U.dist2(a.pos, c.pos) < 1.2) { b.contact = null; return false; }
+        if (!b.goal || b.goalKind !== 'cpush' || U.dist3(b.goal, c.pos) > 1) AI.moveTo(a, c.pos, 'cpush');
+        if (follow(a, dt)) { b.contact = null; return false; }
+        return true;
+      }
+      case 'flank':
+      case 'relocate': {
+        if (!c.spot) {
+          c.spot = c.mode === 'flank' ? flankSpot(a, c.pos) : hideFrom(a, c.pos.clone().setY(c.pos.y + 1.5), 8);
+          if (!c.spot) { c.mode = 'hold'; return true; }
+          AI.moveTo(a, c.spot, 'reloc', { avoid: avoidNear([c.pos], 5, 3) });
+        }
+        if (follow(a, dt)) { if (c.mode === 'flank') { c.mode = 'hold'; c.until = G.time + 3 + tr.patience * 5; return true; } b.contact = null; return false; }
+        return true;
+      }
+    }
+    return false;
+  }
+  /* somewhere off to the side of p, 5-8 m away, from where it can be seen (an angle they won't
+     be watching) */
+  function flankSpot(a, p) {
+    const dx = p.x - a.pos.x, dz = p.z - a.pos.z, L = Math.hypot(dx, dz) || 1, rx = -dz / L, rz = dx / L, s = Math.random() < 0.5 ? -1 : 1;
+    for (const sg of [s, -s]) for (const k of [6, 4.5, 8]) {
+      const c = V().set(p.x + rx * k * sg - dx / L * 2, p.y, p.z + rz * k * sg - dz / L * 2);
+      const n = NAV.nearest(c, 3); if (n < 0) continue;
+      const q = NAV.nodePos(n); if (Math.abs(q.y - p.y) > 1.5) continue;
+      if (G.world.los(V().set(q.x, q.y + 1.6, q.z), V().set(p.x, p.y + 1.3, p.z))) return q;
+    }
+    return null;
+  }
+  /* a route cost that keeps away from some points (known enemies, teammates' line) */
+  function avoidNear(pts, r, cost) {
+    const P = V();
+    return n => { NAV.nodePos(n, P); let c = 0; for (const p of pts) { const d = U.dist2(P, p); if (d < r) c += cost * (1 - d / r); } return c; };
   }
 
   /* --------------------------------------------------------------- tasks */
@@ -332,18 +771,23 @@
   /* ---------------------------------------------------------- main update */
   AI.update = function (a, dt) {
     const b = a.bot; if (!b || a.dummy) return;
-    a.trigger = false; a.adsWant = false; a.leanT = 0;
-    if (a.state === 'dbno') { a.mf = a.mr = 0; return; }
-    if (a.state !== 'alive') return;
-    if (b.lastHp != null && a.hp < b.lastHp) b.hurtT = G.time;
+    a.trigger = false; a.adsWant = false; a.walk = false;
+    b.focus = null; b.leanReq = null;
+    if (a.state !== 'alive') { a.leanT = 0; b.leanCur = 0; if (a.state === 'dbno') a.mf = a.mr = 0; return; }
+    decide(a, dt);
+    leanCtl(a, dt);
+  };
+  function decide(a, dt) {
+    const b = a.bot;
+    if (b.lastHp != null && a.hp < b.lastHp) { b.hurtT = G.time; if (!b.target) shotFromNowhere(a); }
     b.lastHp = a.hp;
     // a defender caught in irritant haze gets out of it instead of holding the spot
     if (a.side === 'def' && a.hazeT && G.time - a.hazeT < 0.6 && b.hold && U.dist2(a.pos, b.hold) < 4.5) { b.hold = null; b.holdRoom = null; b.goal = null; }
     b.alert = Math.max(0, b.alert - dt);
     b.think -= dt;
-    if (b.think <= 0) { b.think = 0.12 + Math.random() * 0.08; perceive(a); }
+    if (b.think <= 0) { b.think = 0.12 + Math.random() * 0.08; perceive(a); if (Math.random() < 0.3) mood(a); }
     const phase = GAME.phase;
-    if (phase === 'prep' && a.side === 'atk') { a.mf = a.mr = 0; return; }
+    if (phase === 'prep' && a.side === 'atk') { a.mf = a.mr = 0; if (AI.droneThink) AI.droneThink(a, dt); return; }
     if (phase === 'post' || phase === 'end') { a.mf = a.mr = 0; return; }
     // Tusk: head down, straight at the wall, until it gives or the charge runs out
     if (b.ramRun) {
@@ -364,6 +808,7 @@
       if (b.task && b.task.critical && b.taskT > 0) { /* finish planting etc. */ }
       else { engage(a, dt); b.task && (b.task.travel = 0); return; }
     }
+    if (b.fight && (!b.target)) b.fight = null;
     a.sprint = false;
     // shoot gadgets
     if (b.entTarget && b.entTarget.alive) {
@@ -386,21 +831,27 @@
     const w = a.wpn;
     if (w && w.mag < w.def.mag * 0.4 && w.reserve > 0 && w.reload <= 0) WPN.reload(a);
     if (w && w.mag === 0 && w.reserve === 0 && a.cur === 0 && a.w[1]) WPN.swap(a, 1);
-    // revive a downed friend nearby
+    // revive a downed friend nearby: team players go further for it, and a lone wolf won't walk
+    // into a fight for it
     if (!b.task || !b.task.critical) {
-      const down = G.actors.find(t => t.team === a.team && t.state === 'dbno' && !t.hostage && U.dist3(t.pos, a.pos) < 14 && !G.actors.some(o => o !== a && o.bot && o.bot.task && o.bot.task.reviving === t));
+      const tr = TR(a), reach = FL(a).medic ? 30 : 6 + tr.team * 18;
+      const hot = otherThreats(a).length > 0 && tr.team < 0.6;
+      const down = !hot && G.actors.find(t => t.team === a.team && t.state === 'dbno' && !t.hostage && U.dist3(t.pos, a.pos) < reach && !G.actors.some(o => o !== a && o.bot && o.bot.task && o.bot.task.reviving === t));
       if (down && (!b.task || !b.task.reviving)) {
         b.task = { at: down.pos.clone(), r: 0.9, look: down.pos.clone(), time: 5, reviving: down, critical: true, run: () => { if (down.state === 'dbno') down.revive(a); } };
-        b.taskT = 0;
+        b.taskT = 0; b.contact = null;
       }
     }
+    // the fight just went out of sight: hold it, peek it, chase it, or go round
+    if (!(b.task && b.task.critical) && contact(a, dt)) return;
+    a.walk = wantWalk(a);
     if (!b.task) supplyRun(a);   // between jobs, not only once the list is empty
     if (b.task || nextTask(a)) { if (runTask(a, dt)) return; }
     // at the wall under a window entry: vault in, or hook on
     if (b.winStep) { if (windowStep(a, dt)) return; }
     // job from the team plan
     AI.job(a, dt);
-  };
+  }
 
   /* team supplies: every defender collects the +40 overheal from a friendly Med Station once,
      and a hurt attacker walks into a friendly Field Beacon's healing */
@@ -441,12 +892,14 @@
     if (freeze) {
       if (!b.freezeAt) b.freezeAt = G.time;
       if (G.time - b.freezeAt > 4) { b.heard = null; b.freezeAt = 0; b.deafUntil = G.time + 8; }
-      else { faceTo(a, b.heard.pos.clone().setY(a.pos.y + 1.5), dt, 4); a.mf = a.mr = 0; return; }
+      else { const hp = b.heard.pos.clone().setY(b.heard.pos.y + 1.4); faceTo(a, hp, dt, 4); watch(a, hp, 'heard'); a.mf = a.mr = 0; if (b.holdLean && TR(a).cover > 0.4) b.leanReq = b.holdLean; return; }
     } else b.freezeAt = 0;
     // last seen enemy close by: attackers push it, defenders recheck it if roaming. Far-off intel
     // (drone spots, callouts across the map) is just information for the team's picture: sending
-    // everyone who heard it to the same spot is what made whole teams walk in a line
-    if (!urgent && b.lastSeen && G.time - b.lastSeenT < 8 && G.time - b.lastSeenT > 1.2 && !a.carry && (a.side === 'atk' || b.role === 'roam') && U.dist3(a.pos, b.lastSeen) < 15) {
+    // everyone who heard it to the same spot is what made whole teams walk in a line. Only those
+    // with the appetite for it go looking (the rest hold, or wait for it to come to them)
+    const tr = TR(a);
+    if (!urgent && b.lastSeen && G.time - b.lastSeenT < 8 && G.time - b.lastSeenT > 1.2 && !a.carry && ((a.side === 'atk' && b.ag > 0.35) || (b.role === 'roam' && b.ag > 0.3)) && U.dist3(a.pos, b.lastSeen) < 6 + b.ag * 12) {
       if (!b.goal || b.goalKind !== 'last') AI.moveTo(a, b.lastSeen, 'last');
       if (follow(a, dt)) b.lastSeen = null;
       return;
@@ -456,7 +909,7 @@
     if (goal.pos) {
       const close = U.dist2(a.pos, goal.pos) < (goal.r || 0.5) && Math.abs(a.pos.y - goal.pos.y) < 1.2;
       if (!close) {
-        if (!b.goal || U.dist3(b.goal, goal.pos) > 0.6 || b.goalKind !== goal.kind) AI.moveTo(a, goal.pos, goal.kind);
+        if (!b.goal || U.dist3(b.goal, goal.pos) > 0.6 || b.goalKind !== goal.kind) AI.moveTo(a, goal.pos, goal.kind, goal.route);
         b.repathT += dt; if (b.repathT > 5) { b.goal = null; }
         // the route ended short of the goal (it can't be reached from here): choose another spot
         // rather than stand at the end of a partial path until a timer runs out
@@ -477,14 +930,26 @@
           }
         } else b.shortT = 0;
         follow(a, dt);
-        a.sprint = !!goal.sprint && !b.alert;
+        a.sprint = !!goal.sprint && !b.alert && !a.walk;
         if (b.alert > 0 && a.side === 'atk') a.sprint = false;
         return;
       }
       a.mf = a.mr = 0;
-      if (goal.look) faceTo(a, goal.look, dt, 4);
+      // in place. Something heard (or a shot from nowhere) gets the gun first; otherwise the
+      // angle this spot is for
+      const lookAt = b.attn && G.time < b.attn.until ? b.attn.p : goal.look;
+      if (lookAt) { faceTo(a, lookAt, dt, lookAt === goal.look ? 4 : 7); if (GAME.phase === 'action') watch(a, lookAt, lookAt === goal.look ? 'goal' + goal.kind : 'attn'); }
       if (goal.act) goal.act(a, dt);
       if (goal.crouch && a.stance === 0) a.setStance(1);
+      // holding an angle from cover: lean out to watch it with only a head and shoulder showing.
+      // Calm, a careful player rests behind the wall now and then; alert, it stays out
+      if (goal.lean && GAME.phase === 'action' && lookAt === goal.look) {
+        const alert = b.alert > 0 || (b.heard && G.time - b.heard.t < 6);
+        if (G.time > (b.holdCyc || 0)) { b.holdOut = alert || Math.random() < 0.55 + tr.patience * 0.35; b.holdCyc = G.time + (b.holdOut ? U.rnd(2.5, 6) : U.rnd(0.6, 1.4)); }
+        b.leanReq = b.holdOut || alert ? goal.lean : 0;
+      }
+      // marksmen and careful anchors settle low on a long angle
+      if (GAME.phase === 'action' && goal.kind === 'hold' && tr.cover > 0.7 && tr.range > 12 && a.stance === 0 && Math.random() < dt * 0.5) a.setStance(1);
     }
   };
 
@@ -677,13 +1142,13 @@
     for (const k in SIT) delete SIT[k];
     // Deathmatch / Team Deathmatch: no plan to follow, just hunt (arcade.js)
     if (GAME.arcade) {
-      for (const a of G.actors) if (a.bot && !AI.teams[a.team]) AI.teams[a.team] = { side: a.side, bots: G.actors.filter(x => x.team === a.team && x.bot), goalFor: ARC.goal };
+      for (const a of G.actors) if (a.bot && !AI.teams[a.team]) AI.teams[a.team] = { side: a.side, team: a.team, bots: G.actors.filter(x => x.team === a.team && x.bot), goalFor: ARC.goal, cleared: new Map() };
       return;
     }
     const obj = GAME.obj;
     for (const team of [0, 1]) {
       const side = GAME.sideOf(team), bots = G.actors.filter(a => a.team === team && a.bot);
-      const plan = AI.teams[team] = { side, bots };
+      const plan = AI.teams[team] = { side, bots, team, cleared: new Map(), intel: [] };
       if (side === 'def') planDefense(plan, bots, obj); else planAttack(plan, bots, obj);
     }
   };
@@ -758,9 +1223,14 @@
     U.shuffle(panels);
     // hatches over the objective
     const hatches = G.map.hatches.filter(h => rooms.some(r => h.L === r.L + 1 && h.x >= r.x0 - 2 && h.x <= r.x1 && h.z >= r.z0 - 2 && h.z <= r.z1));
-    // roles: 1-2 roamers, rest anchors
+    // roles: who roams and who anchors comes from who they are (entry players, flankers and
+    // lurkers roam; anchors, marksmen, support and tacticians hold), 1-2 roamers, the rest anchors
     U.shuffle(bots);
-    bots.forEach((a, i) => { a.bot.role = (i < 2 && bots.length >= 4 && !['anvil', 'brick', 'tamsin'].includes(a.op.id)) || (i < 1 && bots.length >= 2) ? 'roam' : 'anchor'; a.bot.tasks = []; });
+    const ROAM = { entry: 0.9, flanker: 0.9, lurker: 1, opportunist: 0.55, tactical: 0.25, support: 0.1, marksman: 0.1, anchor: 0 };
+    const maxRoam = bots.length >= 4 ? 2 : bots.length >= 2 ? 1 : 0;
+    const keen = bots.filter(a => !['anvil', 'brick', 'tamsin'].includes(a.op.id)).map(a => [a, (ROAM[PID(a)] || 0.3) + Math.random() * 0.35]).sort((p, q) => q[1] - p[1]);
+    bots.forEach(a => { a.bot.role = 'anchor'; a.bot.tasks = []; });
+    keen.slice(0, maxRoam).forEach(([a, s], i) => { if (s > 0.45 || i === 0 && bots.length >= 2) a.bot.role = 'roam'; });
     if (bots.length && !bots.some(a => a.bot.role === 'anchor')) bots[bots.length - 1].bot.role = 'anchor';
     // reinforcements
     let pi = 0;
@@ -786,33 +1256,51 @@
     plan.goalFor = a => defGoal(a, plan);
   }
   function anchorSpot(a, plan) {
-    const b = a.bot;
-    if (b.hold && b.holdRoom) return b.hold;
+    const b = a.bot, tr = TR(a), f = FL(a), pid = PID(a);
+    if (b.hold && b.holdRoom) {
+      // a Shifter (or anyone willing to move, after a while) takes up a different angle
+      const stay = f.bedrock ? 1e9 : 15 + (1 - tr.repos) * 60;
+      if (GAME.phase !== 'action' || G.time - (b.holdSince || 0) < stay || b.target || b.contact) return b.hold;
+      b.hold = null; b.stats.relocs++;
+    }
     // anchors share the site rooms out between them, keep a few metres apart (one grenade or
     // one spray shouldn't take two), and each holds a different doorway: a crossfire, not a stack
     const anchors = plan.bots.filter(x => x.bot && x.bot.role !== 'roam');
-    const r = plan.rooms[Math.max(0, anchors.indexOf(a)) % plan.rooms.length];
+    const r = b.holdRoom && f.shift ? U.pick(plan.rooms) : plan.rooms[Math.max(0, anchors.indexOf(a)) % plan.rooms.length];
     const mates = plan.bots.filter(x => x !== a && x.state === 'alive' && x.bot && x.bot.hold);
     let best = null, bs = -1e9;
     const ents = roomOpenings(r);
     for (let i = 0; i < 14; i++) {
       const p = NAV.randomIn(r);
-      // prefer spots set back from the entries (an off-angle) that still see one
+      // prefer spots set back from the entries (an off-angle) that still see one. A marksman
+      // wants the longest look at a doorway it can get; a Last Line anchor sits deep; support
+      // stays near the other anchors to trade
       let s = 0;
-      for (const op of ents) { const c = GAD.opCenter(op); const d = U.dist2(c, p); s += Math.min(d, 6) * 0.4; if (G.world.los(p.clone().setY(p.y + 1.5), c)) s += 1; }
-      for (const m of mates) { const d = U.dist2(m.bot.hold, p); s += Math.min(d, 5) * 0.5 - (d < 2.5 ? 3 : 0); }
+      for (const op of ents) {
+        const c = GAD.opCenter(op), d = U.dist2(c, p), sees = G.world.los(p.clone().setY(p.y + 1.5), c);
+        s += Math.min(d, pid === 'marksman' ? 14 : f.deep ? 9 : 6) * (pid === 'marksman' ? 0.6 : 0.4);
+        if (sees) s += 1 + (pid === 'marksman' ? d * 0.15 : 0);
+      }
+      for (const m of mates) { const d = U.dist2(m.bot.hold, p); s += pid === 'support' ? -Math.abs(d - 4) * 0.5 : Math.min(d, 5) * 0.5 - (d < 2.5 ? 3 : 0); }
       for (const g of G.ents) if (g.alive && g.type === 'irritant' && g.team !== a.team && U.dist2(g.pos, p) < g.r + 1) s -= 6;
+      if (b.lastHold && U.dist2(b.lastHold, p) < 2) s -= 4;   // a new angle means somewhere else
       s += Math.random();
       if (s > bs) { bs = s; best = p; }
     }
-    b.hold = best; b.holdRoom = r;
+    b.hold = best; b.holdRoom = r; b.holdSince = G.time; b.lastHold = best.clone(); b.holdLean = 0;
     const watched = new Set(mates.map(m => m.bot.holdOp).filter(Boolean));
     const seen = ents.filter(op => G.world.los(best.clone().setY(best.y + 1.5), GAD.opCenter(op)));
     const free = seen.filter(op => !watched.has(op));
     const op = free.length ? U.pick(free) : seen.length ? U.pick(seen) : ents.length ? U.pick(ents) : null;
     b.holdOp = op;
     b.holdLook = op ? headAt(op) : V().set(r.cx, r.fy + 1.4, r.cz);
-    return best;
+    // the same angle from behind cover: step to where the wall hides the body and a lean shows
+    // the doorway (most of those who like cover do; a few prefer to stand and see it all)
+    if (op && Math.random() < 0.2 + tr.cover * 0.8) {
+      const pk = coverPeek(a, b.holdLook, 1.6, best);
+      if (pk && G.map.roomAt(pk.pos) === r) { b.hold = pk.pos; b.holdLean = pk.side; }
+    }
+    return b.hold;
   }
   function defGoal(a, plan) {
     const b = a.bot, S = situation(a.team), obj = GAME.obj;
@@ -837,16 +1325,51 @@
       if (b.role === 'roam' || anchors[0] !== a) { const g = huntGoal(a, S); if (g) return g; }
     }
     // roamers fall back to the site once the defense is down two or more
-    if (b.role === 'roam' && S.adv > -2) {
-      if (!b.roamGoal || U.dist2(a.pos, b.roamGoal) < 1 || G.time > (b.roamUntil || 0)) {
-        const rs = G.map.rooms.filter(r => Math.abs(r.L - plan.rooms[0].L) <= 1 && !plan.rooms.includes(r) && !/Stairs/.test(r.name));
-        const r = U.pick(rs.length ? rs : G.map.rooms);
-        b.roamGoal = NAV.randomIn(r); b.roamUntil = G.time + U.rnd(12, 25);
-      }
-      return { pos: b.roamGoal, r: 0.8, kind: 'roam', look: b.roamGoal.clone().add(V().set(Math.sin(G.time * 0.5 + a.id) * 3, 1.4, Math.cos(G.time * 0.5 + a.id) * 3)) };
-    }
+    if (b.role === 'roam' && S.adv > -2) return roamGoal(a, plan, S);
     const p = anchorSpot(a, plan);
-    return { pos: p, r: 0.6, kind: 'hold', look: b.holdLook, crouch: Math.random() < 0.002 };
+    return { pos: p, r: 0.6, kind: 'hold', look: b.holdLook, crouch: Math.random() < 0.002, lean: b.holdLean };
+  }
+  /* a roamer's job, by who it is:
+       entry players  out toward the attack, in the rooms on the outside walls, never still long
+       lurkers        far from the site, quiet, holding one room's doorway for a long time
+       flankers       once the attack is known inside, round behind it
+       the rest       the rooms around the site */
+  function roamGoal(a, plan, S) {
+    const b = a.bot, tr = TR(a), pid = PID(a), site = plan.rooms[0], sc = plan.objCenter;
+    // a flanker who knows where the attack is goes round behind it
+    if ((pid === 'flanker' || FL(a).wide || FL(a).quick) && S.known && G.time - S.kt < 10 && GAME.phase === 'action') {
+      if (!b.flankAt || G.time > b.flankUntil || U.dist3(b.flankFor, S.known) > 5) {
+        const k = S.known, dx = k.x - sc.x, dz = k.z - sc.z, L = Math.hypot(dx, dz) || 1;
+        const n = NAV.nearest(V().set(k.x + dx / L * 6, k.y, k.z + dz / L * 6), 4);
+        b.flankAt = n >= 0 ? NAV.nodePos(n) : null; b.flankFor = k.clone(); b.flankUntil = G.time + 12;
+      }
+      if (b.flankAt && U.dist2(a.pos, b.flankAt) > 1.2) return { pos: b.flankAt, r: 1, kind: 'flank', route: { avoid: avoidNear([S.known], 7, 4) }, look: S.known.clone().setY(S.known.y + 1.4) };
+    }
+    // once there it stays a while on the room's doorway (a lurker until its time is up)
+    const arrived = b.roamGoal && U.dist2(a.pos, b.roamGoal) < 1;
+    if (arrived && !b.roamArr) b.roamArr = G.time; else if (!arrived) b.roamArr = 0;
+    const dwell = pid === 'lurker' ? 1e9 : 1 + tr.patience * 8;
+    if (!b.roamGoal || G.time > (b.roamUntil || 0) || (arrived && G.time - b.roamArr > dwell)) {
+      b.roamArr = 0;
+      let rs = G.map.rooms.filter(r => !plan.rooms.includes(r) && !/Stairs/.test(r.name));
+      const dist = r => Math.hypot(r.cx - sc.x, r.cz - sc.z) + Math.abs(r.fy - sc.y) * 2;
+      if (pid === 'lurker') rs = rs.filter(r => dist(r) > 14 && Math.abs(r.L - site.L) <= 2);
+      else if (pid === 'entry' || b.ag > 0.7) rs = rs.filter(r => Math.abs(r.L - site.L) <= 1 && G.map.openings.some(op => op.ext && op.L === r.L && roomOpenings(r).includes(op)));
+      else rs = rs.filter(r => Math.abs(r.L - site.L) <= 1 && dist(r) < 22);
+      if (!rs.length) rs = G.map.rooms.filter(r => Math.abs(r.L - site.L) <= 1 && !plan.rooms.includes(r) && !/Stairs/.test(r.name));
+      const r = U.pick(rs.length ? rs : G.map.rooms);
+      b.roamGoal = NAV.randomIn(r); b.roamRoom = r;
+      // how long it stays: a lurker settles in, an entry roamer keeps moving
+      b.roamUntil = G.time + (pid === 'lurker' ? U.rnd(25, 45) : U.rnd(8, 16) + tr.patience * 14);
+      b.roamLook = null; b.roamLean = 0;
+      const ops = roomOpenings(r);
+      if (ops.length) {
+        const op = U.pick(ops); b.roamLook = headAt(op);
+        if (tr.cover > 0.45 && Math.random() < tr.cover) { const pk = coverPeek(a, b.roamLook, 1.4, b.roamGoal); if (pk) { b.roamGoal = pk.pos; b.roamLean = pk.side; } }
+      }
+    }
+    const look = b.roamLook || b.roamGoal.clone().add(V().set(Math.sin(G.time * 0.5 + a.id) * 3, 1.4, Math.cos(G.time * 0.5 + a.id) * 3));
+    return { pos: b.roamGoal, r: 0.8, kind: 'roam', look, lean: b.roamLean, crouch: pid === 'lurker' && Math.random() < 0.01 };
   }
   function planDefKit(a, plan) {
     const id = a.ability ? a.ability.id : null, r = plan.rooms[0], b = a.bot;
@@ -1038,15 +1561,32 @@
     const r = rooms[0];
     plan.objCenter = V().set(r.cx, r.fy, r.cz);
     U.shuffle(bots);
-    bots.forEach((a, i) => { a.bot.role = i === 0 ? 'lead' : i % 2 ? 'entry' : 'flank'; a.bot.tasks = []; a.bot.delay = i * U.rnd(2, 5); });
+    const ROLE = { entry: 'entry', tactical: 'entry', flanker: 'flank', lurker: 'flank', marksman: 'overwatch', support: 'support', opportunist: 'support', anchor: 'support' };
+    bots.forEach(a => { a.bot.role = ROLE[PID(a)] || 'entry'; a.bot.tasks = []; a.bot.goAt = 0; });
     if (GAME.mode === 'bomb') plan.carrier = bots.find(a => a.carry === 'defuser') || null;
     // split the team over the entries so the site gets hit from several sides at once; the
-    // defuser goes in by the closest one
+    // defuser goes in by the closest one, with the entry players and their trade partners.
+    // Flankers and lurkers take the way in furthest from it
     plan.entries = entryPlan(plan); plan.execute = false;
     if (plan.carrier) { bots.splice(bots.indexOf(plan.carrier), 1); bots.unshift(plan.carrier); }
-    bots.forEach((a, i) => { const b = a.bot; b.entry = plan.entries.length ? plan.entries[i % plan.entries.length] : null; b.staged = false; b.entered = false; });
+    const E = plan.entries;
+    bots.forEach((a, i) => {
+      const b = a.bot, pid = PID(a);
+      let e = E.length ? E[i % E.length] : null;
+      if (E.length > 1) {
+        if (a === plan.carrier || pid === 'entry' || (pid === 'support' && FL(a).trade)) e = E[0];
+        else if (pid === 'flanker' || pid === 'lurker') e = (FL(a).vertical && E.find(x => x.win)) || E[E.length - 1];
+      }
+      b.entry = e; b.staged = false; b.entered = false;
+    });
+    plan.cleared = new Map();
     plan.goalFor = a => atkGoal(a, plan);
   }
+  /* how long after the call to go each player waits: the entry is first through the door, its
+     trade partner a beat behind, the careful a little later, the opportunist once there is a
+     fight to join, the lurker long after everyone */
+  const GO = { entry: [0, 0.6], support: [0.6, 1.6], tactical: [1, 2.5], flanker: [0, 1.5], marksman: [2, 4], opportunist: [2.5, 5], lurker: [5, 12], anchor: [1, 2] };
+  function goDelay(x) { const r = GO[PID(x)] || [0, 1.2]; return U.rnd(r[0], r[1]) * (0.7 + TR(x).patience * 0.6) + (FL(x).waitIntel ? 2 : 0); }
   /* before the execute: get to your entry and stack up outside it. The team goes in together once
      everyone is in place, as soon as anyone makes contact, or after 30 s at the latest */
   function stageGoal(a, plan, S) {
@@ -1057,14 +1597,16 @@
     if (!plan.execute) {
       const live = plan.bots.filter(x => x.state === 'alive' && x.bot && x.bot.entry);
       const contact = plan.bots.some(x => x.state === 'alive' && x.bot && x.bot.target && x.bot.target.isActor);
-      if (live.every(x => x.bot.staged) || G.time - (plan.actionT || 0) > 30 || contact || S.late) { plan.execute = true; for (const x of live) x.bot.delay = U.rnd(0, 1.2); }
+      if (live.every(x => x.bot.staged) || G.time - (plan.actionT || 0) > 30 || contact || S.late) { plan.execute = true; for (const x of live) x.bot.goAt = G.time + goDelay(x); }
     }
     if (!plan.execute) {
       const st = b.entry.stage;
       if (U.dist2(a.pos, st) < 1.6 && Math.abs(a.pos.y - st.y) < 1.2) b.staged = true;
-      return { pos: st, r: 1.2, kind: 'stage', sprint: U.dist3(a.pos, st) > 14, look: GAD.opCenter(b.entry.op) };
+      return { pos: st, r: 1.2, kind: 'stage', sprint: U.dist3(a.pos, st) > 14, look: GAD.opCenter(b.entry.op), route: intelRoute(a, plan) };
     }
-    if (b.delay > 0) return { pos: a.pos.clone(), r: 9, kind: 'wait', look: GAD.opCenter(b.entry.op) };
+    // a Late Clock lurker stays outside until the clock or the numbers say it's time
+    const lateWait = FL(a).late && !S.late && S.theirs > 2 && GAME.timer > 75;
+    if (G.time < (b.goAt || 0) || lateWait) return { pos: a.pos.clone(), r: 9, kind: 'wait', look: GAD.opCenter(b.entry.op) };
     // a window entry: at the wall below it, hand over to windowStep
     if (b.entry.win) {
       const st = b.entry.stage;
@@ -1121,16 +1663,20 @@
   }
   function atkGoal(a, plan) {
     const b = a.bot, obj = GAME.obj, S = situation(a.team);
-    if (b.delay > 0) { b.delay -= 0.016; }
+    if (GAME.phase === 'action' && b.entered) preAimIntel(a, plan);
     const R = plan.rooms;
     // bomb: carrier plants; others clear site
     if (GAME.mode === 'bomb') {
       if (obj.defuser && obj.defuser.alive) {
         // post-plant: spread out to separate spots that can see the defuser (a crossfire on
         // it), each watching a different way in, instead of crouching in a pile beside it
-        if (!b.guard || U.dist3(b.guard, obj.defuser.pos) > 12) { const g = guardSpot(a, obj.defuser); b.guard = g.p; b.guardLook = g.look; }
+        if (!b.guard || U.dist3(b.guard, obj.defuser.pos) > 12) {
+          const g = guardSpot(a, obj.defuser); b.guard = g.p; b.guardLook = g.look; b.guardLean = 0;
+          // from behind cover, leaning out on the way in, for those who play that way
+          if (Math.random() < TR(a).cover) { const pk = coverPeek(a, g.look, 1.4, g.p); if (pk) { b.guard = pk.pos; b.guardLean = pk.side; } }
+        }
         // (Crag plants his shield where he holds, facing the way in he is watching)
-        return { pos: b.guard, r: 0.8, kind: 'guard', look: b.guardLook, crouch: true, act: x => { if (x.ability && x.ability.id === 'plant' && x.shieldUp && !(x.shieldPlanted && x.shieldPlanted.alive) && x.busy <= 0 && b.guardLook && faceTo(x, b.guardLook, 0.05, 6) < 0.3) GAD.ability(x); } };
+        return { pos: b.guard, r: 0.8, kind: 'guard', look: b.guardLook, crouch: !b.guardLean, lean: b.guardLean, act: x => { if (x.ability && x.ability.id === 'plant' && x.shieldUp && !(x.shieldPlanted && x.shieldPlanted.alive) && x.busy <= 0 && b.guardLook && faceTo(x, b.guardLook, 0.05, 6) < 0.3) GAD.ability(x); } };
       }
       // a dropped defuser: the nearest bot goes and gets it, and anyone close by covers it
       if (obj.dropped && obj.dropped.alive && (!obj.carrier || obj.carrier.state !== 'alive')) {
@@ -1166,11 +1712,117 @@
       if (h.followTarget) return { pos: h.followTarget.pos.clone().add(V().set(Math.sin(a.id * 2) * 2, 0, Math.cos(a.id * 2) * 2)), r: 1.5, kind: 'escort' };
     }
     // with the numbers (or one defender left) and time in hand: go and finish the defense off
-    if (S.mode === 'hunt' && !a.carry) { const g = huntGoal(a, S); if (g) return g; }
-    if (!b.atkSpot || G.time > (b.atkUntil || 0)) {
-      const rr = U.pick(R); b.atkSpot = NAV.randomIn(rr); b.atkUntil = G.time + U.rnd(S.late ? 6 : 15, S.late ? 10 : 30);
+    if (S.mode === 'hunt' && !a.carry && b.ag > 0.25) { const g = huntGoal(a, S); if (g) return g; }
+    const styled = !S.late && !a.carry ? styleGoal(a, plan, S) : null;
+    if (styled) return styled;
+    if (!b.atkSpot || G.time > (b.atkUntil || 0) || b.atkKind !== 'push') {
+      const rr = U.pick(R); b.atkSpot = NAV.randomIn(rr); b.atkKind = 'push'; b.atkUntil = G.time + U.rnd(S.late ? 6 : 15, S.late ? 10 : 30);
     }
-    return { pos: b.atkSpot, r: 0.8, kind: 'push', sprint: U.dist3(a.pos, b.atkSpot) > (S.late ? 8 : 25), look: plan.objCenter.clone().setY(plan.objCenter.y + 1.4) };
+    return { pos: b.atkSpot, r: 0.8, kind: 'push', sprint: U.dist3(a.pos, b.atkSpot) > (S.late ? 8 : 25), look: plan.objCenter.clone().setY(plan.objCenter.y + 1.4), route: intelRoute(a, plan) };
+  }
+  /* inside: where each playstyle goes before the site (they all go to the site once the clock
+     is short, and the situation can always pull them off it):
+       support      a few metres behind the most aggressive teammate, covering its angle (trade)
+       opportunist  an angle on a fight a teammate is already in (or trailing the team)
+       marksman     a spot in a neighbouring room with a long look into the site
+       tactical     the rooms around the site, nearest first, one at a time
+       flanker      a room beside the site on the far side from the team, by a route that keeps
+                    away from teammates and from defenders the team knows about
+       lurker       the same, then it waits there, quiet, until the round is late or thin   */
+  function styleGoal(a, plan, S) {
+    const b = a.bot, tr = TR(a), f = FL(a), pid = PID(a), oc = plan.objCenter, site = plan.rooms[0];
+    const siteLook = oc.clone().setY(oc.y + 1.4);
+    const mates = G.actors.filter(x => x !== a && x.team === a.team && x.state === 'alive' && !x.hostage);
+    if (pid === 'support' || (pid === 'opportunist' && !f.vulture)) {
+      const lead = mates.slice().sort((p, q) => ((q.bot ? q.bot.ag : 0.6) - U.dist3(q.pos, oc) * 0.02) - ((p.bot ? p.bot.ag : 0.6) - U.dist3(p.pos, oc) * 0.02))[0];
+      if (lead && G.time - (b.tradeT || -9) > 1) {
+        b.tradeT = G.time;
+        const fw = lead.fwd(V()).setY(0).normalize(), rt = V().set(-fw.z, 0, fw.x), side = (a.id % 2) ? 1 : -1;
+        const back = pid === 'opportunist' ? 6 : f.overwatch ? 5 : 2.5;
+        const n = NAV.nearest(lead.pos.clone().addScaledVector(fw, -back).addScaledVector(rt, side * 1.2), 3);
+        b.tradeSpot = n >= 0 ? NAV.nodePos(n) : null; b.tradeLook = lead.pos.clone().addScaledVector(fw, 8).setY(lead.pos.y + 1.4);
+      }
+      if (lead && b.tradeSpot) return { pos: b.tradeSpot, r: 1.3, kind: 'trade', look: b.tradeLook };
+    }
+    if (pid === 'opportunist') {
+      const busy = mates.find(x => x.bot && x.bot.target && x.bot.target.isActor && x.bot.target.state === 'alive' && U.dist3(x.pos, a.pos) < 25);
+      if (busy) {
+        if (!b.thirdFor || b.thirdFor !== busy.bot.target || G.time > (b.thirdT || 0)) { b.thirdFor = busy.bot.target; b.thirdT = G.time + 4; b.thirdSpot = flankSpot(a, busy.bot.target.pos); }
+        if (b.thirdSpot) return { pos: b.thirdSpot, r: 1, kind: 'third', look: busy.bot.target.pos.clone().setY(busy.bot.target.pos.y + 1.4), sprint: U.dist3(a.pos, b.thirdSpot) > 10 };
+      }
+    }
+    if (pid === 'marksman' || f.overwatch && pid !== 'support') {
+      if (!b.ow || G.time > b.owUntil) { b.ow = overwatchSpot(a, plan); b.owUntil = G.time + 20 + tr.patience * 35; }
+      if (b.ow && mates.length) return { pos: b.ow.pos, r: 0.8, kind: 'overwatch', look: b.ow.look, lean: b.ow.lean, crouch: tr.cover > 0.6 };
+    }
+    if (pid === 'tactical' && (b.clearedN || 0) < 2 + Math.round(tr.caution * 3)) {
+      const pc = plan.cleared || new Map();
+      if (!b.clearRoom || G.map.roomAt(a.pos) === b.clearRoom && U.dist2(a.pos, b.atkSpot || a.pos) < 1.5) {
+        if (b.clearRoom) b.clearedN = (b.clearedN || 0) + 1;
+        const rooms = G.map.rooms.filter(r => r.L === site.L && !plan.rooms.includes(r) && !/Stairs/.test(r.name) && Math.hypot(r.cx - oc.x, r.cz - oc.z) < 16 && !(pc.get(r) && G.time - pc.get(r) < 60));
+        rooms.sort((p, q) => Math.hypot(p.cx - a.pos.x, p.cz - a.pos.z) - Math.hypot(q.cx - a.pos.x, q.cz - a.pos.z));
+        b.clearRoom = rooms[0] || null; b.atkSpot = b.clearRoom ? NAV.randomIn(b.clearRoom) : null; b.atkKind = 'clear';
+      }
+      if (b.clearRoom && b.atkSpot) return { pos: b.atkSpot, r: 1.2, kind: 'clear', look: siteLook, route: intelRoute(a, plan) };
+    }
+    if ((pid === 'flanker' || pid === 'lurker') && !b.flankDone) {
+      if (!b.flankSpot) {
+        const cen = V(); for (const m of mates) cen.add(m.pos); if (mates.length) cen.divideScalar(mates.length); else cen.copy(a.pos);
+        const rooms = G.map.rooms.filter(r => (f.vertical ? Math.abs(r.L - site.L) === 1 : r.L === site.L) && !plan.rooms.includes(r) && !/Stairs/.test(r.name) && Math.hypot(r.cx - oc.x, r.cz - oc.z) < 16);
+        const pick = rooms.map(r => [r, Math.hypot(r.cx - cen.x, r.cz - cen.z) + Math.random() * 4]).sort((p, q) => q[1] - p[1])[0];
+        b.flankSpot = pick ? NAV.randomIn(pick[0]) : null; b.flankSince = G.time;
+        if (!b.flankSpot) { b.flankDone = true; return null; }
+      }
+      const there = U.dist2(a.pos, b.flankSpot) < 1.3;
+      if (there && !b.flankAt) b.flankAt = G.time;
+      // a lurker waits it out; a flanker strikes once in place (a Wide Rotator gives it a moment)
+      const wait = pid === 'lurker' ? (S.theirs > 2 && GAME.timer > 60 ? 1e9 : 0) : f.wide ? 6 : 1.5;
+      if (there && G.time - b.flankAt > wait || G.time - b.flankSince > 60) { b.flankDone = true; return null; }
+      const pts = mates.map(m => m.pos.clone()).concat(knownEnemies(plan));
+      return { pos: b.flankSpot, r: 1.2, kind: 'flank', look: siteLook, route: { avoid: avoidNear(pts, f.wide ? 9 : 6, f.wide ? 6 : 3) }, crouch: pid === 'lurker' };
+    }
+    return null;
+  }
+  /* a spot in a neighbouring room on the site's floor with a long look into it */
+  function overwatchSpot(a, plan) {
+    const oc = plan.objCenter, site = plan.rooms[0], tr = TR(a);
+    const rooms = G.map.rooms.filter(r => r.L === site.L && !plan.rooms.includes(r) && !/Stairs/.test(r.name) && Math.hypot(r.cx - oc.x, r.cz - oc.z) < 26);
+    if (!rooms.length) return null;
+    const targets = [oc.clone().setY(oc.y + 1.2)].concat(roomOpenings(site).map(headAt));
+    let best = null, bs = -1e9;
+    for (let i = 0; i < 16; i++) {
+      const p = NAV.randomIn(U.pick(rooms)), e = p.clone().setY(p.y + 1.5);
+      const seen = targets.filter(t => G.world.los(e, t));
+      if (!seen.length) continue;
+      const s = seen.length * 1.5 - Math.abs(U.dist3(p, oc) - tr.range) * 0.15 + Math.random();
+      if (s > bs) { bs = s; best = { pos: p, look: seen[0].clone(), lean: 0 }; }
+    }
+    if (best && Math.random() < tr.cover) { const pk = coverPeek(a, best.look, 1.4, best.pos); if (pk) { best.pos = pk.pos; best.lean = pk.side; } }
+    return best;
+  }
+  /* what the team knows about where the defenders are (drone spots, callouts, marks) */
+  function knownEnemies(plan) {
+    const out = [];
+    for (const i of plan.intel || []) if (G.time - i.t < 60) out.push(i.pos);
+    const S = situation(plan.team);
+    if (S.known && G.time - S.kt < 15) out.push(S.known);
+    return out.slice(-6);
+  }
+  AI.knownEnemies = knownEnemies;
+  /* a route that stays out of known defender positions, for those careful enough to want one.
+     An entry player goes straight at them instead, gun already on them (preAimIntel) */
+  function intelRoute(a, plan) {
+    const tr = TR(a); if (tr.caution < 0.4 && a.bot.ag > 0.6) return undefined;
+    const pts = knownEnemies(plan); if (!pts.length) return undefined;
+    return { avoid: avoidNear(pts, 6, 2 + tr.caution * 4) };
+  }
+  /* walking up on a spot the team knows a defender holds: the gun goes there first */
+  function preAimIntel(a, plan) {
+    const b = a.bot; if (b.target || (b.attn && G.time < b.attn.until) || G.time < (b.preT || 0)) return;
+    b.preT = G.time + 0.5;
+    let best = null, bd = 14;
+    for (const p of knownEnemies(plan)) { const d = U.dist3(p, a.pos); if (d < bd && Math.abs(p.y - a.pos.y) < 2.5) { bd = d; best = p; } }
+    if (best) b.attn = { p: best.clone().setY(best.y + 1.4), until: G.time + 0.8 };
   }
 
   window.AI = AI;

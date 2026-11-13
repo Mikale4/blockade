@@ -155,6 +155,10 @@
       if (!op.primaries.includes(lo.primary)) lo.primary = op.primaries[0];
       if (!op.secondaries.includes(lo.secondary)) lo.secondary = op.secondaries[0];
       if (!op.gadgets.includes(lo.gadget)) lo.gadget = op.gadgets[0];
+      // attachments: only what fits the two guns they carry
+      const att = {}, pa = lo.att && typeof lo.att === 'object' ? lo.att : {};
+      for (const g of [lo.primary, lo.secondary]) { const c = ATT.clean(g, pa[g]); if (Object.keys(c).length) att[g] = c; }
+      lo.att = att;
       lo.cos = SHOP.clean(lo.cos);
       out.push({ team: m.team, op, loadout: lo, spawn: p.sp | 0, name: m.name, peer: m.id, local: m.id === NP.me, r: m.r });
     }
@@ -165,7 +169,8 @@
   NP.roundStarted = () => {
     NP.byId.clear(); for (const a of G.actors) NP.byId.set(a.id, a);
     NP.lastEnt.clear(); NP.feedSig = ''; NP.ev = []; NP.vox = [];
-    const roster = G.actors.map(a => ({ id: a.id, n: a.name, tm: a.team, sd: a.side, op: a.hostage ? '_hostage' : a.op.id, lo: a.loadout, h: a.isPlayer ? NP.me : a.net || null, hs: a.hostage ? 1 : 0, p: pv(a.pos), y: r2(a.yaw), st: a.stance, rr: a.rating || 0 }));
+    const roster = G.actors.map(a => ({ id: a.id, n: a.name, tm: a.team, sd: a.side, op: a.hostage ? '_hostage' : a.op.id, lo: a.loadout, h: a.isPlayer ? NP.me : a.net || null, hs: a.hostage ? 1 : 0, p: pv(a.pos), y: r2(a.yaw), st: a.stance, rr: a.rating || 0,
+      ps: a.bot && a.persona ? a.persona.name + ' · ' + a.persona.variant + ' — ' + a.persona.vdesc : '' }));
     Online.toAll({ t: 'np.round', roster, sites: GAME.siteNames, round: GAME.round, score: GAME.score, sd: [GAME.sideOf(0), GAME.sideOf(1)], mode: GAME.mode, ph: GAME.phase, tm: GAME.timer }, true);
     // remote attackers drone during prep, like everyone else
     if (!GAME.arcade) for (const a of G.actors) if (a.net && a.side === 'atk') { const d = GAD.deployDrone(a, true); if (d) pilot(a, d); }
@@ -215,7 +220,8 @@
   function remoteShot(a, d) {
     if (a.state !== 'alive') return;
     a.spawnProt = 0;
-    const def = WEAPONS[d.w]; if (!def || !Array.isArray(d.o) || !Array.isArray(d.d)) return;
+    // the gun as that player carries it (with its attachments: range, suppressor)
+    const def = ((a.w || []).find(w => w.id === d.w) || {}).def || WEAPONS[d.w]; if (!def || !Array.isArray(d.o) || !Array.isArray(d.d)) return;
     const o = V(d.o[0], d.o[1], d.o[2]), ends = [];
     for (const dd of d.d.slice(0, 12)) { const dir = V(dd[0], dd[1], dd[2]).normalize(); ends.push(pv(WPN.trace(a, o, dir, def, def.pellets > 1 ? 40 : 140, 1))); }
     a.lastShot = G.time; MUSIC.lastShot = G.time;
@@ -225,8 +231,8 @@
     NP.push({ k: 'shot', s: a.id, o: d.o, e: ends.slice(0, 3), w: d.w });
     // the host hears and sees it too
     const mz = WPN.muzzlePos(a);
-    SFX.shot(def, o, false); NP.quiet(() => FX.flash(mz, 0.4, 0.04));
-    for (const e of ends.slice(0, 2)) FX.tracer(mz, V(e[0], e[1], e[2]), 0xffb070);
+    SFX.shot(def, o, false); if (!def.noFlash) NP.quiet(() => FX.flash(mz, 0.4, 0.04));
+    if (!def.silent || (G.player && a.team === G.player.team)) for (const e of ends.slice(0, 2)) FX.tracer(mz, V(e[0], e[1], e[2]), 0xffb070);
     KC.shot(a, def.id, mz, ends.slice(0, 3).map(e => V(e[0], e[1], e[2])));
   }
   function remoteAct(a, d) {
@@ -394,6 +400,7 @@
       const a = new Actor({ name: r.n, team: r.tm, side: r.sd, op, loadout: lo, isPlayer: r.h === NP.me, hostage: !!r.hs });
       a.id = r.id; a.pos.set(r.p[0], r.p[1], r.p[2]); a.yaw = r.y; a.stance = r.st || 0; a.tpos = a.pos.clone(); a.tyaw = a.yaw;
       if (r.h && r.h !== NP.me) a.netHuman = r.h;
+      if (r.ps && !r.h) a.styleLabel = String(r.ps).slice(0, 120);
       a.addTo(G.scene); G.actors.push(a); NP.byId.set(a.id, a);
       if (a.isPlayer) { G.player = a; if (GAME.ffa) GAME.myTeam = a.team; }
       if (a.hostage) GAME.obj.hostage = a;
@@ -479,12 +486,12 @@
       case 'f': oF[e.f].apply(FX, e.a.map(des)); break;
       case 'shot': {
         const s = NP.byId.get(e.s); if (!s || s === G.player) break;
-        const def = WEAPONS[e.w]; if (!def) break;
+        const def = ((s.w || []).find(w => w.id === e.w) || {}).def || WEAPONS[e.w]; if (!def) break;
         const o = V(...e.o), mz = WPN.muzzlePos(s);
         // a teammate I am watching: their gun kicks and flashes in my view, like my own
-        const own = PLAYER.viewActor() === s;
-        SFX.shot(def, o, own); if (own) PLAYER.onFire(def); else oF.flash(mz, 0.4, 0.04);
-        for (const p of e.e || []) FX.tracer(mz, V(...p), 0xffb070);
+        const own = PLAYER.viewActor() === s, mine = G.player && s.team === G.player.team;
+        SFX.shot(def, o, own); if (own) PLAYER.onFire(def); else if (!def.noFlash) oF.flash(mz, 0.4, 0.04);
+        if (!def.silent || mine) for (const p of e.e || []) FX.tracer(mz, V(...p), 0xffb070);
         KC.shot(s, def.id, mz, (e.e || []).map(p => V(...p)));
         s.lastShot = G.time; MUSIC.lastShot = G.time;
         break;

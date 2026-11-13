@@ -152,8 +152,21 @@
       const hide = kc ? KC.hidden(a) : (a === G.player && P.view === 'body') || (P.view === 'spectate' && a === P.spec);
       a.updateRig(dt, !hide);
       if (!hide && a.rig) { const L = W.outdoor(a.pos.clone().setY(a.pos.y + 1)) ? W.light.out : W.light.in; a.tint([Math.min(1.1, L[0] * 1.05), Math.min(1.1, L[1] * 1.05), Math.min(1.1, L[2] * 1.05)]); }
+      laserBeam(a, !hide && !kc);
       if (saved) KC.unpose(a, saved);
     }
+  }
+  /* a laser attachment: a thin red beam from the muzzle to what it points at, while not aiming */
+  const BEAM_MAT = new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.55, depthWrite: false });
+  function laserBeam(a, show) {
+    const on = show && a.state === 'alive' && a.wpn && a.wpn.def.laser && (a.ads || 0) < 0.5 && !a.hostage;
+    if (!on) { if (a.beam) a.beam.visible = false; return; }
+    if (!a.beam) { a.beam = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 1), BEAM_MAT); a.beam.renderOrder = 2; G.scene.add(a.beam); }
+    const m = WPN.muzzlePos(a), f = a.fwd(new THREE.Vector3());
+    const h = G.world.raycast(m, f, 25, true), L = h ? Math.max(0.1, h.dist) : 25;
+    a.beam.visible = true; a.beam.scale.z = L;
+    a.beam.position.copy(m).addScaledVector(f, L / 2);
+    a.beam.lookAt(m.clone().addScaledVector(f, L));
   }
 
   MAIN.frame = function (t) {

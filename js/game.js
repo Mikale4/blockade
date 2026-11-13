@@ -120,21 +120,34 @@
     // ---- operators: the humans, then bots to fill each team to five (Deathmatch: ten players,
     // each on a team of their own)
     const ffa = GAME.ffa, arcade = GAME.arcade;
-    const pick = (side, taken, n) => U.shuffle(OPS.filter(o => (side === 'any' || o.side === side) && !taken.includes(o.id) && !GAME.banned(o.id))).slice(0, Math.max(0, n));
     const humans = GAME.net ? NP.humanPicks() : [{ team: 0, op: ch.op, loadout: ch.loadout, spawn: ch.spawn, name: (Auth.user && Auth.name) || 'YOU', local: true, r: Auth.S ? Auth.S.rank.rating : 1000 }];
-    // a bot seat keeps its name, rating and looks for the whole match, like a real player would
+    // a bot seat keeps its name, rating, looks and playstyle for the whole match, like a real
+    // player would (persona.js: an archetype, one of its variations, its own traits and taste)
     const seatOf = key => {
       const S = GAME.seats || (GAME.seats = { _names: NAMES.many(12, humans.map(h => h.name)), _i: 0 });
-      if (!S[key]) S[key] = { name: S._names[S._i++ % S._names.length], cos: SHOP.randomLook(), r: GAME.botRating() };
+      if (!S[key]) {
+        const grp = key.split(':')[0], mates = Object.keys(S).filter(k => k.split(':')[0] === grp && S[k].persona).map(k => S[k].persona);
+        S[key] = { name: S._names[S._i++ % S._names.length], cos: SHOP.randomLook(), r: GAME.botRating(), persona: PERSONA.make(mates) };
+      }
       return S[key];
     };
     const mkBot = (op, team, side, seatKey) => {
       const S = seatOf(seatKey);
-      const lo = { primary: U.pick(op.primaries), secondary: U.pick(op.secondaries), gadget: U.pick(op.gadgets), cos: S.cos };
+      const lo = Object.assign(PERSONA.loadout(S.persona, op), { cos: S.cos });
       const a = new Actor({ name: S.name, team, side, op, loadout: lo });
-      a.seatKey = seatKey; a.rating = S.r;
+      a.seatKey = seatKey; a.rating = S.r; a.persona = S.persona;
       AI.attach(a); if (arcade) a.bot.role = 'roam';
       return a;
+    };
+    // each bot picks for itself, by its playstyle (its mains first), around what its team has
+    const botOps = (side, taken, n, keyOf) => {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const op = PERSONA.chooseOp(seatOf(keyOf(i)).persona, side, taken, taken, GAME.banned);
+        if (!op) break;
+        taken.push(op.id); out.push(op);
+      }
+      return out;
     };
     const mkHuman = h => {
       const a = new Actor({ name: h.name, team: h.team, side: ffa ? h.op.side : GAME.sideOf(h.team), op: h.op, loadout: h.loadout, isPlayer: !!h.local });
@@ -148,15 +161,15 @@
     if (ffa) {
       humans.forEach((h, i) => { h.team = i; });
       teams = humans.map(h => [mkHuman(h)]);
-      const ops = pick('any', humans.map(h => h.op.id), fill ? GAME.teamSize * 2 - humans.length : 0);
-      ops.forEach((op, i) => { const t = teams.length; teams.push([mkBot(op, t, op.side, 'd' + i)]); });
+      const ops = botOps('any', humans.map(h => h.op.id), fill ? GAME.teamSize * 2 - humans.length : 0, i => 'd:' + i);
+      ops.forEach((op, i) => { const t = teams.length; teams.push([mkBot(op, t, op.side, 'd:' + i)]); });
       GAME.myTeam = G.player ? G.player.team : 0;
     } else {
       teams = [[], []];
       for (const h of humans) teams[h.team].push(mkHuman(h));
       for (const t of [0, 1]) {
         const side = GAME.sideOf(t), taken = teams[t].map(a => a.op.id);
-        pick(side, taken, fill ? GAME.teamSize - teams[t].length : 0).forEach((op, i) => teams[t].push(mkBot(op, t, side, 't' + t + ':' + i)));
+        botOps(side, taken, fill ? GAME.teamSize - teams[t].length : 0, i => 't' + t + ':' + i).forEach((op, i) => teams[t].push(mkBot(op, t, side, 't' + t + ':' + i)));
       }
     }
     G.actors = [].concat(...teams);
@@ -166,7 +179,7 @@
       a.addTo(G.scene);
       const key = a.isPlayer ? 'me' : a.net ? 'h:' + a.net : 'b:' + a.seatKey;
       const s = GAME.stats.get(key) || { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: a.team, human: !!(a.isPlayer || a.net), me: !!a.isPlayer, op: a.op.id };
-      s.op = a.op.id; s.name = a.name; s.r = a.rating; a.match = s; GAME.stats.set(key, s);
+      s.op = a.op.id; s.name = a.name; s.r = a.rating; s.style = a.persona ? a.persona.short : ''; a.match = s; GAME.stats.set(key, s);
     }
     // the host spectating: a stand-in watches (it is not one of the players)
     if (GAME.net && GAME.spectator) G.player = PLAYER.ghost();

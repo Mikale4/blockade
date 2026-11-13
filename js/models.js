@@ -98,9 +98,9 @@
   /* a weapon finish from the shop (DATA.COSMETICS.finish): the gun's metal, polymer and fittings */
   const finishOf = f => (DATA.COSMETICS.finish[f] && f !== 'factory') ? DATA.COSMETICS.finish[f] : null;
   const suitOf = s => (DATA.COSMETICS.suit[s] && s !== 'standard') ? DATA.COSMETICS.suit[s] : null;
-  function gunGeo3P(wid, fin) {
-    const F = finishOf(fin);
-    return cached('g3:' + wid + ':' + (F ? fin : ''), () => {
+  function gunGeo3P(wid, fin, att) {
+    const F = finishOf(fin), ak = att && window.ATT ? ATT.key(att) : '';
+    return cached('g3:' + wid + ':' + (F ? fin : '') + ':' + ak, () => {
       const g = new Grid(), W = DATA.WEAPONS[wid], dark = F ? F.dark : 0x222428, poly = F ? F.poly : 0x34373c;
       const t = W ? W.type : 'AR';
       if (t === 'SHIELD') {
@@ -109,13 +109,28 @@
         g.box(-3, 5, -1, 3, 7, -1, 0x15181c); g.box(-2, 6, -1, 2, 6, -1, glow(0x7ab8d8));
         return mesh(g, S, 0.03);
       }
-      if (t === 'PISTOL' || t === 'MP') { g.box(0, 0, -5, 0, 1, 0, dark); g.box(0, -3, -1, 0, -1, 0, poly); return mesh(g, S); }
+      const A = att || {};
+      if (t === 'PISTOL' || t === 'MP') {
+        g.box(0, 0, -5, 0, 1, 0, dark); g.box(0, -3, -1, 0, -1, 0, poly);
+        if (A.barrel === 'sup') g.box(0, 0, -8, 0, 1, -6, 0x15171a);
+        if (A.under === 'laser') g.set(0, -1, -4, glow(0xff3030));
+        return mesh(g, S);
+      }
       const len = t === 'DMR' ? 14 : t === 'SMG' ? 9 : t === 'LMG' ? 13 : t === 'SG' ? 12 : 11;
       g.box(0, 0, -len, 0, 1, 4, dark); g.box(0, -2, -2, 0, -1, -1, poly);
       g.box(0, -1, 2, 0, 0, 5, poly);
-      if (t === 'LMG') g.box(-1, -3, -4, 1, -1, -1, 0x3a3c32); else if (t !== 'SG') g.box(0, -3, -5, 0, -1, -4, dark);
-      if (t === 'DMR') g.box(0, 2, -6, 0, 3, -1, 0x15171a); else g.box(0, 2, -3, 0, 2, -2, 0x15171a);
+      if (t === 'LMG') g.box(-1, -3, -4, 1, -1, -1, 0x3a3c32); else if (t !== 'SG') g.box(0, A.mag === 'xmag' ? -4 : -3, -5, 0, -1, -4, dark);
+      // the sight (an attachment replaces the gun's own)
+      const sight = (A.optic && window.ATT && ATT.LIST[A.optic] ? ATT.LIST[A.optic].sight : W && W.sight) || 'iron';
+      if (sight === 'acog' || sight === 'var' || sight === 'scope4') g.box(0, 2, sight === 'scope4' ? -8 : -6, 0, 3, -1, 0x15171a); else if (sight !== 'iron') g.box(0, 2, -3, 0, 2, -2, 0x15171a);
       if (t === 'SG') g.box(0, -1, -len + 1, 0, -1, -4, F ? F.mid : 0x5a3a22);
+      // barrel devices, grips, a laser
+      if (A.barrel === 'sup') g.box(0, 0, -len - 4, 0, 1, -len - 1, 0x15171a);
+      else if (A.barrel === 'ext') g.box(0, 0, -len - 3, 0, 0, -len - 1, dark);
+      else if (A.barrel) g.box(0, 0, -len - 1, 0, 1, -len - 1, 0x2a2c30);
+      if (A.under === 'vgrip') g.box(0, -2, -len + 3, 0, -1, -len + 3, poly);
+      else if (A.under === 'agrip') g.box(0, -1, -len + 3, 0, -1, -len + 4, poly);
+      else if (A.under === 'laser') g.set(0, -1, -len + 2, glow(0xff3030));
       if (F) g.set(0, 1, -len + 2, F.glowMid ? glow(F.mid) : F.mid);
       return mesh(g, S);
     });
@@ -132,7 +147,7 @@
     return geos;
   }
   /* an operator rig: { root, pose, hips, torso, head, aim, armL, armR, gun, thighL.. } */
-  function operator(op, weaponId, cos) {
+  function operator(op, weaponId, cos, att) {
     cos = cos || {};
     const G = opGeos(op, cos.suit), m = mat();
     const root = new THREE.Group(), pose = new THREE.Group(), hips = new THREE.Group();
@@ -147,14 +162,16 @@
     // arms hang along -Y; a positive X rotation swings them forward (-Z) to hold the gun
     armR.rotation.x = 1.45; armL.rotation.x = 1.35; armL.rotation.z = 0.5; armR.rotation.z = -0.08;
     const gun = new THREE.Group(); gun.position.set(2.5 * S, -1 * S, -7 * S); aim.add(gun);
-    const gm = part(gunGeo3P(weaponId || 'vkr5', cos.finish), m); gun.add(gm);
+    const gm = part(gunGeo3P(weaponId || 'vkr5', cos.finish, att), m); gun.add(gm);
     const rig = { root, pose, hips, torso, head, aim, armL, armR, gun, gunMesh: gm, thighL, thighR, shinL, shinR, mat: m, shield: null, fin: cos.finish || null };
     root.traverse(o => { o.matrixAutoUpdate = true; });
     return rig;
   }
-  function setRigGun(rig, wid) {
+  function setRigGun(rig, wid, att) {
+    // the attachments on the gun the rig's operator carries (or as given)
+    if (!att) { const a = rig.root.userData.actor, w = a && a.w && a.w.find(x => x.id === wid); att = w && w.def.att; }
     rig.gun.remove(rig.gunMesh);
-    rig.gunMesh = part(gunGeo3P(wid, rig.fin), rig.mat); rig.gun.add(rig.gunMesh);
+    rig.gunMesh = part(gunGeo3P(wid, rig.fin, att), rig.mat); rig.gun.add(rig.gunMesh);
     const pistol = /PISTOL|MP/.test((DATA.WEAPONS[wid] || {}).type);
     rig.gun.position.set((pistol ? 0.5 : 2.5) * S, -1 * S, (pistol ? -9 : -7) * S);
   }
@@ -187,10 +204,10 @@
 
   /* ================================================== first-person guns (1/48) */
   const VS1 = 1 / 48;
-  function viewGun(wid, op, fin) {
-    const W = DATA.WEAPONS[wid], t = W.type, g = new Grid(), F = finishOf(fin);
+  function viewGun(wid, op, fin, att) {
+    const W = DATA.WEAPONS[wid], t = W.type, g = new Grid(), F = finishOf(fin), A = att || {};
     const dark = F ? F.dark : 0x1e2024, poly = F ? F.poly : 0x2e3136, mid = F ? (F.glowMid ? glow(F.mid) : F.mid) : 0x44474d, acc = op ? op.look.accent : 0x888888, glove = 0x2a2622, sleeve = op ? op.look.cloth : 0x444444;
-    let sightY = 4, muzzleZ = -40, sight = W.sight;
+    let sightY = 4, muzzleZ = -40, sight = (A.optic && window.ATT && ATT.LIST[A.optic] ? ATT.LIST[A.optic].sight : W.sight) || 'iron';
     if (t === 'SHIELD') {
       g.box(-14, -30, -4, 14, 26, -4, 0x2a333c); g.box(-13, -29, -3, 13, 25, -3, 0x3a4450); g.box(-6, 10, -4, 6, 14, -4, 0x0b0d10); g.box(-5, 11, -4, 5, 13, -4, glow(0x7ab8d8));
       g.box(-2, -6, -2, 2, -2, 6, glove);
@@ -203,8 +220,15 @@
       if (t === 'MP') g.box(-2, -16, 1, 2, -11, 4, poly);
       g.set(0, 5, -16, dark); g.set(-1, 5, 3, dark); g.set(1, 5, 3, dark);
       if (sight === 'red') { g.box(-3, 5, -2, 3, 10, 1, dark); g.cut(-2, 6, -2, 2, 9, 1); sightY = 7.5; }
+      else if (sight === 'reflex') { g.box(-2, 5, -3, 2, 5, 0, dark); g.box(-2, 6, -3, 2, 9, -3, dark); g.cut(-1, 6, -3, 1, 8, -3); sightY = 7; }
       else sightY = 5;
       muzzleZ = big ? -26 : -18;
+      // a suppressor on the muzzle, a laser under the frame, a longer magazine
+      if (A.barrel === 'sup') { g.box(-2, 0, muzzleZ - 14, 2, 4, muzzleZ - 1, 0x141518); muzzleZ -= 14; }
+      else if (A.barrel) { g.box(-3, 0, muzzleZ - 4, 3, 4, muzzleZ - 1, mid); g.cut(-1, 1, muzzleZ - 3, 1, 3, muzzleZ - 2); muzzleZ -= 4; }
+      if (A.under === 'laser') { g.box(-2, -3, -14, 2, -1, -8, dark); g.set(0, -2, -15, glow(0xff3030)); }
+      else if (A.under === 'vgrip') g.box(-1, -8, -12, 1, -2, -10, poly);
+      if (A.mag === 'xmag') g.box(-2, -15, 1, 2, -12, 4, poly);
       g.box(-2, -12, 1, 2, -3, 5, glove); g.box(-3, -16, 1, 3, -10, 6, glove);
       return { geo: mesh(g, VS1, 0.04), sightY: sightY * VS1, muzzleZ: muzzleZ * VS1, sight, iron: true };
     }
@@ -218,18 +242,33 @@
     g.box(-2, -8, 2, 2, -3, 6, poly);                  // grip
     if (t === 'SG') { const wood = F ? F.poly : 0x5a3a22; g.box(-2, -6, -L + 2, 2, -4, -10, wood); g.box(-2, -2, 10, 2, 3, 26, wood); }
     else if (t === 'LMG') { g.box(-5, -14, -12, 4, -3, -2, 0x3a3c32); g.box(-1, -8, -L + 4, -1, -4, -L + 6, mid); }
-    else g.box(-2, -14, -14, 2, -3, -8, poly);         // magazine
+    else g.box(-2, A.mag === 'xmag' ? -19 : -14, -14, 2, -3, -8, poly);         // magazine (longer: extended)
+    if (A.mag === 'fmag' && t !== 'SG' && t !== 'LMG') g.box(-2, -15, -12, 2, -15, -10, glow(0x6a8a5a));   // a quick mag's pull tab
     // rail & sight
     g.box(-1, 5, -16, 1, 5, 8, mid);
     if (sight === 'acog') { g.box(-3, 6, -14, 3, 11, 2, 0x18191c); g.box(-2, 7, -15, 2, 10, -15, glow(0x5a7a90)); sightY = 8.5; }
+    else if (sight === 'var') { g.box(-3, 6, -16, 3, 11, 4, 0x1a1c20); g.box(-4, 7, -16, 4, 10, -14, 0x101114); g.box(-2, 7, -17, 2, 10, -17, glow(0x6a8aa0)); g.box(-4, 7, 0, -4, 9, 2, mid); sightY = 8.5; }
+    else if (sight === 'scope4') { g.box(-3, 7, -22, 3, 12, 6, 0x16171a); g.box(-4, 7, -24, 4, 12, -22, 0x0e0f11); g.box(-2, 8, -25, 2, 11, -25, glow(0x5a7a90)); g.box(-2, 6, -8, 2, 6, -4, mid); sightY = 9.5; }
     else if (sight === 'holo') { g.box(-4, 6, -6, 4, 14, 0, dark); g.cut(-3, 7, -6, 3, 13, 0); g.box(-3, 6, -6, 3, 6, 0, mid); sightY = 10; }
     else if (sight === 'red') { g.box(-3, 6, -5, 3, 12, 0, dark); g.cut(-2, 7, -5, 2, 11, 0); g.box(-2, 6, -5, 2, 6, -4, mid); sightY = 9; }
+    else if (sight === 'reflex') { g.box(-3, 6, -4, 3, 6, 0, dark); g.box(-3, 7, -4, 3, 11, -4, dark); g.cut(-2, 7, -4, 2, 10, -4); g.box(-2, 7, -3, 2, 7, -3, glow(0x7affa0)); sightY = 9; }
     else { g.box(-1, 6, -L + 18, 1, 8, -L + 18, dark); g.set(0, 9, -L + 18, dark); g.box(-2, 6, 6, 2, 8, 6, dark); g.cut(0, 7, 6, 0, 8, 6); sightY = 8.5; }
     g.set(3, 0, -10, glow(acc));
+    // underbarrel: a grip, or a laser on the handguard's side
+    if (A.under === 'vgrip') g.box(-2, -12, -L + 20, 2, -5, -L + 23, poly);
+    else if (A.under === 'agrip') { g.box(-2, -7, -L + 18, 2, -5, -L + 24, poly); g.box(-2, -9, -L + 23, 2, -7, -L + 25, poly); }
+    else if (A.under === 'laser') { g.box(3, -3, -L + 17, 5, 0, -L + 24, dark); g.set(4, -2, -L + 16, glow(0xff3030)); }
     // hands
     g.box(-3, -10, 1, 3, -4, 6, glove);                // trigger hand
-    g.box(-4, -7, -L + 22, 4, -3, -L + 28, glove);     // support hand
+    if (A.under === 'vgrip') g.box(-3, -13, -L + 19, 3, -9, -L + 24, glove);   // support hand on the grip
+    else g.box(-4, -7, -L + 22, 4, -3, -L + 28, glove);     // support hand
     muzzleZ = -L - 2;
+    // barrel devices
+    if (A.barrel === 'sup') { g.box(-3, -3, -L - 22, 3, 3, -L - 2, 0x141518); g.box(-3, -3, -L - 22, 3, -3, -L - 2, 0x1d1f23); muzzleZ = -L - 22; }
+    else if (A.barrel === 'ext') { g.box(-1, -1, -L - 10, 1, 1, -L - 2, dark); g.box(-2, -2, -L - 12, 2, 2, -L - 10, mid); muzzleZ = -L - 12; }
+    else if (A.barrel === 'comp' || A.barrel === 'brake') { g.box(-3, -3, -L - 8, 3, 3, -L - 2, mid); g.cut(-3, -1, -L - 6, 3, 1, -L - 5); if (A.barrel === 'brake') g.cut(-3, -1, -L - 4, 3, 1, -L - 3); muzzleZ = -L - 8; }
+    else if (A.barrel === 'flash') { g.box(-2, -2, -L - 7, 2, 2, -L - 2, dark); g.cut(-2, 0, -L - 7, 2, 0, -L - 4); muzzleZ = -L - 7; }
+    else if (A.barrel === 'choke') { g.box(-2, -2, -L - 5, 2, 2, -L - 2, 0x2a2c30); muzzleZ = -L - 5; }
     return { geo: mesh(g, VS1, 0.04), sightY: sightY * VS1, muzzleZ: muzzleZ * VS1, sight };
   }
   function viewArms(op, suit) {

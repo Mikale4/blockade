@@ -163,7 +163,10 @@
       }
       case 'device': P.openDeviceView(false); break;
       case 'ping': P.ping(); break;
-      case 'firemode': if (a.wpn && a.wpn.def.auto) { a.wpn.auto = !a.wpn.auto; HUD.toast(a.wpn.auto ? 'FULL AUTO' : 'SINGLE'); } break;
+      case 'firemode':
+        // aiming through a variable optic: the key switches its magnification instead
+        if (a.wpn && a.wpn.def.sight === 'var' && a.ads > 0.5) { a.varHi = !a.varHi; HUD.toast(a.varHi ? 'OPTIC 3.0x' : 'OPTIC 1.5x'); break; }
+        if (a.wpn && a.wpn.def.auto) { a.wpn.auto = !a.wpn.auto; HUD.toast(a.wpn.auto ? 'FULL AUTO' : 'SINGLE'); } break;
       case 'interact': { if (GAME.client) { NP.act('interact'); break; } if (a.interact) break; const its = GAME.interactions(a); if (its.length) GAME.beginInteract(a, its[0]); break; }
     }
   };
@@ -308,8 +311,9 @@
   P.zoomOf = function (a) {
     if (!a || !a.wpn) return 1;
     const s = a.wpn.def.sight;
-    let z = s === 'acog' ? (a.zoom4 ? 4 : 2.5) : s === 'iron' ? 1.12 : 1.22;
-    if (a.wpn.def.type === 'SG') z = 1.1;
+    // (Marlow's scope switches 2.5x/4x; a variable optic 1.5x/3x with the firemode key)
+    let z = ATT.zoom(s, s === 'var' ? a.varHi : a.zoom4);
+    if (a.wpn.def.type === 'SG' && !ATT.scoped(s)) z = 1.1;
     return z;
   };
   P.onDeath = function (k) {
@@ -393,12 +397,12 @@
     return P.vmVisible ? G.player : null;
   };
   P.buildVM = function (a) {
-    const cos = a.cos || {}, key = a.op.id + ':' + a.wpn.id + ':' + (a.shieldOp && a.shieldUp ? 'S' : '') + ':' + (cos.finish || '') + ':' + (cos.suit || '');
+    const cos = a.cos || {}, key = a.op.id + ':' + a.wpn.id + ':' + (a.wpn.def.attKey || '') + ':' + (a.shieldOp && a.shieldUp ? 'S' : '') + ':' + (cos.finish || '') + ':' + (cos.suit || '');
     if (key === P.vmKey) return;
     P.vmKey = key;
     if (P.vm) G.vmScene.remove(P.vm.root);
     const root = new THREE.Group(), gun = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ vertexColors: true });
-    const vg = MD.viewGun(a.wpn.id, a.op, cos.finish);
+    const vg = MD.viewGun(a.wpn.id, a.op, cos.finish, a.wpn.def.att);
     const gm = new THREE.Mesh(vg.geo, mat); gun.add(gm);
     const arms = new THREE.Mesh(MD.viewArms(a.op, cos.suit), mat); arms.position.set(0.02, -0.17, 0.12); arms.rotation.x = 0.25; gun.add(arms);
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: P.flashTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -455,7 +459,7 @@
     if (a.state === 'dbno') { pos.y -= 0.15; }
     if (P.meleeT > 0) { const k = Math.sin((1 - P.meleeT / 0.35) * Math.PI); pos.z -= 0.08 * k; pos.x -= 0.04 * k; ry -= 0.5 * k; P.meleeT -= dt; }
     vm.gun.position.copy(pos); vm.gun.rotation.set(rx, ry, rz);
-    vm.flash.visible = P.flashT > 0; if (vm.flash.visible) vm.flash.material.rotation = Math.random() * 6;
+    vm.flash.visible = P.flashT > 0 && !w.def.noFlash; if (vm.flash.visible) { vm.flash.material.rotation = Math.random() * 6; vm.flash.scale.setScalar(w.def.bigFlash ? 0.32 : 0.22); }
     if (vm.shield) {
       // the same three poses the hit test uses: up in front, aside to aim, round to the flank to sprint
       const k = ads, sd = a.shSide || 0, bs = a.shBash > 0 ? Math.sin(a.shBash / 0.3 * Math.PI) : 0;
@@ -467,7 +471,7 @@
       vm.shield.rotation.set(0.06 + 0.25 * sd, U.lerp(U.lerp(0.32, 0.55, k), 1.15, sd) - 0.25 * bs, 0.05 + 0.25 * sd);
     }
     // scope overlay for magnified optics
-    const scoped = w.def.sight === 'acog' && ads > 0.85;
+    const scoped = ATT.scoped(w.def.sight) && ads > 0.85;
     vm.gun.visible = !scoped;
     HUD.scope(scoped);
     HUD.reticle(ads > 0.82 && !scoped && w.reload <= 0 ? w.def.sight : '');

@@ -5,6 +5,9 @@
   const H = { el: {}, markers: [], toasts: [], feedDirty: true, banT: 0, pings: [], hurtArcs: [], dmgNums: [] };
   const $ = U.el;
   const V = () => new THREE.Vector3();
+  /* a bot's playstyle under its name when you watch it (online guests get it from the host) */
+  const esc = s => String(s).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[c]);
+  const styleLine = x => { const p = x.persona; const t = p ? p.name + ' · ' + p.variant + ' — ' + p.vdesc : x.styleLabel; return t && !x.isPlayer && !x.net && !x.netHuman ? '<small class="pstyle">' + esc(t) + '</small>' : ''; };
 
   H.init = function () {
     const root = U.$('hud');
@@ -245,10 +248,10 @@
     const P = PLAYER;
     let vtxt = '';
     if (spx) vtxt = P.view === 'free' ? KEYS.fmt('FREE CAMERA<small>{forward}{left}{back}{right} fly · {vault} up · {crouch} down · {sprint} faster · {fire}/{aim} follow a player</small>')
-      : P.view === 'spectate' && P.spec ? 'WATCHING ' + GAME.who(P.spec) + ' · ' + P.spec.op.name + KEYS.fmt('<small>{fire}/{aim} next / previous player · {device} free camera</small>') : '';
+      : P.view === 'spectate' && P.spec ? 'WATCHING ' + GAME.who(P.spec) + ' · ' + P.spec.op.name + styleLine(P.spec) + KEYS.fmt('<small>{fire}/{aim} next / previous player · {device} free camera</small>') : '';
     else if (P.view === 'drone') vtxt = 'DRONE' + (P.drone && P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} drive · {sprint} boost ' + (P.dBoostCd > 0.05 ? '(' + Math.ceil(P.dBoostCd) + 's)' : '(ready)') + ' · {vault} jump · {fire} spot' + (P.drone && P.drone.surge ? ' · {aim} surge (' + a.ability.zaps + ')' : '') + ' · {device} exit</small>');
     else if (P.view === 'cams') vtxt = (P.cam ? P.cam.name : 'CAMERA') + KEYS.fmt('<small>{left}/{right} switch · {fire} spot · {device} exit</small>');
-    else if (P.view === 'spectate') vtxt = 'SPECTATING ' + (P.spec ? P.spec.op.name : '—') + KEYS.fmt('<small>{fire}/{aim} switch · {device} ' + (a.side === 'atk' ? 'drones' : 'cameras') + '</small>');
+    else if (P.view === 'spectate') vtxt = 'SPECTATING ' + (P.spec ? P.spec.op.name : '—') + (P.spec ? styleLine(P.spec) : '') + KEYS.fmt('<small>{fire}/{aim} switch · {device} ' + (a.side === 'atk' ? 'drones' : 'cameras') + '</small>');
     else if (a.state === 'dbno') vtxt = 'DOWN<small>wait for a teammate to revive you</small>';
     else if (a.state === 'dead' && GAME.arcade && GAME.phase === 'action') { const t = (GAME.client ? P.respawnAt : a.respawnAt) - G.time; vtxt = t > 0 ? 'RESPAWNING IN ' + Math.ceil(t) + '<small>' + (P.killer && P.killer !== a ? 'eliminated by ' + GAME.who(P.killer) : '') + '</small>' : 'RESPAWNING…'; }
     if (H._v !== vtxt) { H._v = vtxt; e.mode.innerHTML = vtxt; e.mode.style.display = vtxt ? '' : 'none'; }

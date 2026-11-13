@@ -17,7 +17,7 @@
 
   /* ------------------------------------------------------------- preview */
   let pr = null;
-  MENU.preview = function (host, op, wid, cos) {
+  MENU.preview = function (host, op, wid, cos, att) {
     if (!pr) {
       const r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       r.setPixelRatio(Math.min(2, devicePixelRatio));
@@ -30,7 +30,7 @@
     const w = host.clientWidth || 300, h = host.clientHeight || 360;
     pr.r.setSize(w, h); pr.cam.aspect = w / h; pr.cam.updateProjectionMatrix();
     if (pr.rig) pr.sc.remove(pr.rig.root);
-    pr.rig = MD.operator(op, wid === 'shield' ? 'p10' : wid, cos || (window.SHOP && Auth.user ? SHOP.look() : null));
+    pr.rig = MD.operator(op, wid === 'shield' ? 'p10' : wid, cos || (window.SHOP && Auth.user ? SHOP.look() : null), att);
     if (wid === 'shield') MD.addShield(pr.rig);
     pr.rig.aim.rotation.x = -0.15;
     pr.sc.add(pr.rig.root);
@@ -276,11 +276,41 @@
         pickRow('PRIMARY', op.primaries, 'primary', id => WEAPONS[id].cls + (WEAPONS[id].dmg ? ' · ' + WEAPONS[id].dmg + ' dmg · ' + WEAPONS[id].rpm + ' rpm' : '')),
         pickRow('SECONDARY', op.secondaries, 'secondary', id => WEAPONS[id].cls + ' · ' + WEAPONS[id].dmg + ' dmg'),
         pickRow('GADGET', op.gadgets, 'gadget', id => GADGETS[id].desc)));
-      const g = GADGETS[lo.gadget], w = WEAPONS[lo.primary];
+      d.append(attachPanel(lo, onChange));
+      const g = GADGETS[lo.gadget], w = ATT.def(lo.primary, ATT.saved(lo.primary));
       d.append($('div', { class: 'lo-info' }, $('p', {}, $('b', {}, w.name), ' — ' + w.cls + (w.dmg ? ' · ' + w.dmg + ' damage · ' + w.rpm + ' rpm · ' + w.mag + ' rounds' : ' · blocks bullets from the front')), $('p', {}, $('b', {}, g.name + ' ×' + g.count), ' — ' + g.desc)));
     }
     return d;
   }
+  /* ATTACHMENTS: the primary's or the secondary's four slots. Each choice is saved for that gun
+     (in this browser) and goes into the match with it; what it changes is listed underneath */
+  let attTab = 'primary', attHover = null;
+  function attachPanel(lo, onChange) {
+    const p = $('div', { class: 'att' });
+    if (lo[attTab] === 'shield' || !WEAPONS[lo[attTab]]) attTab = 'secondary';
+    const gid = lo[attTab], cur = ATT.saved(gid), W = WEAPONS[gid];
+    p.append($('div', { class: 'att-head' }, $('b', {}, 'ATTACHMENTS'),
+      ...['primary', 'secondary'].filter(k => lo[k] !== 'shield').map(k => $('button', { class: attTab === k ? 'on' : '', onclick: () => { attTab = k; attHover = null; SFX.ui(); onChange(); } }, WEAPONS[lo[k]].name))));
+    for (const s of ATT.SLOTS) {
+      const fits = ATT.fits(gid, s);
+      const row = $('div', { class: 'att-row' }, $('label', {}, ATT.SLOT_NAMES[s]));
+      if (!fits.length) { row.append($('span', { class: 'muted' }, s === 'barrel' && W.silent ? 'integrated suppressor' : 'none fit this gun')); p.append(row); continue; }
+      const set = v => { const n = Object.assign({}, cur); if (v) n[s] = v; else delete n[s]; ATT.save(gid, n); SFX.ui(); onChange(); };
+      const stockName = s === 'optic' ? 'STOCK · ' + ATT.zoomText(W.sight) : 'NONE';
+      row.append($('button', { class: !cur[s] ? 'on' : '', onclick: () => set(null), onmouseenter: () => { attHover = null; } }, stockName));
+      for (const id of fits) {
+        if (s === 'optic' && id === W.sight) continue;   // its own sight is the stock choice
+        const x = ATT.LIST[id];
+        row.append($('button', { class: cur[s] === id ? 'on' : '', title: x.desc, onclick: () => set(id), onmouseenter: () => { attHover = id; info.textContent = x.name + ' — ' + x.desc; } }, x.name));
+      }
+      p.append(row);
+    }
+    const fx = ATT.effects(gid, cur);
+    const info = $('p', { class: 'att-desc' }, attHover && ATT.LIST[attHover] ? ATT.LIST[attHover].name + ' — ' + ATT.LIST[attHover].desc : 'Point at an attachment to read what it does. Your setup is saved for each gun.');
+    p.append($('div', { class: 'att-fx' }, ...(fx.length ? fx.map(e => $('span', { class: e.good ? 'good' : 'bad' }, e.t)) : [$('span', { class: 'muted' }, 'Stock ' + W.name)])), info);
+    return p;
+  }
+  MENU.withAttachments = lo => Object.assign({}, lo, { att: { [lo.primary]: ATT.saved(lo.primary), [lo.secondary]: ATT.saved(lo.secondary) } });
 
   /* ---------------------------------------------------------- operator select */
   MENU.opSelect = function (cfg) {
@@ -313,9 +343,9 @@
         right.append($('div', { class: 'lo-row spawn' }, $('label', {}, 'SPAWN'), ...spawns.map((s, i) => $('button', { class: spawn === i ? 'on' : '', onclick: () => { spawn = i; SFX.ui(); render(); } }, s))));
       }
       right.append($('div', { class: 'actions' }, btn(cfg.online ? 'LEAVE MATCH' : 'QUIT MATCH', () => { if (cfg.online) Online.leave(); else { GAME.quit(); MENU.home(); } }, 'ghost'),
-        btn('READY', () => { U.store.set('lastOp_' + side, sel.id); U.store.set('lo_' + sel.id, lo); MENU.hide(); G.mode = 'match'; HUD.show(true); cfg.onReady({ op: sel, loadout: Object.assign({}, lo, { cos: Auth.user ? SHOP.look() : null }), spawn }); }, 'big')));
+        btn('READY', () => { U.store.set('lastOp_' + side, sel.id); U.store.set('lo_' + sel.id, lo); MENU.hide(); G.mode = 'match'; HUD.show(true); cfg.onReady({ op: sel, loadout: Object.assign(MENU.withAttachments(lo), { cos: Auth.user ? SHOP.look() : null }), spawn }); }, 'big')));
       wrap.append($('div', { class: 'os-body' }, grid, prev, right));
-      requestAnimationFrame(() => MENU.preview(prev, sel, lo.primary));
+      requestAnimationFrame(() => MENU.preview(prev, sel, lo.primary, null, ATT.saved(lo.primary)));
     };
     show(wrap);
     render();

@@ -12,8 +12,9 @@
   let NID = 1;
 
   class WState {
-    constructor(id) {
-      const d = WEAPONS[id];
+    /* att: the gun's attachments (attach.js): `def` is then the gun's effective stats */
+    constructor(id, att) {
+      const d = window.ATT ? ATT.def(id, att) : WEAPONS[id];
       this.id = id; this.def = d;
       this.mag = d.mag || 0; this.reserve = (d.mag || 0) * (d.mags || 0);
       this.cool = 0; this.reload = 0; this.reloadMax = 0; this.bloom = 0; this.semiLock = false; this.auto = !!d.auto;
@@ -65,10 +66,11 @@
       const op = this.op;
       this.w = [];
       if (!this.hostage) {
-        const prim = this.loadout.primary;
+        const prim = this.loadout.primary, att = this.loadout.att || {};
         this.shieldOp = prim === 'shield';
-        this.w.push(new WState(this.shieldOp ? this.loadout.secondary : prim));
-        this.w.push(new WState(this.loadout.secondary));
+        const sec = this.loadout.secondary;
+        this.w.push(new WState(this.shieldOp ? sec : prim, att[this.shieldOp ? sec : prim]));
+        this.w.push(new WState(sec, att[sec]));
         if (this.shieldOp) { this.w[0].reserve = this.w[0].reserve + this.w[1].mag + this.w[1].reserve; this.w.length = 1; }
       }
       this.cur = 0; this.swap = 0;
@@ -97,13 +99,13 @@
     get up() { return this.state !== 'dead'; }
 
     buildRig() {
-      this.rig = MD.operator(this.hostage ? MD.HOSTAGE_OP : this.op, this.hostage ? 'p10' : this.w[0].id, this.hostage ? null : this.cos);
+      this.rig = MD.operator(this.hostage ? MD.HOSTAGE_OP : this.op, this.hostage ? 'p10' : this.w[0].id, this.hostage ? null : this.cos, this.hostage ? null : this.w[0].def.att);
       if (this.hostage) this.rig.gun.visible = false;
       if (this.shieldOp) MD.addShield(this.rig);
       this.rig.root.userData.actor = this;
     }
     addTo(scene) { if (this.rig) scene.add(this.rig.root); }
-    removeFrom(scene) { if (this.rig) scene.remove(this.rig.root); if (this.ropeMesh) { scene.remove(this.ropeMesh); this.ropeMesh = null; } }
+    removeFrom(scene) { if (this.rig) scene.remove(this.rig.root); if (this.ropeMesh) { scene.remove(this.ropeMesh); this.ropeMesh = null; } if (this.beam) { scene.remove(this.beam); this.beam = null; } }
     /* the rappel rope: a cord from the hook over the wall top down to the harness, drawn in the
        world so you see it in first person too (it hangs just in front of you, a little to the left) */
     updateRope() {
@@ -670,7 +672,7 @@
       if (this.spawnProt > G.time) return;   // just respawned
       if (src && src !== this && src.team === this.team && !this.hostage && info.kind === 'bullet') return; // no friendly bullets
       if (src && src.team === this.team && info.kind !== 'bullet' && src !== this) dmg *= 0.5;
-      if (src && src !== this) this.dmgBy.set(src, (this.dmgBy.get(src) || 0) + dmg);
+      if (src && src !== this) { this.dmgBy.set(src, (this.dmgBy.get(src) || 0) + dmg); if (src.isActor !== false && src.pos) this.hurtBy = src; }
       this.lastHurt = G.time;
       if (info.dir) this.hurtDir = Math.atan2(-info.dir.x, -info.dir.z);
       if (this.over > 0) { const a = Math.min(this.over, dmg); this.over -= a; dmg -= a; }
