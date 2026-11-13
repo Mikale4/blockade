@@ -11,6 +11,34 @@
   const EYE = [1.6, 1.08, 0.36];
   let NID = 1;
 
+  /* ---- keeping a body on its own side of walls (Actor.fitWalls / fallFit) */
+  const FT = { o: new THREE.Vector3(), d: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3() }, NO_FIT = { tilt: 0, slide: 0, ox: 0, oz: 0 };
+  const AXES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const crouchK = h => Math.max(0, Math.min(1, (STAND - h) / (STAND - CROUCH)));
+  // how far there is to go from o along (dx, dy, dz) before anything solid, up to max
+  function clearAlong(o, dx, dy, dz, max) {
+    if (!G.world) return max;
+    FT.d.set(dx, dy, dz).normalize();
+    const h = G.world.raycast(o, FT.d, max);
+    return h ? h.dist : max;
+  }
+  // how far to slide something that reaches ef ahead and eb behind so it stays clear of walls dF
+  // ahead and dB behind: not at all when it fits, and halfway into each when there is no room
+  function fitSpan(ef, eb, dF, dB) {
+    const m = 0.04, lo = eb + m - dB, hi = dF - m - ef;
+    return lo <= hi ? Math.min(Math.max(0, lo), hi) : (lo + hi) / 2;
+  }
+  // a rig's gun as four corners in the shoulders' frame: the top and bottom of its muzzle end
+  // (attachments and all) and of its butt
+  function gunPts(r) {
+    const gm = r.gunMesh, g = gm && gm.geometry; if (!g) return null;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const b = g.boundingBox, p = r.gun.position;
+    return [[p.x, p.y + b.max.y, p.z + b.min.z], [p.x, p.y + b.min.y, p.z + b.min.z], [p.x, p.y + b.min.y, p.z + b.max.z], [p.x, p.y + b.max.y, p.z + b.max.z]];
+  }
+  const rotX = (v, an) => { const c = Math.cos(an), s = Math.sin(an), y = v[1] * c - v[2] * s, z = v[1] * s + v[2] * c; v[1] = y; v[2] = z; return v; };
+  const rotZ = (v, an) => { const c = Math.cos(an), s = Math.sin(an), x = v[0] * c - v[1] * s, y = v[0] * s + v[1] * c; v[0] = x; v[1] = y; return v; };
+
   class WState {
     /* att: the gun's attachments (attach.js): `def` is then the gun's effective stats */
     constructor(id, att) {
@@ -155,18 +183,19 @@
       }
       const S = MD.S, lying = this.stance === 2 || this.state === 'dbno';
       const sw = (this.moving || 0) > 0.2 ? Math.sin(this.animT) : 0;
-      // the rig's angles, exactly as updateRig poses them
+      // the rig's angles, exactly as updateRig poses them (kept clear of walls: fitWalls)
+      const F = this.fit || NO_FIT;
       let poseX = 0, poseY = 0, poseZ = 0, hipsY, torsoX = 0, torsoZ = 0, thL, thR, shL, shR, aimX, headX = 0;
       if (lying) {
-        poseX = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; poseY = 0.22; poseZ = PRONE_Z;
+        poseX = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; poseY = 0.22; poseZ = PRONE_Z - F.slide;
         hipsY = 13 * S; thL = sw * 0.3; thR = -sw * 0.3; shL = shR = -0.2;
-        aimX = this.state === 'dbno' ? -0.5 : Math.PI / 2 - 0.1 + this.pitch * 0.5;
+        aimX = (this.state === 'dbno' ? -0.5 : Math.PI / 2 - 0.1 + this.pitch * 0.5) + F.tilt;
       } else {
-        const c = Math.max(0, Math.min(1, (STAND - h) / (STAND - CROUCH)));
-        hipsY = (13 - c * 5.6) * S; torsoX = -c * 0.25; torsoZ = -this.lean * 0.38;
+        const c = crouchK(h);
+        poseZ = -F.slide; hipsY = (13 - c * 5.6) * S; torsoX = -c * 0.25; torsoZ = -this.lean * 0.38;
         thL = c * 1.25 + sw * 0.55; thR = c * 1.25 - sw * 0.55;
         shL = -(c * 1.9 + Math.max(0, -sw) * 0.7); shR = -(c * 1.9 + Math.max(0, sw) * 0.7);
-        aimX = this.pitch + c * 0.25; headX = this.pitch * 0.4;
+        aimX = this.pitch + c * 0.25 + (this.sprint && (this.moving || 0) > 3.5 ? -0.6 : 0) + F.tilt; headX = this.pitch * 0.4;
         if (this.rappel) { thL = 0.9; thR = 0.7; shL = -0.9; shR = -0.8; }
       }
       const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
@@ -176,7 +205,7 @@
       // a point in the hips' frame -> the world (through the pose and the facing)
       const world = v => {
         add(v, 0, hipsY, 0); rx(v, poseX); add(v, 0, poseY, poseZ);
-        return [p.x + v[0] * cy + v[2] * sy, p.y + v[1], p.z - v[0] * sy + v[2] * cy];
+        return [p.x + (F.ox || 0) + v[0] * cy + v[2] * sy, p.y + v[1], p.z + (F.oz || 0) - v[0] * sy + v[2] * cy];
       };
       const torso = v => world(add(rx(rz(v, torsoZ), torsoX), 0, 0.5 * S, 0));
       const leg = (x, th, sh, alongShin, y) => world(add(rx(alongShin ? add(rx([0, y * S, 0], sh), 0, -6.5 * S, 0) : [0, y * S, 0], th), x * S, 0, 0));
@@ -298,8 +327,13 @@
       const running = this.sprint && this.mf > 0.3 && this.stance === 0;
       if (running) this.leanT = 0;   // breaking into a run straightens you up (and clears a toggled lean)
       const leanOK = this.state === 'alive' && !running;
+      // the head stops where it meets a wall, and so does the shoulder under it, which reaches
+      // further out (leaning into a wall you were pressed against eased half into it and back,
+      // and the shoulder came out on its far side)
+      const was = this.lean;
       this.lean = U.smooth(this.lean, leanOK ? this.leanT : 0, 12, dt);
-      if (this.lean) { const e = this.eye(U.v2); if (W.boxHits(e.x - 0.12, e.y - 0.12, e.z - 0.12, e.x + 0.12, e.y + 0.12, e.z + 0.12)) this.lean *= 0.85; }
+      const inWall = () => { const e = this.eye(U.v2); return W.boxHits(e.x - 0.12, e.y - 0.12, e.z - 0.12, e.x + 0.12, e.y + 0.12, e.z + 0.12); };
+      if (this.lean && inWall()) { if (Math.abs(was) < Math.abs(this.lean)) this.lean = was; if (this.lean && inWall()) this.lean *= 0.85; }
       // desired velocity
       const sp = this.speedNow();
       let mf = this.mf, mr = this.mr;
@@ -731,10 +765,115 @@
     }
 
     /* ------------------------------------------------------------- 3rd person */
+    /* ---------------------------------------- the body stays on its own side of walls
+       Movement keeps an operator 0.24 m from a wall, but the gun reaches 1.1-1.4 m ahead of the
+       shoulders and a body lying down 0.8-1.1 m along itself, and walls are one voxel (0.25 m)
+       thick: pressed against one, the gun, hands, head or feet came out on the far side and gave
+       the operator away. So the gun comes up (or down, when aiming low) until it clears what is
+       in front of it, a body lying down slides along itself to fit between the walls ahead and
+       behind, a crouched or walking body (or one behind a shield) eases off a wall its knees,
+       feet or shield would come through, and a corpse falls the way there is room (fallFit).
+       updateRig draws this pose and spheres() hits it, so nothing on the far side can be seen
+       or shot. (WPN.muzzlePos keeps flashes, tracers and lasers this side too.) */
+    fitWalls(dt) {
+      const F = this.fit || (this.fit = { tilt: 0, slide: 0, ox: 0, oz: 0, fall: null });
+      const r = this.rig;
+      if (!G.world || !r || this.state === 'dead' || this.ghost || (this.rappel && this.rappel.inv)) { F.tilt = F.slide = F.ox = F.oz = 0; return F; }
+      const lying = this.stance === 2 || this.state === 'dbno';
+      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw), rx = -fz, rz = fx;   // ahead, and to the right
+      let slide = 0, ox = 0, oz = 0;
+      const c = lying ? 0 : crouchK(this.h), stride = (this.moving || 0) > 0.2 ? 1 : 0;
+      if (lying) {
+        // lying down: the head is 0.82 m ahead, the feet 1.12 m behind. Slide along the body
+        FT.o.set(this.pos.x, this.pos.y + 0.3, this.pos.z);
+        slide = fitSpan(0.82, 1.12, clearAlong(FT.o, fx, 0, fz, 2.2), clearAlong(FT.o, -fx, 0, -fz, 2.2));
+      } else if (c > 0.05 || stride || r.shield) {
+        // crouched the knees come up to 0.6 m forward, walking a foot swings out 0.5 m, and a shield
+        // is carried half a metre out: they may sink into a wall (one voxel is 0.25 m) but not come
+        // out of the far side of it. The body's footprint (ef ahead, eb behind, lat to either
+        // side) is moved off each wall along the grid it is built on
+        const ef = Math.max(0.23 + c * 0.36, r.shield ? 0.52 : 0) + stride * 0.34, eb = 0.25 + c * 0.1 + stride * 0.24, lat = 0.22;
+        FT.o.set(this.pos.x, this.pos.y + (r.shield ? 0.9 : 0.4), this.pos.z);
+        for (const [ux, uz] of AXES) {
+          const fu = fx * ux + fz * uz, reach = (fu > 0 ? ef * fu : -eb * fu) + lat * Math.abs(rx * ux + rz * uz);
+          if (reach < 0.4) continue;   // (within any wall it touches)
+          const push = reach - (clearAlong(FT.o, ux, 0, uz, 1) + 0.16);
+          if (push > 0) { ox -= ux * Math.min(push, 0.3); oz -= uz * Math.min(push, 0.3); }
+        }
+      }
+      F.slide = U.smooth(F.slide, slide, 25, dt); F.ox = U.smooth(F.ox || 0, ox, 25, dt); F.oz = U.smooth(F.oz || 0, oz, 25, dt);
+      // the gun: out from the shoulders, posed the way updateRig poses it (a shield stays where it
+      // is: updateRig turns it back)
+      let want = 0;
+      const pts = this.wpn ? gunPts(r) : null;
+      if (pts) {
+        const S = MD.S;
+        let poseX = 0, poseY = 0, poseZ = 0, hipsY, torsoX = 0, torsoZ = 0, aimX;
+        if (lying) {
+          poseX = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; poseY = 0.22; poseZ = PRONE_Z - F.slide; hipsY = 13 * S;
+          aimX = this.state === 'dbno' ? -0.5 : Math.PI / 2 - 0.1 + this.pitch * 0.5;
+        } else {
+          const c = crouchK(this.h);
+          poseZ = -F.slide; hipsY = (13 - c * 5.6) * S; torsoX = -c * 0.25; torsoZ = -this.lean * 0.38;
+          aimX = this.pitch + c * 0.25 + (this.sprint && (this.moving || 0) > 3.5 ? -0.6 : 0);
+        }
+        // a point in the shoulders' frame (turned by the arms' angle a) out through the torso, the
+        // hips and the pose to the world
+        const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+        const toWorld = (p, a, out) => {
+          const v = rotX([p[0], p[1], p[2]], a); v[1] += 9 * S; v[2] -= 1 * S;
+          rotX(rotZ(v, torsoZ), torsoX); v[1] += 0.5 * S + hipsY; rotX(v, poseX); v[1] += poseY; v[2] += poseZ;
+          return out.set(this.pos.x + F.ox + v[0] * cy + v[2] * sy, this.pos.y + v[1], this.pos.z + F.oz - v[0] * sy + v[2] * cy);
+        };
+        const o = toWorld([0, 0, 0], 0, FT.p), q = FT.q, W = G.world;
+        // every corner of the gun, seen from the shoulders, may sink 0.15 m into a wall (still
+        // inside it: one voxel is 0.25 m) but no further, and must not come out into the open again
+        const clear = a => {
+          for (const p of pts) {
+            toWorld(p, a, q).sub(o); const L = q.length(); if (L < 1e-3) continue;
+            FT.d.copy(q).divideScalar(L);
+            const h = W.raycast(o, FT.d, L); if (!h) continue;
+            const tx = o.x + q.x, ty = o.y + q.y, tz = o.z + q.z;
+            if (!W.boxHits(tx - 0.01, ty - 0.01, tz - 0.01, tx + 0.01, ty + 0.01, tz + 0.01)) return false;
+            if ((L - h.dist) * Math.abs(FT.d.x * h.nx + FT.d.y * h.ny + FT.d.z * h.nz) > 0.15) return false;
+          }
+          return true;
+        };
+        if (!clear(aimX)) {
+          // aiming level or up: raise it (high ready, up to tipped back over the shoulder);
+          // aiming low: lower it. The smallest turn that clears
+          const e = poseX + torsoX + aimX, up = e > -0.35;   // the gun's elevation (every joint turns about the same axis)
+          want = null;
+          for (let i = 1; i <= 16 && want === null; i++) for (const sg of up ? [1, -1] : [-1, 1]) {
+            const t = sg * i * 0.13, e2 = e + t;
+            if (e2 > 2 || e2 < -1.45) continue;
+            if (clear(aimX + t)) { want = t; break; }
+          }
+          if (want === null) want = (up ? 1.9 : -1.4) - e;
+        }
+      }
+      // it comes up fast (so nothing shows through) and settles back gently
+      F.tilt = U.smooth(F.tilt, want, Math.abs(want) > Math.abs(F.tilt) || want * F.tilt < 0 ? 40 : 8, dt);
+      return F;
+    }
+    /* where a corpse lies: falling backwards as it always has, unless there is no room behind and
+       more ahead, then sliding along itself to keep its head and feet this side of the walls */
+    fallFit() {
+      const F = this.fit || (this.fit = { tilt: 0, slide: 0, fall: null }), f0 = F.fall;
+      if (f0 && f0.x === this.pos.x && f0.z === this.pos.z && f0.yaw === this.yaw) return f0;
+      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+      FT.o.set(this.pos.x, this.pos.y + 0.3, this.pos.z);
+      const dF = clearAlong(FT.o, fx, 0, fz, 2.4), dB = clearAlong(FT.o, -fx, 0, -fz, 2.4);
+      const dir = dB < 2.1 && dF > dB ? -1 : 1;   // 1: on its back, -1: on its front
+      // lying from 0.05 m to 2.05 m behind where it stood (on its front: as far ahead)
+      const s = dir > 0 ? fitSpan(-0.05, 2.05, dF, dB) : fitSpan(2.05, -0.05, dF, dB);
+      return (F.fall = { x: this.pos.x, z: this.pos.z, yaw: this.yaw, dir, s });
+    }
     updateRig(dt, visible) {
       this.updateRope();
       const r = this.rig; if (!r) return;
       r.root.visible = visible;
+      const F = this.fitWalls(dt);
       const cl = this.cloakT > 0 && this.state === 'alive';
       if (cl || r.cloaked) {
         const mine = G.player && this.team === G.player.team;
@@ -743,7 +882,7 @@
         r.cloaked = cl;
       }
       if (!visible) return;
-      r.root.position.copy(this.pos);
+      r.root.position.set(this.pos.x + (F.ox || 0), this.pos.y, this.pos.z + (F.oz || 0));
       r.root.rotation.y = this.yaw;
       r.pose.rotation.z = 0;
       if (this.rappel && this.rappel.inv && this.state === 'alive') {
@@ -759,19 +898,20 @@
       const sw = hs > 0.2 ? Math.sin(this.animT) : 0;
       if (this.state === 'dead') {
         this.deathT = Math.min(1, this.deathT + dt * 2.5);
-        r.pose.rotation.x = U.lerp(0, Math.PI / 2, this.deathT * this.deathT); r.pose.position.y = 0.05; r.pose.position.z = this.deathT * 0.2;
+        const fl = this.fallFit(), k = this.deathT;
+        r.pose.rotation.x = U.lerp(0, fl.dir * Math.PI / 2, k * k); r.pose.position.y = 0.05; r.pose.position.z = (fl.dir * 0.2 - fl.s) * k;
         r.torso.rotation.z = 0; r.aim.rotation.x = -0.8; return;
       }
       const prone = this.stance === 2 || this.state === 'dbno';
       if (prone) {
-        r.pose.rotation.x = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; r.pose.position.y = 0.22; r.pose.position.z = PRONE_Z;
+        r.pose.rotation.x = this.state === 'dbno' ? -1.35 : -Math.PI / 2 + 0.05; r.pose.position.y = 0.22; r.pose.position.z = PRONE_Z - F.slide;
         r.thighL.rotation.x = sw * 0.3; r.thighR.rotation.x = -sw * 0.3; r.shinL.rotation.x = -0.2; r.shinR.rotation.x = -0.2;
         r.hips.position.y = 13 * MD.S; r.torso.rotation.x = 0;
-        r.aim.rotation.x = this.state === 'dbno' ? -0.5 : Math.PI / 2 - 0.1 + this.pitch * 0.5;
+        r.aim.rotation.x = (this.state === 'dbno' ? -0.5 : Math.PI / 2 - 0.1 + this.pitch * 0.5) + F.tilt;
         r.torso.rotation.z = 0;
         return;
       }
-      r.pose.rotation.x = 0; r.pose.position.y = 0; r.pose.position.z = 0;
+      r.pose.rotation.x = 0; r.pose.position.y = 0; r.pose.position.z = -F.slide;
       const c = Math.max(0, Math.min(1, (STAND - this.h) / (STAND - CROUCH)));
       // +X rotation swings a limb forward (the model faces -Z): thighs forward, shins back = knees bend forward
       r.hips.position.y = (13 - c * 5.6) * MD.S;
@@ -779,13 +919,15 @@
       r.shinL.rotation.x = -(c * 1.9 + Math.max(0, -sw) * 0.7); r.shinR.rotation.x = -(c * 1.9 + Math.max(0, sw) * 0.7);
       r.torso.rotation.x = -c * 0.25;
       r.torso.rotation.z = -this.lean * 0.38;
-      r.aim.rotation.x = this.pitch + c * 0.25 + (this.sprint && hs > 3.5 ? -0.6 : 0);
+      r.aim.rotation.x = this.pitch + c * 0.25 + (this.sprint && hs > 3.5 ? -0.6 : 0) + F.tilt;
       r.head.rotation.x = this.pitch * 0.4;
       if (r.shield) {
         // the same poses the hit test uses (WPN.shieldRect): square in front, aside to aim, round to the flank to run
         if (GAME.client && !this.isPlayer) this.shieldTick(dt);
         const k = this.ads || 0, sd = this.shSide || 0, bs = this.shBash > 0 ? Math.sin(this.shBash / 0.3 * Math.PI) : 0, S = MD.S;
-        r.shield.position.set((-1 - 3 * k - 5 * sd) * S, (-4 - k - 2 * sd) * S, (-6 + k + 5 * sd - 3.5 * bs) * S);
+        // (turned back by the arms' tilt off a wall, so the shield stays put while the gun comes up)
+        const sp = rotX([(-1 - 3 * k - 5 * sd) * S, (-4 - k - 2 * sd) * S, (-6 + k + 5 * sd - 3.5 * bs) * S], -F.tilt);
+        r.shield.position.set(sp[0], sp[1], sp[2]);
         r.shield.rotation.set(-r.aim.rotation.x, 0.2 * k + 1.25 * sd, 0);   // stays upright whatever the arms do
       }
       if (this.rappel) { r.thighL.rotation.x = 0.9; r.thighR.rotation.x = 0.7; r.shinL.rotation.x = -0.9; r.shinR.rotation.x = -0.8; }

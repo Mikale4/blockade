@@ -157,7 +157,11 @@
   }
   function muzzlePos(a) {
     const e = a.eye(new THREE.Vector3()), f = a.fwd(tmpD), r = a.right(new THREE.Vector3());
-    return e.addScaledVector(f, 0.55).addScaledVector(r, 0.12).add(new THREE.Vector3(0, -0.1, 0));
+    const m = e.clone().addScaledVector(f, 0.55).addScaledVector(r, 0.12).add(new THREE.Vector3(0, -0.1, 0));
+    // never past a wall the shooter is pressed against: a flash, tracer or laser on its far side gave them away
+    const d = m.clone().sub(e), L = d.length();
+    if (G.world && L > 1e-4) { d.divideScalar(L); const h = G.world.raycast(e, d, L); if (h) return e.addScaledVector(d, Math.max(0, h.dist - 0.05)); }
+    return m;
   }
   WPN.muzzlePos = muzzlePos;
 
