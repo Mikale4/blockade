@@ -228,6 +228,29 @@ canvas.bust { display: block; }
 .lo-row label { width: 92px; font: 700 12px var(--f); letter-spacing: 0.2em; color: var(--dim); }
 .lo-row.spawn { margin-top: 12px; }
 .lo-info { font-size: 13px; color: #c3c9d3; margin-top: 8px; } .lo-info p { margin: 4px 0; }
+/* the kit as cards: each gun and gadget drawn from its own model */
+.kit { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.krow { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: center; }
+.krow > label { font: 700 12px var(--f); letter-spacing: 0.2em; color: var(--dim); }
+.kcards { display: flex; flex-wrap: wrap; gap: 6px; }
+.kcard { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 8px 5px; cursor: pointer; color: var(--txt);
+  background: radial-gradient(ellipse at 50% 35%, rgba(150,165,185,0.22), rgba(255,255,255,0.02) 75%); border: 1px solid var(--line); min-width: 96px; transition: border-color 0.12s, background 0.12s; }
+.kcard:hover { border-color: rgba(255,255,255,0.35); background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04)); }
+.kcard.on { border-color: var(--atk); box-shadow: inset 0 0 0 1px var(--atk), 0 0 12px rgba(242,140,40,0.18); background: linear-gradient(180deg, rgba(242,140,40,0.16), rgba(242,140,40,0.04)); }
+.kcard b { font: 800 12px var(--f); letter-spacing: 0.1em; }
+.kcard small { font: 600 10px var(--f); letter-spacing: 0.06em; color: var(--dim); }
+.kcard canvas.kitpic { display: block; }
+/* the weapon showcase: the gun turning with its attachments on, its numbers as bars */
+.att-show { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 6px 4px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line);
+  background: radial-gradient(ellipse at 50% 38%, rgba(150,165,185,0.24), transparent 72%); }
+.att-show canvas.kitshow { width: 100%; max-width: 360px; height: auto; aspect-ratio: 3 / 1; justify-self: center; }
+.att-name { display: flex; align-items: baseline; gap: 8px; justify-content: center; } .att-name b { font: 800 16px var(--f); letter-spacing: 0.14em; } .att-name small { font: 600 11px var(--f); color: var(--dim); letter-spacing: 0.06em; }
+.wstats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 14px; padding: 2px 6px; }
+.wstat { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 6px; }
+.wstat span { font: 700 10px var(--f); letter-spacing: 0.14em; color: var(--dim); }
+.wstat i { position: relative; height: 6px; background: rgba(255,255,255,0.08); }
+.wstat em { position: absolute; top: 0; bottom: 0; left: 0; }
+.wstat em.base { background: #cfd5de; } .wstat em.up { background: #7fe08a; } .wstat em.dn { background: #ff8a70; opacity: 0.85; }
 /* attachments: four compact slot rows under the loadout */
 .att { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.025); display: flex; flex-direction: column; gap: 4px; }
 .att-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }

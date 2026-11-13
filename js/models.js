@@ -204,7 +204,8 @@
 
   /* ================================================== first-person guns (1/48) */
   const VS1 = 1 / 48;
-  function viewGun(wid, op, fin, att) {
+  /* (bare: no hands on it, for showing the gun on its own: the loadout screen) */
+  function viewGun(wid, op, fin, att, bare) {
     const W = DATA.WEAPONS[wid], t = W.type, g = new Grid(), F = finishOf(fin), A = att || {};
     const dark = F ? F.dark : 0x1e2024, poly = F ? F.poly : 0x2e3136, mid = F ? (F.glowMid ? glow(F.mid) : F.mid) : 0x44474d, acc = op ? op.look.accent : 0x888888, glove = 0x2a2622, sleeve = op ? op.look.cloth : 0x444444;
     let sightY = 4, muzzleZ = -40, sight = (A.optic && window.ATT && ATT.LIST[A.optic] ? ATT.LIST[A.optic].sight : W.sight) || 'iron';
@@ -223,13 +224,14 @@
       else if (sight === 'reflex') { g.box(-2, 5, -3, 2, 5, 0, dark); g.box(-2, 6, -3, 2, 9, -3, dark); g.cut(-1, 6, -3, 1, 8, -3); sightY = 7; }
       else sightY = 5;
       muzzleZ = big ? -26 : -18;
+      if (bare) g.box(-2, -12, 1, 2, -3, 5, poly);          // (the grip the hand would hide)
       // a suppressor on the muzzle, a laser under the frame, a longer magazine
       if (A.barrel === 'sup') { g.box(-2, 0, muzzleZ - 14, 2, 4, muzzleZ - 1, 0x141518); muzzleZ -= 14; }
       else if (A.barrel) { g.box(-3, 0, muzzleZ - 4, 3, 4, muzzleZ - 1, mid); g.cut(-1, 1, muzzleZ - 3, 1, 3, muzzleZ - 2); muzzleZ -= 4; }
       if (A.under === 'laser') { g.box(-2, -3, -14, 2, -1, -8, dark); g.set(0, -2, -15, glow(0xff3030)); }
       else if (A.under === 'vgrip') g.box(-1, -8, -12, 1, -2, -10, poly);
       if (A.mag === 'xmag') g.box(-2, -15, 1, 2, -12, 4, poly);
-      g.box(-2, -12, 1, 2, -3, 5, glove); g.box(-3, -16, 1, 3, -10, 6, glove);
+      if (!bare) { g.box(-2, -12, 1, 2, -3, 5, glove); g.box(-3, -16, 1, 3, -10, 6, glove); }
       return { geo: mesh(g, VS1, 0.04), sightY: sightY * VS1, muzzleZ: muzzleZ * VS1, sight, iron: true };
     }
     const L = t === 'DMR' ? 64 : t === 'SMG' ? 36 : t === 'LMG' ? 56 : t === 'SG' ? 54 : 48;
@@ -259,9 +261,11 @@
     else if (A.under === 'agrip') { g.box(-2, -7, -L + 18, 2, -5, -L + 24, poly); g.box(-2, -9, -L + 23, 2, -7, -L + 25, poly); }
     else if (A.under === 'laser') { g.box(3, -3, -L + 17, 5, 0, -L + 24, dark); g.set(4, -2, -L + 16, glow(0xff3030)); }
     // hands
-    g.box(-3, -10, 1, 3, -4, 6, glove);                // trigger hand
-    if (A.under === 'vgrip') g.box(-3, -13, -L + 19, 3, -9, -L + 24, glove);   // support hand on the grip
-    else g.box(-4, -7, -L + 22, 4, -3, -L + 28, glove);     // support hand
+    if (!bare) {
+      g.box(-3, -10, 1, 3, -4, 6, glove);                // trigger hand
+      if (A.under === 'vgrip') g.box(-3, -13, -L + 19, 3, -9, -L + 24, glove);   // support hand on the grip
+      else g.box(-4, -7, -L + 22, 4, -3, -L + 28, glove);     // support hand
+    }
     muzzleZ = -L - 2;
     // barrel devices
     if (A.barrel === 'sup') { g.box(-3, -3, -L - 22, 3, 3, -L - 2, 0x141518); g.box(-3, -3, -L - 22, 3, -3, -L - 2, 0x1d1f23); muzzleZ = -L - 22; }
@@ -308,6 +312,11 @@
     defuser: g => { g.box(-6, 0, -4, 6, 5, 4, 0x2a2c30); g.box(-4, 6, -2, 4, 6, 2, glow(0xff3030)); g.box(-1, 7, -1, 1, 12, 1, 0x666666); },
     biohazard: g => { g.box(-8, 0, -6, 8, 12, 6, 0xd8b52a); g.box(-6, 13, -4, 6, 14, 4, 0x333333); g.box(-2, 4, -7, 2, 8, -7, glow(0xff5a30)); },
     smokegl: g => { g.box(-2, -2, -2, 2, 2, 2, 0x8a8f94); },
+    // the second-kit gadgets: an EMP grenade, a stim injector, a proximity alarm, a fog canister
+    emp: g => { g.box(-2, -3, -2, 2, 3, 2, 0x26324a); g.box(-2, 0, -2, 2, 0, 2, glow(0x5ad8ff)); g.box(-1, 4, -1, 1, 4, 1, 0x888888); g.set(2, 2, 0, glow(0x5ad8ff)); },
+    stim: g => { g.box(-1, -6, -1, 1, 4, 1, 0xd8dde0); g.box(-1, -3, -1, 1, 1, 1, glow(0x7ce0a0)); g.box(-2, 5, -2, 2, 5, 2, 0x9aa0a6); g.box(0, -9, 0, 0, -7, 0, 0x9aa0a6); },
+    alarm: g => { g.box(-3, 0, -3, 3, 2, 3, 0x3a3f45); g.box(-2, 3, -2, 2, 3, 2, 0x22262b); g.set(0, 4, 0, glow(0xffcc30)); g.set(-2, 1, -4, glow(0xff5030)); },
+    fog: g => { g.box(-2, 0, -2, 2, 7, 2, 0x6a7078); g.box(-2, 8, -2, 2, 8, 2, 0xd0d0d0); g.box(-1, 9, -1, 1, 9, 1, 0x555555); g.set(0, 4, -3, glow(0x9ad8ff)); },
     spentshell: g => { g.box(0, 0, 0, 0, 0, 1, 0xd8b050); },
   };
   function gadget(id) {

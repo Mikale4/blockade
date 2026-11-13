@@ -34,16 +34,20 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   your Ranked rating and your credits.
 - **Online lobby:** a room list, everyone online, a leaderboard and lobby chat. Use QUICK PLAY,
   HOST A ROOM (public, private with a password, or code only), or join by code.
-- **Rooms:** two teams of one to five. The host picks:
-  - the mode and the map, or **Random** for a different map each match
-  - the **team size** (1v1 to 5v5; in Deathmatch, 2 to 10 players)
-  - rounds to win, the **drone phase** (15 seconds to 1:30) and the **round time** (2 to 5 minutes)
-  - a **ban phase** before round one, as in Ranked
-  - bot skill, the starting side, and whether bots fill the empty seats
+- **Rooms:** two teams of one to five. The settings sit in four compact sections, one open at a
+  time, each summed up in its header:
+  - **Match:** the mode and the map (or **Random**, a different map each match), rounds to win,
+    the **round time** (2 to 5 minutes), the **drone phase** (15 seconds to 1:30), a **ban phase**
+  - **Teams:** the **team size** (1v1 to 5v5; in Deathmatch, 2 to 10 players), the starting side
+  - **CPU players:** whether bots fill the empty seats, bot skill (aim and reactions), a
+    **personality for each team's bots** (Random, so each bot gets its own, or one of the eight
+    playstyles; a personality decides everything else about a bot, see Bots below),
+    **aggression** (cautious, normal, aggressive) and **tactics** (basic, standard, expert)
+  - **Room:** open or locked, room chat on or host only
 
-  The host can also lock the room or kick and block players. Shrinking the team size moves
-  anyone over the new size to the other team, and the host is told if the players no longer
-  fit. Everyone else readies up, and there's room chat (in matches too, with Enter).
+  The host can also kick and block players. Shrinking the team size moves anyone over the new
+  size to the other team, and the host is told if the players no longer fit. Everyone else
+  readies up, and there's room chat (in matches too, with Enter).
 - **Online matches:** you and your friends in the same match, on the same team or against
   each other, with bots in the remaining slots.
 - **Spectating:** a room has up to six spectator seats on top of its ten players. Press
@@ -131,13 +135,34 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   hard surface, so you can shoot round a corner), RAMPART (a 100-round belt that steadies when
   you crouch or go prone), NEEDLER-6 (flechettes that keep going through cover) and the VERDICT
   (a two-round burst pistol).
+- **Weapon attachments:** every gun has up to four slots: **optic** (iron sights, reflex, red
+  dot, holographic, 2.5x telescopic, a 1.5-3x variable you switch with the firemode key while
+  aiming, a 4x marksman scope), **barrel** (suppressor, compensator, muzzle brake, flash hider,
+  extended barrel, a tight choke for shotguns), **underbarrel** (vertical grip, angled grip,
+  laser) and **magazine** (extended, quick). What fits depends on the gun. They change the gun's
+  real numbers (climb and sideways kick, hip and aimed spread, aim time, damage range, rounds,
+  reload, mobility) and how it behaves: a suppressor is heard by bots only close by and shows the
+  enemy no tracer or flash; a flash hider hides where the shots come from; a laser tightens
+  hip-fire but its beam can be seen by everyone. Every one has a cost. They are drawn on the gun,
+  in first and third person. Your setup is saved for each gun.
+- **The loadout screen** shows the real kit: each gun and gadget is its own model on a card,
+  the guns wearing the attachments they'll carry. The gun you're setting up turns on a showcase
+  with its numbers as bars against the stock gun; point at an attachment to try it on (the
+  model and the bars change), click to fit it.
 - **Pick your spawn:** in operator select every player chooses their own spawn. Attackers pick
   one of the map's outdoor spawns; defenders pick the objective or another room in the building.
-- **17 maps.** Every map is a compound in several parts: three to five joined buildings, 45 to 70
+- **18 maps.** Every map is a compound in several parts: three to five joined buildings, 45 to 90
   rooms on three or four floors, a double-height centrepiece, a dozen or more ways in from
-  outside, enclosed stairwells and open flights between every pair of floors, 8 to 20 hatches,
-  5 or 6 bomb-site pairs spread over different floors and wings, plus Secure Area and Hostage
-  rooms. The nine original maps were rebuilt to this standard:
+  outside, enclosed stairwells and open flights between every pair of floors, 8 to 26 hatches,
+  5 to 7 bomb-site pairs spread over different floors and wings, plus Secure Area and Hostage
+  rooms. The newest:
+  - **Millrace**: a farmstead grown up round an old stone grist mill. A weathered farmhouse with
+    a stone cellar, the brick feed store built onto its side, the four-storey mill whose great
+    oak wheel turns in a pit open through three floors, a machine shed with a double-height
+    shop, tunnels between the cellars, a pump house, and a big outside: road, porch, orchard,
+    hay shed, silos, the race, corn (overcast morning). Its plan is in `tools/MILLRACE.md`.
+
+  The nine original maps were rebuilt to this standard:
   - **Roadhouse**: a highway truck stop. Diner and bar over a brewery, a two-storey motor
     workshop with inspection pits, a motel wing round a court, a fuel station (dusk)
   - **Summit Lodge**: a mountain hotel. A great hall open through two floors round a stone
@@ -247,6 +272,27 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   claymores and traps, and they walk over to a teammate's med station or healing beacon when
   they can use it. They throw EMPs at defender electronics, stim when hurt, set
   alarms at the ways in, and keep a fog canister on the objective for when the attack arrives. Choose Recruit, Normal or Realistic.
+  - **Playstyles:** every bot is a player with a personality, kept for the whole match: an
+    **entry fragger** (pushes, swings wide, takes the first fight), **tactician** (room by room,
+    slicing doorways, leaning round corners), **anchor** (holds an angle from cover with only a
+    head showing), **support** (trades behind the entry, revives, covers), **flanker** (goes the
+    other way round), **marksman** (long sightlines, moves when found), **opportunist** (joins
+    other people's fights, picks off the hurt) or **lurker** (alone, quiet, waits for you to pass).
+    Each has two or three variations and its own traits on top (aggression, caution, confidence,
+    risk, reactions, patience, awareness, teamwork, range, repositioning, cover, stealth), and
+    the situation can always overrule the style: a hurt, outnumbered entry fragger backs off.
+    The personality also picks the operator (each bot has favourites), the guns, the
+    attachments and the gadget. Spectators see each bot's playstyle under its name.
+  - **How they fight:** bots lean round corners and hold angles from behind cover, peek out to
+    shoot and duck back to reload, pre-aim where they heard something, turn to fire from an
+    unseen shooter, walk quietly near the enemy, and after a fight hold the angle, chase,
+    go round, or move somewhere new, by who they are. Being already aimed at a spot beats
+    reflexes: a bot holding an angle reacts much faster than one caught walking.
+  - **Drones:** attacking bots drone in the preparation phase, each in its own way (straight to
+    the objective, the rooms round the site, the far way in, the long sightlines), scanning rooms
+    and backing off when spotted. Defenders their drones really see are marked and remembered
+    for the round: careful bots plan routes round them and switch entries, and everyone pre-aims
+    them on the way in. Spectating a scouting bot shows its drone camera.
   - **Attack:** the team splits over two or three entrances on different walls (sometimes a
     window near the site: vaulted on the ground floor, or reached on a rope and crashed through
     higher up, falling back to a door if it's reinforced or blocked), and each bot
@@ -360,8 +406,8 @@ match itself are not.
 `util` (helpers, settings, key bindings) · `data` (materials, weapons, gadgets, operators) ·
 `world` (voxel storage, meshing, rays, destruction) · `maps` (map builder, range,
 attacker spawns and their cover) · `maps-kit` (floor-plan layout kit: doors, windows, stairwells,
-hatches and furniture from a room plan) · `maps-new-*` and `maps-rework-*` (the 17 maps) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
-`actor` (movement, stances, damage) · `weapons` · `gadgets` · `nav` (pathfinding) · `ai` ·
+hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `maps-millrace` (the 18 maps) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
+`actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
 `range` (range and training) · `killcam` (replays) · `names` (bot names) · `arcade` (Deathmatch and
 Team Deathmatch) · `shop` (cosmetics, credits) · `ranked` (ranks, matchmaking) · `main` · online: `ui` (toasts, modals, top bar) · `auth`

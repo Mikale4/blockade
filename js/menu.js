@@ -116,6 +116,77 @@
     return c;
   };
 
+  /* ------------------------------------------------------- kit pictures */
+  /* The loadout screen shows the real things: every gun is the game's own first-person model
+     (with the attachments that will be on it, without the hands), every gadget its own model.
+     One small WebGL renderer draws them into 2D canvases: a still picture for each card, cached
+     by what is on it, and one slowly turning showcase of the gun being set up. */
+  const KIT = { r: null, scene: null, cam: null, cache: new Map(), dead: false, live: null, raf: 0 };
+  function kitInit() {
+    if (KIT.r) return true;
+    if (KIT.dead) return false;
+    try {
+      const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      r.setPixelRatio(1); r.setClearColor(0x000000, 0);
+      Object.assign(KIT, { r, scene: new THREE.Scene(), cam: new THREE.PerspectiveCamera(20, 2, 0.01, 30) });
+      return true;
+    } catch (e) { KIT.dead = true; return false; }
+  }
+  /* (lit up for the showcase: the guns are near-black metal, which vanishes on a dark panel) */
+  function kitObject(kind, id, att) {
+    const geo = kind === 'gun' ? MD.viewGun(id === 'shield' ? 'shield' : id, null, null, att, true).geo : MD.gadget(id).geometry;
+    const m = new THREE.MeshBasicMaterial({ vertexColors: true }); m.color.setScalar(kind === 'gun' ? 2.6 : 1.7);
+    return new THREE.Mesh(geo, m);
+  }
+  /* draw one: a gun side-on, muzzle to the right, turned a little; a gadget three-quarters */
+  function kitDraw(obj, kind, c, yaw, pitch) {
+    const r = KIT.r, cam = KIT.cam, w = c.width, h = c.height;
+    r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+    const geo = obj.geometry; if (!geo.boundingBox) geo.computeBoundingBox();
+    const bb = geo.boundingBox, ctr = bb.getCenter(new THREE.Vector3()), size = bb.getSize(new THREE.Vector3());
+    const grp = new THREE.Group(); grp.add(obj); obj.position.set(-ctr.x, -ctr.y, -ctr.z);
+    grp.rotation.set(pitch || 0, (kind === 'gun' ? 0 : 0.6) + (yaw || 0), 0);
+    KIT.scene.add(grp);
+    const vf = cam.fov * Math.PI / 180, hf = 2 * Math.atan(Math.tan(vf / 2) * cam.aspect);
+    const across = kind === 'gun' ? Math.max(size.z, size.x) : Math.hypot(size.x, size.z), up = size.y;
+    const dist = Math.max(across * 0.5 / Math.tan(hf / 2), up * 0.5 / Math.tan(vf / 2)) * 1.12 + Math.min(size.x, size.z) * 0.5;
+    if (kind === 'gun') cam.position.set(dist, 0, 0); else cam.position.set(dist * 0.15, dist * 0.32, dist);
+    cam.lookAt(0, 0, 0);
+    r.render(KIT.scene, cam);
+    KIT.scene.remove(grp);
+    // a soft light rim round the silhouette, so a dark gun reads on a dark card
+    const x = c.getContext('2d'); x.clearRect(0, 0, w, h);
+    x.save(); x.shadowColor = 'rgba(210,225,240,0.55)'; x.shadowBlur = Math.max(3, w / 90); x.drawImage(r.domElement, 0, 0, w, h); x.restore();
+  }
+  /* a still picture (w x h CSS pixels, drawn at twice that) */
+  MENU.kitPic = function (kind, id, att, w, h) {
+    const c = $('canvas', { class: 'kitpic', width: w * 2, height: h * 2, style: { width: w + 'px', height: h + 'px' } });
+    if (!kitInit()) return c;
+    const key = kind + ':' + id + ':' + (att ? ATT.key(att) : '') + ':' + w + 'x' + h;
+    let src = KIT.cache.get(key);
+    try {
+      if (!src) { src = document.createElement('canvas'); src.width = w * 2; src.height = h * 2; kitDraw(kitObject(kind, id, att), kind, src, kind === 'gun' ? 0.28 : 0, kind === 'gun' ? -0.12 : 0); KIT.cache.set(key, src); }
+      c.getContext('2d').drawImage(src, 0, 0);
+    } catch (e) { KIT.dead = true; }
+    return c;
+  };
+  /* the showcase: one canvas at a time, turning slowly while it is on screen */
+  MENU.kitShow = function (kind, id, att, w, h) {
+    const c = $('canvas', { class: 'kitshow', width: w * 2, height: h * 2 });
+    if (!kitInit()) return c;
+    KIT.live = { c, kind, obj: kitObject(kind, id, att), t0: performance.now() };
+    const tick = now => {
+      KIT.raf = 0;
+      const L = KIT.live; if (!L || !L.c.isConnected && now - L.t0 > 1000) return;
+      KIT.raf = requestAnimationFrame(tick);
+      if (!L.c.isConnected) return;
+      const t = (now - L.t0) / 1000;
+      try { kitDraw(L.obj, L.kind, L.c, 0.3 + Math.sin(t * 0.55) * 0.5, -0.1 + Math.sin(t * 0.37) * 0.06); } catch (e) { KIT.dead = true; }
+    };
+    if (!KIT.raf) KIT.raf = requestAnimationFrame(tick);
+    return c;
+  };
+
   /* ----------------------------------------------------------------- title */
   /* the title screen: sign in (or make a player) first, as in our other games */
   MENU.title = function () {
@@ -271,42 +342,74 @@
     d.append($('div', { class: 'op-ab' }, $('kbd', {}, KEYS.name('ability')), $('b', {}, op.ability.name), $('p', {}, op.ability.desc)));
     d.append($('p', { class: 'op-bio' }, op.bio));
     if (lo) {
-      const pickRow = (label, list, key, info) => $('div', { class: 'lo-row' }, $('label', {}, label), ...list.map(id => $('button', { class: lo[key] === id ? 'on' : '', title: info(id), onclick: () => { lo[key] = id; SFX.ui(); onChange(); } }, key === 'gadget' ? GADGETS[id].name : WEAPONS[id].name)));
-      d.append($('div', { class: 'loadout' },
-        pickRow('PRIMARY', op.primaries, 'primary', id => WEAPONS[id].cls + (WEAPONS[id].dmg ? ' · ' + WEAPONS[id].dmg + ' dmg · ' + WEAPONS[id].rpm + ' rpm' : '')),
-        pickRow('SECONDARY', op.secondaries, 'secondary', id => WEAPONS[id].cls + ' · ' + WEAPONS[id].dmg + ' dmg'),
-        pickRow('GADGET', op.gadgets, 'gadget', id => GADGETS[id].desc)));
+      // the kit as cards: the gun (with the attachments that are on it), the gadget, as models
+      const gunCard = (key, id) => { const W = WEAPONS[id], big = key === 'primary';
+        return $('button', { class: 'kcard' + (lo[key] === id ? ' on' : ''), title: W.cls + (W.dmg ? ' · ' + W.dmg + ' damage · ' + W.rpm + ' rpm' : ''), onclick: () => { lo[key] = id; if (id !== 'shield') attTab = key; SFX.ui(); onChange(); } },
+          MENU.kitPic('gun', id, id === 'shield' ? null : ATT.saved(id), big ? 148 : 104, big ? 52 : 44), $('b', {}, W.name), $('small', {}, W.cls)); };
+      const gadCard = id => $('button', { class: 'kcard gad' + (lo.gadget === id ? ' on' : ''), title: GADGETS[id].desc, onclick: () => { lo.gadget = id; SFX.ui(); onChange(); } },
+        MENU.kitPic('gadget', id, null, 50, 50), $('b', {}, GADGETS[id].name), $('small', {}, '×' + GADGETS[id].count));
+      d.append($('div', { class: 'kit' },
+        $('div', { class: 'krow' }, $('label', {}, 'PRIMARY'), $('div', { class: 'kcards' }, ...op.primaries.map(id => gunCard('primary', id)))),
+        $('div', { class: 'krow' }, $('label', {}, 'SECONDARY'), $('div', { class: 'kcards' }, ...op.secondaries.map(id => gunCard('secondary', id)))),
+        $('div', { class: 'krow' }, $('label', {}, 'GADGET'), $('div', { class: 'kcards' }, ...op.gadgets.map(gadCard)))));
       d.append(attachPanel(lo, onChange));
-      const g = GADGETS[lo.gadget], w = ATT.def(lo.primary, ATT.saved(lo.primary));
-      d.append($('div', { class: 'lo-info' }, $('p', {}, $('b', {}, w.name), ' — ' + w.cls + (w.dmg ? ' · ' + w.dmg + ' damage · ' + w.rpm + ' rpm · ' + w.mag + ' rounds' : ' · blocks bullets from the front')), $('p', {}, $('b', {}, g.name + ' ×' + g.count), ' — ' + g.desc)));
+      const g = GADGETS[lo.gadget];
+      d.append($('div', { class: 'lo-info' }, $('p', {}, $('b', {}, g.name + ' ×' + g.count), ' — ' + g.desc)));
     }
     return d;
   }
-  /* ATTACHMENTS: the primary's or the secondary's four slots. Each choice is saved for that gun
-     (in this browser) and goes into the match with it; what it changes is listed underneath */
+  /* a gun's numbers as bars, against the same gun stock: what the attachments buy and cost */
+  const STAT_ROWS = [['DAMAGE', 'dmg'], ['FIRE RATE', 'rpm'], ['RANGE', 'range'], ['CONTROL', 'ctrl'], ['HANDLING', 'hand'], ['MOBILITY', 'mob'], ['MAGAZINE', 'mag']];
+  const statOf = d => ({ dmg: (d.dmg || 0) * Math.min(d.pellets || 1, 8), rpm: d.rpm || 0, range: d.f1 || 0, ctrl: 1 / ((d.rv || 1) * 0.6 + (d.rh || 1) * 0.4), hand: 1 / (d.adsT || 0.25), mob: d.mob || 1, mag: d.mag || 0 });
+  let STAT_MAX = null;
+  const statMax = () => STAT_MAX || (STAT_MAX = Object.values(WEAPONS).filter(w => w.type !== 'SHIELD').map(statOf).reduce((m, s) => { for (const k in s) m[k] = Math.max(m[k] || 0, s[k] * 1.12); return m; }, {}));
+  const statNorm = (v, k) => U.clamp(k === 'mob' ? (v - 0.8) / (statMax().mob - 0.8) : v / statMax()[k], 0.02, 1);
+  function statBars(gid, att) {
+    const b = statOf(WEAPONS[gid]), d = statOf(ATT.def(gid, att));
+    return $('div', { class: 'wstats' }, ...STAT_ROWS.map(([label, k]) => {
+      const v0 = statNorm(b[k], k), v1 = statNorm(d[k], k);
+      return $('div', { class: 'wstat' }, $('span', {}, label), $('i', {},
+        $('em', { class: 'base', style: { width: Math.min(v0, v1) * 100 + '%' } }),
+        v1 > v0 + 0.004 ? $('em', { class: 'up', style: { left: v0 * 100 + '%', width: (v1 - v0) * 100 + '%' } }) : null,
+        v1 < v0 - 0.004 ? $('em', { class: 'dn', style: { left: v1 * 100 + '%', width: (v0 - v1) * 100 + '%' } }) : null));
+    }));
+  }
+  /* ATTACHMENTS: the primary's or the secondary's four slots. The gun turns on the showcase with
+     its attachments on it; pointing at one tries it on (the model and the bars change); a click
+     fits it. Each choice is saved for that gun (in this browser) and goes into the match */
   let attTab = 'primary', attHover = null;
   function attachPanel(lo, onChange) {
     const p = $('div', { class: 'att' });
     if (lo[attTab] === 'shield' || !WEAPONS[lo[attTab]]) attTab = 'secondary';
     const gid = lo[attTab], cur = ATT.saved(gid), W = WEAPONS[gid];
-    p.append($('div', { class: 'att-head' }, $('b', {}, 'ATTACHMENTS'),
-      ...['primary', 'secondary'].filter(k => lo[k] !== 'shield').map(k => $('button', { class: attTab === k ? 'on' : '', onclick: () => { attTab = k; attHover = null; SFX.ui(); onChange(); } }, WEAPONS[lo[k]].name))));
+    p.append($('div', { class: 'att-head' }, $('b', {}, 'WEAPON'),
+      ...['primary', 'secondary'].filter(k => lo[k] !== 'shield').map(k => $('button', { class: attTab === k ? 'on' : '', onclick: () => { attTab = k; attHover = null; SFX.ui(); onChange(); } }, (k === 'primary' ? 'PRIMARY · ' : 'SECONDARY · ') + WEAPONS[lo[k]].name))));
+    let bars = statBars(gid, cur);
+    const show = MENU.kitShow('gun', gid, cur, 360, 120);
+    p.append($('div', { class: 'att-show' }, show, $('div', { class: 'att-name' }, $('b', {}, W.name), $('small', {}, W.cls + ' · ' + ATT.zoomText(ATT.def(gid, cur).sight) + ' sight')), bars));
+    // trying an attachment on: the showcase model and the bars change while pointing at it
+    const tryOn = id => {
+      const att = id ? Object.assign({}, cur, { [ATT.LIST[id].slot]: id }) : cur;
+      if (KIT.live && KIT.live.c === show) KIT.live.obj = kitObject('gun', gid, att);
+      const nb = statBars(gid, att); bars.replaceWith(nb); bars = nb;
+      info.textContent = id ? ATT.LIST[id].name + ' — ' + ATT.LIST[id].desc : 'Point at an attachment to try it on the gun. Your setup is saved for each gun.';
+    };
     for (const s of ATT.SLOTS) {
       const fits = ATT.fits(gid, s);
       const row = $('div', { class: 'att-row' }, $('label', {}, ATT.SLOT_NAMES[s]));
       if (!fits.length) { row.append($('span', { class: 'muted' }, s === 'barrel' && W.silent ? 'integrated suppressor' : 'none fit this gun')); p.append(row); continue; }
-      const set = v => { const n = Object.assign({}, cur); if (v) n[s] = v; else delete n[s]; ATT.save(gid, n); SFX.ui(); onChange(); };
+      const set = v => { const n = Object.assign({}, cur); if (v) n[s] = v; else delete n[s]; ATT.save(gid, n); attHover = null; SFX.ui(); onChange(); };
       const stockName = s === 'optic' ? 'STOCK · ' + ATT.zoomText(W.sight) : 'NONE';
-      row.append($('button', { class: !cur[s] ? 'on' : '', onclick: () => set(null), onmouseenter: () => { attHover = null; } }, stockName));
+      row.append($('button', { class: !cur[s] ? 'on' : '', onclick: () => set(null), onmouseenter: () => tryOn(null) }, stockName));
       for (const id of fits) {
         if (s === 'optic' && id === W.sight) continue;   // its own sight is the stock choice
         const x = ATT.LIST[id];
-        row.append($('button', { class: cur[s] === id ? 'on' : '', title: x.desc, onclick: () => set(id), onmouseenter: () => { attHover = id; info.textContent = x.name + ' — ' + x.desc; } }, x.name));
+        row.append($('button', { class: cur[s] === id ? 'on' : '', title: x.desc, onclick: () => set(id), onmouseenter: () => tryOn(id), onmouseleave: () => tryOn(null) }, x.name));
       }
       p.append(row);
     }
     const fx = ATT.effects(gid, cur);
-    const info = $('p', { class: 'att-desc' }, attHover && ATT.LIST[attHover] ? ATT.LIST[attHover].name + ' — ' + ATT.LIST[attHover].desc : 'Point at an attachment to read what it does. Your setup is saved for each gun.');
+    const info = $('p', { class: 'att-desc' }, 'Point at an attachment to try it on the gun. Your setup is saved for each gun.');
     p.append($('div', { class: 'att-fx' }, ...(fx.length ? fx.map(e => $('span', { class: e.good ? 'good' : 'bad' }, e.t)) : [$('span', { class: 'muted' }, 'Stock ' + W.name)])), info);
     return p;
   }
