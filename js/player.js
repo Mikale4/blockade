@@ -364,6 +364,9 @@
       // a spectator's free camera (and where a spectator looks while nobody is left to follow)
       if (!P.free || P.view !== 'free') P.freeCam(!P.free);
       cam.position.copy(P.free.pos); cam.rotation.set(P.free.pitch, P.free.yaw, 0, 'YXZ'); fov = s.fov;
+    } else if (P.view === 'spectate' && P.spec && P.specDrone(P.spec)) {
+      // they are flying a drone (an attacker scouting in the preparation phase): its camera
+      const dr = P.specDrone(P.spec); cam.position.copy(dr.eye()); cam.rotation.set(dr.pitch || 0, dr.yaw, 0, 'YXZ'); fov = s.fov;
     } else if (P.view === 'spectate' && P.spec) {
       // through a teammate's eyes, their gun on screen (updateVM), their sight's zoom when they aim
       const t = P.spec; cam.position.copy(t.eye(V())); cam.rotation.set(t.pitch, t.yaw, -t.lean * 0.16, 'YXZ'); fov = s.fov / U.lerp(1, P.zoomOf(t), t.ads || 0);
@@ -391,8 +394,10 @@
   /* ----------------------------------------------------------- viewmodel */
   /* whose hands and gun are on screen: mine, the teammate I am watching, or the shooter in a
      kill cam (a stand-in made from the recording: killcam.js) */
+  /* the drone someone is flying (bots and remote players: host-side pilot, or the pilot id a guest is sent) */
+  P.specDrone = t => { if (!t || t.state !== 'alive') return null; for (const e of G.ents) if (e.alive && e.type === 'drone' && (e.pilot === t || (e.pilotId && e.pilotId === t.id))) return e; return null; };
   P.vmSubject = function () {
-    if (P.view === 'spectate') { const t = P.spec; return t && t.state !== 'dead' && t.wpn && !t.hostage ? t : null; }
+    if (P.view === 'spectate') { const t = P.spec; return t && t.state !== 'dead' && t.wpn && !t.hostage && !P.specDrone(t) ? t : null; }
     if (P.view === 'replay') return KC.subject();
     return P.vmVisible ? G.player : null;
   };

@@ -158,13 +158,14 @@
   const clamp01 = v => Math.max(0, Math.min(1, v));
   const jit = s => (Math.random() + Math.random() - 1) * s;   // a soft spread around zero
 
-  const PERSONA = window.PERSONA = { STYLES, OP_TAGS };
-  /* a new persona. teamPersonas: the others on its team, so one team isn't five anchors */
+  const PERSONA = window.PERSONA = { STYLES, OP_TAGS, recent: {} };
+  /* a new persona. teamPersonas: the others on its team, so one team isn't five anchors; what
+     was handed out lately counts against it too, so match after match isn't the same mix */
   PERSONA.make = function (teamPersonas, forceId) {
     const have = {}; for (const p of teamPersonas || []) have[p.id] = (have[p.id] || 0) + 1;
     let id = forceId;
     if (!STYLES[id]) {
-      const ids = Object.keys(STYLES), w = ids.map(k => STYLES[k].w / (1 + 2 * (have[k] || 0)));
+      const ids = Object.keys(STYLES), w = ids.map(k => STYLES[k].w / (1 + 2 * (have[k] || 0)) / (1 + 0.15 * (PERSONA.recent[k] || 0)));
       let r = Math.random() * w.reduce((s, x) => s + x, 0); id = ids[ids.length - 1];
       for (let i = 0; i < ids.length; i++) { r -= w[i]; if (r <= 0) { id = ids[i]; break; } }
     }
@@ -176,7 +177,20 @@
       else if (k === 'react') t[k] = Math.max(0.8, Math.min(1.25, x + jit(0.08)));
       else t[k] = clamp01(x + jit(0.1));
     }
+    // (the memory of what was handed out fades: about the last two matches' worth)
+    for (const k in PERSONA.recent) PERSONA.recent[k] *= 0.95;
+    PERSONA.recent[id] = (PERSONA.recent[id] || 0) + 1;
     return { id, name: S.name, short: S.short, variant: v.name, vdesc: v.desc, f: Object.assign({}, v.f), t, mains: {} };
+  };
+  /* a room's CPU settings on top of a persona: aggression 0 cautious / 1 normal / 2 aggressive,
+     tactics 0 basic / 1 standard / 2 expert. They move the traits the AI reads, so they change
+     what bots do (and pick: guns, attachments and operators follow the traits) */
+  PERSONA.tune = function (p, aggr, tac) {
+    const t = p.t, a = (aggr | 0) - 1, k = (tac | 0) - 1;
+    if (a) { t.aggr = clamp01(t.aggr + 0.22 * a); t.risk = clamp01(t.risk + 0.15 * a); t.conf = clamp01(t.conf + 0.08 * a); t.caution = clamp01(t.caution - 0.15 * a); t.patience = clamp01(t.patience - 0.15 * a); t.range = Math.max(3, t.range - 2 * a); }
+    if (k) { t.aware = clamp01(t.aware + 0.22 * k); t.cover = clamp01(t.cover + 0.22 * k); t.repos = clamp01(t.repos + 0.15 * k); t.team = clamp01(t.team + 0.1 * k); t.react = Math.max(0.8, Math.min(1.25, t.react - 0.06 * k)); }
+    p.tuned = { aggr, tac };
+    return p;
   };
   PERSONA.label = p => p ? p.name + ' · ' + p.variant : '';
   /* a quick default (a bot taking over a player who left, the range's targets) */

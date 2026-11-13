@@ -1159,16 +1159,10 @@
       plan.actionT = G.time;
       AI.actSnap = G.world.v.slice();   // the building as the action starts: what a breach takes away
       if (plan.side === 'atk') {
-        // simulated drone intel
-        for (const a of plan.bots) if (Math.random() < 0.45) {
-          const defs = G.actors.filter(t => t.team !== team && t.alive && !t.hostage);
-          if (defs.length) GAME.mark(U.pick(defs), team, 5, true);
-        }
-        // Static zaps from his drone
-        for (const a of plan.bots) if (a.ability && a.ability.id === 'surge') {
-          const els = G.ents.filter(e => e.alive && e.elec && e.team !== a.team && plan.objCenter && U.dist3(e.pos, plan.objCenter) < 14);
-          for (let i = 0; i < Math.min(2, els.length); i++) { els[i].destroy('surge'); a.ability.zaps--; }
-        }
+        // the drones are parked where they stopped; what they saw is the team's intel now
+        // (AI.droneThink): a careful player whose way in turned out to be held picks another
+        for (const a of plan.bots) { const d = a.bot && a.bot.drone; if (d && d.alive) { d.pilot = null; d.mf = d.mr = 0; } if (a.bot) a.bot.drone = null; }
+        AI.droneIntelEntries(plan);
         for (const a of plan.bots) planAttackKit(a, plan);
         // breachers have their own way in: a window entry goes to someone with nothing else to do
         const wb = plan.bots.find(a => a.bot.entry && a.bot.entry.win && a.bot.tasks.length);
@@ -1824,6 +1818,135 @@
     for (const p of knownEnemies(plan)) { const d = U.dist3(p, a.pos); if (d < bd && Math.abs(p.y - a.pos.y) < 2.5) { bd = d; best = p; } }
     if (best) b.attn = { p: best.clone().setY(best.y + 1.4), until: G.time + 0.8 };
   }
+
+  /* ===================================================== the drone phase
+     Attacking bots scout in the preparation phase, the way a player does: each puts a drone
+     down at its spawn and drives it into the building, room to room, stopping to turn and look
+     round, hopping what it can't drive over, boosting down long runs. What a drone actually sees
+     (a defender with a clear line to its camera, within its view) is marked for the team and kept
+     as the team's intel for the action phase; nothing else is known. Who is driving decides
+     where it goes and how:
+       entry players    straight to the objective, fast, and they linger where the defenders are
+       tacticians       their own way in first, then the rooms round the site, slowly, scanning
+       support          the team's main way in and the rooms the others haven't looked at
+       flankers/lurkers the far way in, the side rooms, the floor above or below
+       marksmen         the rooms with a long look into the site
+       opportunists     the site, then they follow whoever they found
+     The careful back a drone away from a defender who has seen it; the bold keep watching.
+     A drone that is shot gets replaced by the second one if there is time. */
+  function scoutRooms(a, plan) {
+    const pid = PID(a), oc = plan.objCenter, site = plan.rooms[0], S = AI.teams[a.team] || plan;
+    const near = (r, d) => Math.hypot(r.cx - oc.x, r.cz - oc.z) < d && Math.abs(r.L - site.L) <= 1 && !/Stairs/.test(r.name);
+    const done = S.droned || (S.droned = new Map());
+    const fresh = r => !(done.get(r) > G.time - 20);
+    const around = G.map.rooms.filter(r => near(r, 16) && !plan.rooms.includes(r));
+    // the rooms on the way from this bot's own entry to the site
+    const route = [];
+    if (a.bot.entry) {
+      const pth = NAV.path(a.bot.entry.inside || a.bot.entry.stage, oc, { partial: true }) || [];
+      for (let i = 0; i < pth.length; i += 8) { const r = G.map.roomAt(pth[i]); if (r && !route.includes(r) && !/Stairs/.test(r.name)) route.push(r); }
+    }
+    const far = around.slice().sort((p, q) => Math.hypot(q.cx - oc.x, q.cz - oc.z) - Math.hypot(p.cx - oc.x, p.cz - oc.z));
+    let list;
+    switch (pid) {
+      case 'entry': list = plan.rooms.concat(U.shuffle(around.slice()).slice(0, 2)); break;
+      case 'tactical': case 'anchor': list = route.slice(0, 3).concat(around.filter(fresh).slice(0, 3), plan.rooms); break;
+      case 'support': list = route.filter(fresh).concat(around.filter(fresh), plan.rooms); break;
+      case 'flanker': case 'lurker': list = far.filter(r => FL(a).vertical ? r.L !== site.L : true).slice(0, 4).concat(G.map.rooms.filter(r => near(r, 22) && r.L !== site.L).slice(0, 2), plan.rooms.slice(0, 1)); break;
+      case 'marksman': list = around.filter(r => r.L === site.L).sort((p, q) => Math.hypot(q.cx - oc.x, q.cz - oc.z) - Math.hypot(p.cx - oc.x, p.cz - oc.z)).slice(0, 3).concat(plan.rooms); break;
+      default: list = plan.rooms.concat(around.filter(fresh).slice(0, 3));
+    }
+    return [...new Set(list)].slice(0, 7);
+  }
+  AI.droneThink = function (a, dt) {
+    const b = a.bot, plan = AI.teams[a.team];
+    if (!plan || plan.side !== 'atk' || GAME.arcade || G.mode !== 'match') return;
+    const tr = TR(a);
+    let d = b.drone && b.drone.alive ? b.drone : null;
+    // put one down (the second when the first is lost, if there is still time for it to be worth it)
+    if (!d) {
+      if (b.drone && !b.drone.alive) { b.drone = null; b.droneLost = G.time; }
+      if (a.drones <= 0 || GAME.timer < 9 || G.time - (b.droneLost || -99) < 2 || G.time - (b.droneAt || -99) < 0.3) return;
+      if (b.droneAt == null) b.droneAt = G.time + U.rnd(0.4, 2.5) * (0.6 + tr.caution);   // they don't all go at once
+      if (G.time < b.droneAt) return;
+      d = GAD.deployDrone(a, true); if (!d) return;
+      d.pilot = a; b.drone = d; b.droneAt = G.time;
+      b.dq = scoutRooms(a, plan); b.dPath = null; b.dGoal = null; b.dScan = 0; b.dStuck = 0; b.dLast = d.pos.clone();
+      return;
+    }
+    const S = AI.teams[a.team];
+    const done = S.droned || (S.droned = new Map());
+    // ---- what the drone sees: defenders in front of its camera with a clear line, and gadgets
+    if (G.time >= (b.dLook || 0)) {
+      b.dLook = G.time + 0.25;
+      const e = d.eye(), f = V().set(-Math.sin(d.yaw), 0, -Math.cos(d.yaw)), intel = plan.intel || (plan.intel = []);
+      for (const t of G.actors) {
+        if (t.team === a.team || t.state !== 'alive' || t.hostage || t.cloakT > 0 || t.nullT > G.time) continue;
+        const c = t.center(V()), to = c.clone().sub(e), dist = to.length(); if (dist > 28) continue;
+        to.normalize(); if (to.dot(f) < 0.35 || !G.world.los(e, c) || FX.smokeBlocks(e, c)) continue;
+        const old = intel.find(x => x.a === t);
+        if (old) { old.pos.copy(t.pos); old.t = G.time; } else intel.push({ a: t, pos: t.pos.clone(), t: G.time, op: t.op.id });
+        if ((t.spotT || 0) < G.time) { t.spotT = G.time + 3; GAME.mark(t, a.team, 5, true); }
+        b.dSeen = { t, at: G.time, dist, facing: t.fwd(V()).dot(to) < -0.5 };
+      }
+      // Static's drone: fry what it gets close to
+      if (d.surge) for (const g of G.ents) if (g.alive && g.elec && g.team !== a.team && g.team >= 0 && U.dist3(g.pos, d.pos) < 3.2) { d.zap(); break; }
+    }
+    d.mf = d.mr = 0;
+    // ---- a defender has seen it: the careful pull back out of sight, the bold keep looking
+    const seen = b.dSeen && G.time - b.dSeen.at < 0.6 ? b.dSeen : null;
+    if (seen && seen.facing && seen.dist < 12 && tr.risk < 0.55 + (PID(a) === 'entry' ? 0.3 : 0)) {
+      if (!b.dHide || G.time > b.dHide.until) b.dHide = { until: G.time + 1.2 + tr.caution };
+      d.mf = -1; d.mr = (a.id % 2 ? 1 : -1) * 0.6; if (Math.random() < dt * 2) d.jump = true;
+      b.dPath = null;
+      return;
+    }
+    if (seen && PID(a) === 'opportunist' && seen.dist > 4) {
+      // follow what it found, from a distance
+      const tp = seen.t.pos; d.yaw += U.wrap(Math.atan2(-(tp.x - d.pos.x), -(tp.z - d.pos.z)) - d.yaw) * Math.min(1, dt * 4);
+      return;
+    }
+    // ---- scanning: turn round on the spot in a room, longer for the careful
+    if (b.dScan > 0) { b.dScan -= dt; d.yaw += dt * (2.2 + tr.aggr); return; }
+    // ---- driving to the next room on the list
+    if (!b.dGoal) {
+      const r = (b.dq || []).shift();
+      if (!r) { b.dq = scoutRooms(a, plan).filter(x => !(done.get(x) > G.time - 10)); if (!b.dq.length) b.dq = plan.rooms.slice(); return; }
+      b.dGoal = NAV.randomIn(r); b.dRoom = r; b.dPath = null;
+    }
+    if (!b.dPath || G.time > (b.dRepath || 0)) {
+      b.dPath = NAV.path(d.pos, b.dGoal, { partial: true, barrCost: 40 }) || []; b.dPi = 0; b.dRepath = G.time + 6;
+    }
+    const P = b.dPath;
+    while (b.dPi < P.length && U.dist2(d.pos, P[b.dPi]) < 0.4) b.dPi++;
+    const inRoom = G.map.roomAt(d.pos) === b.dRoom;
+    if (b.dPi >= P.length || (inRoom && U.dist2(d.pos, b.dGoal) < 2.5)) {
+      // there (or as far as it goes): look round, note the room as checked, on to the next
+      if (b.dRoom) done.set(b.dRoom, G.time);
+      b.dScan = (inRoom ? 1 : 0.5) * (0.8 + tr.caution * 2.2 + (plan.rooms.includes(b.dRoom) && PID(a) === 'entry' ? 1.5 : 0));
+      b.dGoal = null; b.dPath = null;
+      return;
+    }
+    const n = P[b.dPi];
+    const want = Math.atan2(-(n.x - d.pos.x), -(n.z - d.pos.z));
+    d.yaw += U.wrap(want - d.yaw) * Math.min(1, dt * 10);
+    d.mf = Math.abs(U.wrap(want - d.yaw)) < 0.6 ? 1 : 0.3;
+    // boost down long straight runs (more often for the aggressive), hop what it's stuck on
+    if (d.boostCd <= 0 && b.dPi + 6 < P.length && Math.random() < dt * (0.3 + tr.aggr * 1.2) && Math.abs(U.wrap(want - d.yaw)) < 0.2) d.boost = true;
+    if (U.dist2(d.pos, b.dLast) > 0.25) { b.dLast.copy(d.pos); b.dStuck = 0; } else b.dStuck += dt;
+    if (b.dStuck > 0.5 && d.onGround) d.jump = true;
+    if (b.dStuck > 2.5) { b.dStuck = 0; b.dPath = null; if (Math.random() < 0.5) { if (b.dRoom) done.set(b.dRoom, G.time); b.dGoal = null; } }
+  };
+  /* the action phase: drones parked, and the drone intel decides a careful player's way in */
+  AI.droneIntelEntries = function (plan) {
+    const known = (plan.intel || []).filter(x => G.time - x.t < 60);
+    if (!known.length || !plan.entries || plan.entries.length < 2) return;
+    const hot = e => known.some(x => U.dist3(x.pos, e.inside || e.stage) < 7);
+    for (const a of plan.bots) {
+      const b = a.bot; if (!b || !b.entry || a.carry || b.entered) continue;
+      if (hot(b.entry) && TR(a).caution > 0.5) { const alt = plan.entries.find(e => e !== b.entry && !hot(e)); if (alt) { b.entry = alt; b.staged = false; } }
+    }
+  };
 
   window.AI = AI;
 })();

@@ -55,7 +55,8 @@
     // the map this match is on (a room set to Random has picked one)
     const map = MAPS.LIST.some(m => m.id === room.cur) ? room.cur : room.map;
     MENU.loading('Loading ' + (MAPS.LIST.find(m => m.id === map) || {}).name + '…', () => {
-      if (host) GAME.startMatch({ mode: room.mode, map, side: room.side, online: true, ranked: !!room.ranked, bans: !!room.bans, size: room.size, prep: room.prep, time: room.time });
+      if (host) GAME.startMatch({ mode: room.mode, map, side: room.side, online: true, ranked: !!room.ranked, bans: !!room.bans, size: room.size, prep: room.prep, time: room.time,
+        cpu: room.ranked ? null : { a: room.cpuA, b: room.cpuB, aggr: room.cpuAggr, tac: room.cpuTac } });
       else { GAME.mode = room.mode; GAME.mapId = map; MAIN.loadMap(map); GAME.active = true; GAME.phase = 'select'; waiting('Waiting for the host…'); }
     });
   };

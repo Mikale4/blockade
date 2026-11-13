@@ -153,6 +153,28 @@
 .roomlow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .roomset { display: flex; flex-direction: column; gap: 7px; }
 .roomset .seg2 b { font: 700 14px var(--f); letter-spacing: 0.08em; }
+.roomset h3 small { font: 600 11px var(--f); letter-spacing: 0.08em; color: var(--dim); }
+/* room settings: collapsible sections, one open at a time, compact rows */
+.rset { display: flex; flex-direction: column; gap: 4px; }
+.rset-h { display: grid; grid-template-columns: 118px 1fr 18px; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 10px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--line); color: var(--txt); }
+.rset-h:hover { background: rgba(255,255,255,0.08); }
+.rset-h.open { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.28); }
+.rset-h b { font: 800 12px var(--f); letter-spacing: 0.2em; }
+.rset-h span { font: 600 12px var(--f); letter-spacing: 0.04em; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rset-h i { font-style: normal; font: 800 14px var(--f); color: var(--dim); text-align: right; }
+.rset-b { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px 10px; border: 1px solid var(--line); border-top: 0; background: rgba(0,0,0,0.18); }
+.rrow { display: grid; grid-template-columns: 118px 1fr; gap: 8px; align-items: center; min-height: 28px; }
+.rrow > span { font: 700 11px var(--f); letter-spacing: 0.16em; color: var(--dim); }
+.rrow .input { padding: 6px 8px; }
+.rseg { display: flex; flex-wrap: wrap; gap: 3px; }
+.rseg button { font: 700 12px var(--f); letter-spacing: 0.06em; color: var(--txt); background: rgba(255,255,255,0.05); border: 1px solid var(--line); padding: 5px 9px; cursor: pointer; }
+.rseg button.on { background: var(--atk); color: #111; border-color: var(--atk); }
+.rsel { font: 700 12px var(--f); letter-spacing: 0.05em; color: var(--txt); background: #1b2028; border: 1px solid var(--line); padding: 5px 8px; max-width: 260px; cursor: pointer; }
+.rval { font: 700 13px var(--f); letter-spacing: 0.06em; }
+.rnote { margin: 2px 0 0; font-size: 12px; color: var(--dim); line-height: 1.4; }
+.rname { margin-bottom: 4px; }
+@media (max-width: 560px) { .rset-h, .rrow { grid-template-columns: 92px 1fr 14px; } .rrow { grid-template-columns: 92px 1fr; } }
 .roomchat { display: flex; flex-direction: column; gap: 6px; }
 .roomchat .chatlog { min-height: 180px; max-height: 260px; }
 /* the room scrolls as a whole (panels never squash), and the ready / start buttons stay pinned

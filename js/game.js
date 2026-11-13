@@ -38,6 +38,9 @@
     GAME.teamSize = U.clamp((cfg.size | 0) || 5, 1, 5);
     GAME.prepTime = cfg.prep > 0 ? cfg.prep : PREP;
     GAME.actionTime = cfg.time > 0 ? cfg.time : ACTION;
+    // the room's CPU players: a personality per team ('random': each bot its own), aggression and
+    // tactics for all of them (persona.js)
+    GAME.cpu = cfg.cpu || null;
     // ranked plays by its own rules: first to four, bots as good as your rank
     if (cfg.ranked && !cfg.online) { if (!GAME.prevSettings) GAME.prevSettings = { r: G.settings.roundsToWin, d: G.settings.difficulty, s: G.settings.swapEveryRound }; G.settings.roundsToWin = cfg.rounds || 4; if (cfg.diff != null) G.settings.difficulty = cfg.diff; G.settings.swapEveryRound = true; }
     if (!cfg.online) { GAME.net = false; GAME.client = false; GAME.myTeam = 0; GAME.spectator = false; }
@@ -127,7 +130,10 @@
       const S = GAME.seats || (GAME.seats = { _names: NAMES.many(12, humans.map(h => h.name)), _i: 0 });
       if (!S[key]) {
         const grp = key.split(':')[0], mates = Object.keys(S).filter(k => k.split(':')[0] === grp && S[k].persona).map(k => S[k].persona);
-        S[key] = { name: S._names[S._i++ % S._names.length], cos: SHOP.randomLook(), r: GAME.botRating(), persona: PERSONA.make(mates) };
+        const C = GAME.cpu || {}, want = grp === 't1' ? C.b : C.a;
+        const persona = PERSONA.make(mates, want && want !== 'random' ? want : null);
+        PERSONA.tune(persona, C.aggr == null ? 1 : C.aggr, C.tac == null ? 1 : C.tac);
+        S[key] = { name: S._names[S._i++ % S._names.length], cos: SHOP.randomLook(), r: GAME.botRating(), persona };
       }
       return S[key];
     };

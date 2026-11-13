@@ -66,7 +66,61 @@
     time: [[120, '2 min'], [180, '3 min'], [240, '4 min'], [300, '5 min']],
     bans: [[false, 'Off'], [true, 'On']],
     maps: () => [['random', 'Random']].concat(MAPS.LIST.map(m => [m.id, m.name])),
+    // CPU players: a personality per team (Random gives each bot its own), and how all of them play
+    pers: () => [['random', 'Random']].concat(Object.keys(PERSONA.STYLES).map(k => [k, PERSONA.STYLES[k].name.charAt(0) + PERSONA.STYLES[k].name.slice(1).toLowerCase()])),
+    aggr: [[0, 'Cautious'], [1, 'Normal'], [2, 'Aggressive']],
+    tac: [[0, 'Basic'], [1, 'Standard'], [2, 'Expert']],
   };
+  const optName = (opts, v) => (opts.find(x => String(x[0]) === String(v)) || ['', String(v)])[1];
+  const conv = (cur, v) => typeof cur === 'number' ? +v : typeof cur === 'boolean' ? (v === true || v === 'true') : v;
+
+  /* ===================================================== room settings
+     Every setting a room has, in four sections: MATCH, TEAMS, CPU PLAYERS, ROOM. One is open at
+     a time; a closed one reads out what it is set to in its header. The host changes them (in
+     the room, or in the host-a-room form); everyone else can open them to read. */
+  let openSec = 'match';
+  function sections(o, cfg) {
+    const M = DATA.MODES[o.mode] || {}, arc = !!M.arcade, ffa = !!M.ffa;
+    const rounds = [[2, '2'], [3, '3'], [4, '4'], [5, '5']], sides = [['atk', 'Attack'], ['def', 'Defense'], ['random', 'Random']];
+    const S = [
+      { id: 'match', title: 'MATCH', rows: [['MODE', 'mode', Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name])], ['MAP', 'map', OPT.maps(), 'select'],
+        !arc && ['FIRST TO', 'rounds', rounds], !arc && ['ROUND TIME', 'time', OPT.time], !arc && ['DRONE PHASE', 'prep', OPT.prep], !arc && ['BAN PHASE', 'bans', OPT.bans]],
+        sum: [modeName(o.mode), mapName(o.map), !arc && 'first to ' + o.rounds, !arc && optName(OPT.time, o.time), !arc && 'drones ' + optName(OPT.prep, o.prep), !arc && o.bans && 'bans'] },
+      { id: 'teams', title: 'TEAMS', rows: [[ffa ? 'PLAYERS' : 'TEAM SIZE', 'size', OPT.size(ffa)], !ffa && ['TEAM A STARTS', 'side', sides]],
+        sum: [optName(OPT.size(ffa), o.size), !ffa && (o.side === 'random' ? 'sides at random' : 'Team A ' + (o.side === 'atk' ? 'attacks' : 'defends') + ' first')] },
+      { id: 'cpu', title: 'CPU PLAYERS', rows: [['BOTS', 'bots', [[true, 'Fill empty slots'], [false, 'Humans only']]], ['BOT SKILL', 'diff', DATA.DIFFS.map((d, i) => [i, d.name])],
+        [ffa ? 'PERSONALITY' : 'TEAM A CPUs', 'cpuA', OPT.pers(), 'select'], !ffa && ['TEAM B CPUs', 'cpuB', OPT.pers(), 'select'],
+        ['AGGRESSION', 'cpuAggr', OPT.aggr], ['TACTICS', 'cpuTac', OPT.tac]],
+        note: 'A personality sets how a bot plays, and the operator, guns, attachments and gadgets it picks. Random gives every bot its own. Aggression and tactics shift every bot.',
+        sum: o.bots ? [DATA.DIFFS[o.diff] ? DATA.DIFFS[o.diff].name.toLowerCase() : '', (ffa ? '' : 'A ') + optName(OPT.pers(), o.cpuA), !ffa && 'B ' + optName(OPT.pers(), o.cpuB), o.cpuAggr !== 1 && optName(OPT.aggr, o.cpuAggr).toLowerCase(), o.cpuTac !== 1 && optName(OPT.tac, o.cpuTac).toLowerCase() + ' tactics'] : ['humans only'] },
+    ];
+    if (cfg.form) S.push({ id: 'room', title: 'ROOM', rows: [['ROOM', '_room', [['pub', 'Public'], ['priv', 'Private (password)'], ['code', 'Code only']]]], extra: cfg.extraRoom, sum: [o.priv ? 'private' : o.listed ? 'public' : 'code only'] });
+    else if (cfg.host) S.push({ id: 'room', title: 'ROOM', rows: [['ROOM', 'locked', [[false, 'Open'], [true, 'Locked']]], ['CHAT', 'chat', [['on', 'On'], ['off', 'Host only']]]], sum: [o.locked ? 'locked' : 'open', 'chat ' + (o.chat === 'on' ? 'on' : 'host only')] });
+    for (const s of S) s.rows = s.rows.filter(Boolean);
+    return S;
+  }
+  function settingsPanel(o, cfg) {
+    const wrap = el('div', { class: 'rset' });
+    for (const S of sections(o, cfg)) {
+      const open = openSec === S.id;
+      wrap.append(el('button', { class: 'rset-h' + (open ? ' open' : ''), onclick: () => { openSec = open ? '' : S.id; SFX.ui(); cfg.redraw(); } },
+        el('b', {}, S.title), el('span', {}, S.sum.filter(Boolean).join(' · ')), el('i', {}, open ? '–' : '+')));
+      if (!open) continue;
+      const body = el('div', { class: 'rset-b' });
+      for (const [label, key, opts, kind] of S.rows) {
+        const cur = o[key];
+        let ctl;
+        if (!cfg.edit) ctl = el('b', { class: 'rval' }, optName(opts, cur));
+        else if (kind === 'select') { ctl = el('select', { class: 'rsel', onchange: e => { SFX.ui(); cfg.set(key, conv(cur, e.target.value)); } }, ...opts.map(([v, t]) => el('option', { value: String(v) }, t))); ctl.value = String(cur); }
+        else ctl = el('div', { class: 'rseg' }, ...opts.map(([v, t]) => el('button', { class: String(cur) === String(v) ? 'on' : '', onclick: () => { SFX.ui(); cfg.set(key, conv(cur, v)); } }, t)));
+        body.append(el('div', { class: 'rrow' }, el('span', {}, label), ctl));
+      }
+      for (const x of S.extra || []) if (x) body.append(x);
+      if (S.note) body.append(el('p', { class: 'rnote' }, S.note));
+      wrap.append(body);
+    }
+    return wrap;
+  }
   const modeName = id => (DATA.MODES[id] || { name: id }).name;
   Online.inRoom = () => !!(N && N.room && N.stage === 'room');
   Online.room = () => N && N.room;
@@ -116,6 +170,8 @@
       map: o.map || 'roadhouse', mode: o.mode || 'bomb', rounds: o.rounds || 3, diff: o.diff == null ? 1 : o.diff, side: o.side || 'random', bots: o.bots !== false,
       // how long the drone (preparation) phase and the action phase last, and a ban phase before round one
       prep: o.prep || 45, time: o.time || 180, bans: !!o.bans, cur: null, last: null,
+      // CPU players: a personality for each team's bots ('random': each its own), aggression, tactics
+      cpuA: o.cpuA || 'random', cpuB: o.cpuB || 'random', cpuAggr: o.cpuAggr == null ? 1 : o.cpuAggr, cpuTac: o.cpuTac == null ? 1 : o.cpuTac,
       members: [], playing: false, chat: 'on', chal: o.chal || null,
       // Ranked: fixed rules, no ready-up; the match starts by itself when the wait runs out
       ranked: !!o.ranked, startAt: o.ranked ? Date.now() + (o.wait || 30) * 1000 : 0, done: false,
@@ -541,27 +597,17 @@
 
   /* host-a-room form */
   function hostForm() {
-    const o = { name: Auth.name + '\'s room', map: 'roadhouse', mode: 'bomb', rounds: 3, size: 5, prep: 45, time: 180, bans: false, diff: G.settings.difficulty, side: 'random', bots: true, priv: false, listed: true, pass: '' };
+    const o = { name: Auth.name + '\'s room', map: 'roadhouse', mode: 'bomb', rounds: 3, size: 5, prep: 45, time: 180, bans: false, diff: G.settings.difficulty, side: 'random', bots: true,
+      cpuA: 'random', cpuB: 'random', cpuAggr: 1, cpuTac: 1, priv: false, listed: true, pass: '' };
     const body = el('div', { class: 'chalform' });
     const draw = () => {
       body.innerHTML = '';
-      const seg = (label, val, opts, fn) => el('div', { class: 'seg2' }, el('span', null, label), el('div', null, ...opts.map(([v, t]) => el('button', { class: String(val) === String(v) ? 'on' : '', onclick: () => { fn(v); draw(); } }, t))));
       const name = el('input', { class: 'input', maxlength: 24, value: o.name }); name.addEventListener('input', () => o.name = name.value); name.addEventListener('keydown', e => e.stopPropagation());
       const pass = el('input', { class: 'input', maxlength: 24, placeholder: 'Password', value: o.pass }); pass.addEventListener('input', () => o.pass = pass.value); pass.addEventListener('keydown', e => e.stopPropagation());
-      const M = DATA.MODES[o.mode] || {}, bool = v => v === true || v === 'true';
-      body.append(...[el('div', { class: 'seg2' }, el('span', null, 'NAME'), name),
-        seg('MODE', o.mode, Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name]), v => o.mode = v),
-        seg('MAP', o.map, OPT.maps(), v => o.map = v),
-        seg(M.ffa ? 'PLAYERS' : 'TEAM SIZE', o.size, OPT.size(M.ffa), v => o.size = +v),
-        M.arcade ? null : seg('FIRST TO', o.rounds, [[2, '2'], [3, '3'], [4, '4'], [5, '5']], v => o.rounds = +v),
-        M.arcade ? null : seg('DRONE PHASE', o.prep, OPT.prep, v => o.prep = +v),
-        M.arcade ? null : seg('ROUND TIME', o.time, OPT.time, v => o.time = +v),
-        M.arcade ? null : seg('BAN PHASE', o.bans, OPT.bans, v => o.bans = bool(v)),
-        seg('BOTS', o.bots, [[true, 'Fill empty slots'], [false, 'Humans only']], v => o.bots = bool(v)),
-        seg('BOT SKILL', o.diff, DATA.DIFFS.map((d, i) => [i, d.name]), v => o.diff = +v),
-        seg('TEAM A STARTS', o.side, [['atk', 'Attack'], ['def', 'Defense'], ['random', 'Random']], v => o.side = v),
-        seg('ROOM', o.priv ? 'priv' : o.listed ? 'pub' : 'code', [['pub', 'Public'], ['priv', 'Private (password)'], ['code', 'Code only']], v => { o.priv = v === 'priv'; o.listed = v !== 'code'; }),
-        o.priv ? el('div', { class: 'seg2' }, el('span', null, 'PASSWORD'), pass) : null].filter(Boolean));
+      o._room = o.priv ? 'priv' : o.listed ? 'pub' : 'code';
+      body.append(el('div', { class: 'rrow rname' }, el('span', null, 'NAME'), name),
+        settingsPanel(o, { edit: true, form: true, redraw: draw, extraRoom: [o.priv ? el('div', { class: 'rrow' }, el('span', null, 'PASSWORD'), pass) : null],
+          set: (k, v) => { if (k === '_room') { o.priv = v === 'priv'; o.listed = v !== 'code'; } else o[k] = v; draw(); } }));
     };
     draw();
     UI.modal({ title: 'HOST A ROOM', cls: 'wide', body: [body], buttons: [['OPEN ROOM', () => { if (o.priv && !o.pass) o.pass = U.rid(4).toUpperCase(); Online.host(o); }, 'big'], ['CANCEL', () => { }, 'ghost']] });
@@ -604,22 +650,9 @@
         if ((me.spec || me.team !== t) && !R.playing && ms.length < tmax()) col.append(UI.btn('JOIN ' + (t === 0 ? 'TEAM A' : 'TEAM B'), () => toHost({ t: 'team', tm: t }), 'small ghost'));
         return col;
       };
-      // settings
-      const set = el('div', { class: 'panel roomset' }, el('h3', {}, 'MATCH SETTINGS'));
-      const seg = (label, key, opts) => el('div', { class: 'seg2' }, el('span', null, label), host && !R.playing ? el('div', null, ...opts.map(([v, t]) => el('button', { class: String(R[key]) === String(v) ? 'on' : '', onclick: () => { SFX.ui(); Online.set(key, typeof R[key] === 'number' ? +v : typeof R[key] === 'boolean' ? (v === true || v === 'true') : v); } }, t))) : el('b', null, (opts.find(o => String(o[0]) === String(R[key])) || ['', String(R[key])])[1]));
-      const M = DATA.MODES[R.mode] || {};
-      set.append(...[seg('MODE', 'mode', Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name])),
-        seg('MAP', 'map', OPT.maps()),
-        seg(M.ffa ? 'PLAYERS' : 'TEAM SIZE', 'size', OPT.size(M.ffa)),
-        M.arcade ? null : seg('FIRST TO', 'rounds', [[2, '2'], [3, '3'], [4, '4'], [5, '5']]),
-        M.arcade ? null : seg('DRONE PHASE', 'prep', OPT.prep),
-        M.arcade ? null : seg('ROUND TIME', 'time', OPT.time),
-        M.arcade ? null : seg('BAN PHASE', 'bans', OPT.bans),
-        seg('BOTS', 'bots', [[true, 'Fill slots'], [false, 'Humans only']]),
-        seg('BOT SKILL', 'diff', DATA.DIFFS.map((d, i) => [i, d.name])),
-        seg('TEAM A STARTS', 'side', [['atk', 'Attack'], ['def', 'Defense'], ['random', 'Random']]),
-        host ? seg('ROOM', 'locked', [[false, 'Open'], [true, 'Locked']]) : null,
-        host ? seg('CHAT', 'chat', [['on', 'On'], ['off', 'Host only']]) : null].filter(Boolean));
+      // settings, in sections (one open at a time)
+      const set = el('div', { class: 'panel roomset' }, el('h3', {}, 'MATCH SETTINGS', el('small', {}, host && !R.playing ? ' · open a section to change it' : ' · set by the host')),
+        settingsPanel(R, { edit: host && !R.playing, host, redraw: draw, set: (k, v) => Online.set(k, v) }));
       // chat
       const chat = el('div', { class: 'panel roomchat' }, el('h3', {}, 'ROOM CHAT'), chatBox, el('div', { class: 'quick' }, ...QUICK.map(q => el('button', { class: 'qbtn', onclick: () => Online.say(q) }, q))), el('div', { class: 'chatsend' }, input, UI.btn('SEND', send, '')));
       // actions
