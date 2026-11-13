@@ -36,7 +36,7 @@
     GAME.ranked = !!cfg.ranked;
     // ranked plays by its own rules: first to four, bots as good as your rank
     if (cfg.ranked && !cfg.online) { if (!GAME.prevSettings) GAME.prevSettings = { r: G.settings.roundsToWin, d: G.settings.difficulty, s: G.settings.swapEveryRound }; G.settings.roundsToWin = cfg.rounds || 4; if (cfg.diff != null) G.settings.difficulty = cfg.diff; G.settings.swapEveryRound = true; }
-    if (!cfg.online) { GAME.net = false; GAME.client = false; GAME.myTeam = 0; }
+    if (!cfg.online) { GAME.net = false; GAME.client = false; GAME.myTeam = 0; GAME.spectator = false; }
     MAIN.loadMap(cfg.map);
     if (GAME.net && NP.host) NP.hookWorld();
     if (window.Net && Auth.user && !GAME.net) Net.setStatus('play', 'Playing ' + DATA.MODES[cfg.mode].name + ' against bots');
@@ -81,6 +81,7 @@
     else if (GAME.mode === 'secure') GAME.siteNames = [U.pick(map.secure)];
     else GAME.siteNames = [U.pick(map.hostage)];
     if (GAME.net) NP.select();
+    if (GAME.net && GAME.spectator) return NP.specWait();
     MENU.opSelect({
       side: GAME.ffa ? 'any' : GAME.playerSide(), round: GAME.round, score: [mine(), theirs()], mode: GAME.mode, sites: GAME.siteNames, map, online: GAME.net,
       onReady: choice => { GAME.playerChoice = choice; if (GAME.net) NP.myPick(choice); else GAME.startRound(); },
@@ -162,6 +163,8 @@
       const s = GAME.stats.get(key) || { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: a.team, human: !!(a.isPlayer || a.net), me: !!a.isPlayer, op: a.op.id };
       s.op = a.op.id; s.name = a.name; s.r = a.rating; a.match = s; GAME.stats.set(key, s);
     }
+    // the host spectating: a stand-in watches (it is not one of the players)
+    if (GAME.net && GAME.spectator) G.player = PLAYER.ghost();
     if (arcade) ARC.prepare();
     if (ffa) { ARC.spawnAll(G.actors); return arcadeStart(); }
     // ---- spawn
@@ -213,7 +216,7 @@
     PLAYER.roundStart();
     HUD.roundStart();
     SFX.voice('start');
-    HUD.banner('ROUND ' + (GAME.round + 1), (GAME.playerSide() === 'atk' ? 'ATTACK' : 'DEFENSE') + ' · PREPARATION PHASE', 2.5);
+    HUD.banner('ROUND ' + (GAME.round + 1), (GAME.spectator ? 'SPECTATING · ' + GAME.teamName(GAME.atkTeam()) + ' ATTACKS' : GAME.playerSide() === 'atk' ? 'ATTACK' : 'DEFENSE') + ' · PREPARATION PHASE', 2.5);
     if (GAME.net) NP.roundStarted();
   };
   /* Deathmatch / Team Deathmatch: straight into the fight, no objective, no cameras */
@@ -298,15 +301,22 @@
       if (GAME.timer <= 0) return GAME.endRound(def, 'Time ran out');
     }
   }
+  /* a spectator's result banners: who won, not "you" */
+  GAME.teamName = t => t === 0 ? 'TEAM A' : 'TEAM B';
+  GAME.specTitle = function (winner, matchEnd) {
+    if (GAME.ffa) { const top = ARC.standings()[0]; return top ? GAME.who(top) + ' WINS' : 'MATCH OVER'; }
+    if (winner == null || winner < 0) return 'DRAW';
+    return GAME.teamName(winner) + (matchEnd ? ' WINS' : ' TAKES THE ROUND');
+  };
   GAME.endRound = function (winner, reason) {
     if (GAME.phase !== 'action' && GAME.phase !== 'prep') return;
     if (GAME.arcade) return arcadeEnd(winner, reason);
     GAME.phase = 'post'; GAME.timer = POST;
     GAME.score[winner]++;
     for (const a of G.actors) { a.trigger = false; if (a.team === winner && a.match) a.match.s += 50; }
-    const won = winner === GAME.myTeam;
-    SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won);
-    const ban = dur => HUD.banner(won ? 'ROUND WON' : 'ROUND LOST', reason + '  ·  ' + mine() + ' – ' + theirs(), dur, won ? 'win' : 'lose');
+    const sp = GAME.spectator, won = !sp && winner === GAME.myTeam;
+    if (!sp) SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(sp || won);
+    const ban = dur => HUD.banner(sp ? GAME.specTitle(winner) : won ? 'ROUND WON' : 'ROUND LOST', reason + '  ·  ' + mine() + ' – ' + theirs(), dur, sp || won ? 'win' : 'lose');
     PLAYER.leaveDrone(); PLAYER.leaveCams();
     // a round ended by a kill replays that kill, then the result comes back up
     const kc = GAME.roundKillcam(reason, () => ban(Math.max(1, GAME.timer - 0.4)));
@@ -318,11 +328,11 @@
   function arcadeEnd(winner, reason) {
     GAME.phase = 'post'; GAME.timer = POST; GAME.winner = winner;
     for (const a of G.actors) { a.trigger = false; a.respawnAt = 0; }
-    const place = G.player ? ARC.place(G.player) : 0;
-    const won = GAME.ffa ? place === 1 : winner === GAME.myTeam;
-    const title = GAME.ffa ? ARC.ordinal(place) + ' PLACE' : winner < 0 ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
-    SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won);
-    const ban = dur => HUD.banner(title, reason, dur, won ? 'win' : 'lose');
+    const place = G.player ? ARC.place(G.player) : 0, sp = GAME.spectator;
+    const won = !sp && (GAME.ffa ? place === 1 : winner === GAME.myTeam);
+    const title = sp ? GAME.specTitle(winner, true) : GAME.ffa ? ARC.ordinal(place) + ' PLACE' : winner < 0 ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
+    if (!sp) SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(sp || won);
+    const ban = dur => HUD.banner(title, reason, dur, sp || won ? 'win' : 'lose');
     PLAYER.leaveDrone(); PLAYER.leaveCams();
     const kc = GAME.roundKillcam(reason, () => ban(Math.max(1, GAME.timer - 0.4)));
     if (kc) GAME.timer = KC_LEAD + kc.dur + KC_TAIL;
@@ -348,9 +358,9 @@
     restoreRanked();
     PLAYER.release();
     if (GAME.net) {
-      const stats = NP.matchEnd(), mt = GAME.myTeam, score = GAME.score.slice();
+      const stats = NP.matchEnd(), mt = GAME.myTeam, score = GAME.score.slice(), sp = GAME.spectator;
       NP.stop();
-      MENU.matchOver(score, null, { online: true, stats, myTeam: mt, host: true });
+      MENU.matchOver(score, null, { online: true, stats, myTeam: mt, host: true, spectator: sp });
       Online.matchEnded();
     } else MENU.matchOver(GAME.score, GAME.stats);
   };

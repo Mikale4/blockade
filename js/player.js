@@ -59,6 +59,28 @@
   P.interactHeld = () => P.held('interact') && P.locked;
   P.viewActor = () => P.view === 'spectate' ? P.spec : (P.view === 'body' ? G.player : null);
 
+  /* ------------------------------------------------------------ spectators */
+  /* An online spectator plays nobody, so G.player is a stand-in: never one of the players (not
+     in G.actors, never drawn, never hurt), dead from the start, so every "my operator" path
+     sees someone who is watching. Its team follows whoever is being watched, so blackouts,
+     marks and team colours look the way they do to that player. */
+  P.ghost = function () {
+    const g = new Actor({ name: 'SPECTATOR', team: 0, side: 'atk', op: DATA.OPS[0], isPlayer: true, dummy: true });
+    g.state = 'dead'; g.hp = 0; g.ghost = true; g.pos.set(0, -40, 0);
+    return g;
+  };
+  /* the free camera: fly anywhere, through walls. `over` starts it above the building */
+  P.freeCam = function (over) {
+    const c = G.camera;
+    if (over || !P.free) {
+      const b = G.map.buildings[0], cx = (b.x0 + b.x1 + 1) / 8, cz = (b.z0 + b.z1 + 1) / 8;
+      const pos = new THREE.Vector3(cx, (b.roofY + 1) / 4 + 10, b.z1 / 4 + 24);
+      P.free = { pos, yaw: 0, pitch: -Math.atan2(pos.y - (b.roofY / 8), pos.z - cz) };
+    }
+    if (!over && P.view === 'spectate') { P.free.pos.copy(c.position); P.free.yaw = c.rotation.y; P.free.pitch = c.rotation.x; }
+    P.view = 'free'; P.spec = null;
+  };
+
   P.look = function (dx, dy) {
     const s = G.settings, a = G.player;
     let k = 0.0022 * s.sens;
@@ -70,6 +92,7 @@
       P.swayX = U.clamp(P.swayX + dx * 0.0004, -0.03, 0.03); P.swayY = U.clamp(P.swayY + dy * 0.0004, -0.03, 0.03);
     } else if (P.view === 'drone' && P.drone) { P.drone.yaw -= dx * k; P.drone.pitch = U.clamp(P.drone.pitch - dy * k, -0.9, 0.9); }
     else if (P.view === 'cams' && P.cam) { P.cam.look.yaw = U.clamp(P.cam.look.yaw - dx * k, -1.2, 1.2); P.cam.look.pitch = U.clamp(P.cam.look.pitch - dy * k, -0.7, 0.5); }
+    else if (P.view === 'free' && P.free) { P.free.yaw -= dx * k; P.free.pitch = U.clamp(P.free.pitch - dy * k, -1.5, 1.5); }
   };
   /* a bound action was pressed */
   P.action = function (act) {
@@ -77,6 +100,14 @@
     if (act === 'chat') { HUD.openChat(); return; }
     const atkPrep = GAME.phase === 'prep' && a.side === 'atk' && G.mode === 'match';
     if (P.view === 'replay') { if (act === 'vault' || act === 'interact') KC.skip(); return; }
+    // a spectator: fire / aim step through every player on both teams, the device key flies free
+    if (a.ghost) {
+      const following = P.view === 'spectate' && P.spec;
+      const step = act === 'fire' || (following && act === 'right') ? 1 : act === 'aim' || (following && act === 'left') ? -1 : 0;
+      if (step) { P.view = 'spectate'; P.cycleSpec(following ? step : 0); if (!P.spec) P.freeCam(true); }
+      else if (act === 'device' || act === 'interact') { if (following) P.freeCam(); else { P.view = 'spectate'; P.cycleSpec(0); if (!P.spec) P.freeCam(true); } }
+      return;
+    }
     if (P.view === 'drone') {
       if (act === 'device' || act === 'interact') { if (!atkPrep) P.leaveDrone(); else HUD.toast('Attackers drone during preparation'); }
       if (act === 'vault' && P.drone) P.drone.jump = true;
@@ -173,9 +204,12 @@
     P.camIdx = ((P.camIdx || 0) + d + P.camList.length) % P.camList.length; P.cam = P.camList[P.camIdx]; SFX.ui(1400);
   };
   P.cycleSpec = function (d) {
-    const list = G.actors.filter(t => t.team === G.player.team && t.state !== 'dead' && !t.isPlayer);
+    const me = G.player, sp = me && me.ghost;
+    // teammates when you are dead; everyone (both teams) when you are spectating
+    const list = G.actors.filter(t => t.state !== 'dead' && !t.isPlayer && !t.hostage && (sp || t.team === me.team));
     if (!list.length) { P.spec = null; return; }
     P.specIdx = ((P.specIdx || 0) + d + list.length) % list.length; P.spec = list[P.specIdx];
+    if (sp) { me.team = P.spec.team; me.side = P.spec.side; }
   };
   /* mark the enemy nearest the crosshair */
   P.ping = function () {
@@ -202,6 +236,16 @@
   /* ------------------------------------------------------------- per frame */
   P.update = function (dt) {
     const a = G.player; if (!a) return;
+    // the free camera: WASD, mouse, Space up, crouch down, sprint faster; straight through walls
+    if (P.view === 'free' && P.free && P.locked) {
+      const h = P.held, f = P.free, v = (h('sprint') ? 18 : 7) * dt, cp = Math.cos(f.pitch);
+      const mf = (h('forward') ? 1 : 0) - (h('back') ? 1 : 0), mr = (h('right') ? 1 : 0) - (h('left') ? 1 : 0), mu = (h('vault') ? 1 : 0) - (h('crouch') ? 1 : 0);
+      f.pos.x += (-Math.sin(f.yaw) * cp * mf + Math.cos(f.yaw) * mr) * v;
+      f.pos.y += (Math.sin(f.pitch) * mf + mu) * v;
+      f.pos.z += (-Math.cos(f.yaw) * cp * mf - Math.sin(f.yaw) * mr) * v;
+      const W = G.world;
+      f.pos.x = U.clamp(f.pos.x, 0.5, W.W / 4 - 0.5); f.pos.z = U.clamp(f.pos.z, 0.5, W.D / 4 - 0.5); f.pos.y = U.clamp(f.pos.y, 0.6, W.H / 4 + 40);
+    }
     const atkPrep = GAME.phase === 'prep' && a.side === 'atk';
     if (P.view === 'body' && a.state !== 'dead' && P.locked) {
       const h = P.held;
@@ -285,6 +329,8 @@
   P.roundStart = function () {
     P.view = 'body'; P.drone = null; P.cam = null; P.spec = null; P.deadT = 0; P.eyeY = null; P.vmKey = ''; P.enabled = true; P.respawnAt = 0;
     const a = G.player;
+    // a spectator starts behind the first player on Team A (or above the building)
+    if (a.ghost) { P.view = 'spectate'; P.specIdx = 0; P.cycleSpec(0); if (!P.spec) P.freeCam(true); if (!P.locked) P.lock(); return; }
     if (a.side === 'atk' && !GAME.client && !GAME.arcade) { const d = GAD.deployDrone(a, true); if (d) P.enterDrone(d); }
     HUD.reticle && document.documentElement.style.setProperty('--xc', SHOP.css('reticle'));
     if (!P.locked) P.lock();
@@ -310,6 +356,10 @@
       cam.position.copy(P.drone.eye()); cam.rotation.set(P.drone.pitch, P.drone.yaw, 0, 'YXZ'); fov = 80;
     } else if (P.view === 'cams' && P.cam) {
       cam.position.copy(P.cam.pos).add(V().set(0, -0.12, 0)); cam.rotation.set(P.cam.pitch + P.cam.look.pitch, P.cam.yaw + P.cam.look.yaw, 0, 'YXZ'); fov = 70;
+    } else if (P.view === 'free' || (a && a.ghost && !(P.view === 'spectate' && P.spec))) {
+      // a spectator's free camera (and where a spectator looks while nobody is left to follow)
+      if (!P.free || P.view !== 'free') P.freeCam(!P.free);
+      cam.position.copy(P.free.pos); cam.rotation.set(P.free.pitch, P.free.yaw, 0, 'YXZ'); fov = s.fov;
     } else if (P.view === 'spectate' && P.spec) {
       // through a teammate's eyes, their gun on screen (updateVM), their sight's zoom when they aim
       const t = P.spec; cam.position.copy(t.eye(V())); cam.rotation.set(t.pitch, t.yaw, -t.lean * 0.16, 'YXZ'); fov = s.fov / U.lerp(1, P.zoomOf(t), t.ads || 0);

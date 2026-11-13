@@ -119,7 +119,7 @@
     // an online guest: only my operator is simulated here; the host sends the rest
     if (GAME.client) {
       const a = G.player;
-      if (a) {
+      if (a && !a.ghost) {
         a.busy = Math.max(0, a.busy - dt);
         a.physics(dt);
         WPN.update(a, dt);

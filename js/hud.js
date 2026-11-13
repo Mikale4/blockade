@@ -142,7 +142,7 @@
         for (const t of [MT, 1 - MT]) {
           const box = t !== MT ? e.t1 : e.t0; box.innerHTML = '';
           for (const x of G.actors.filter(q => q.team === t && !q.hostage)) {
-            const known = t === MT || x.state !== 'alive' || GAME.marked(x, MT);
+            const known = GAME.spectator || t === MT || x.state !== 'alive' || GAME.marked(x, MT);
             box.append($('div', { class: 'ti ' + x.state + (x.isPlayer ? ' me' : ''), title: (x.net || x.netHuman ? x.name + ' · ' : '') + x.op.name, style: { borderColor: DATA.UNITS[x.op.unit].color } }, known ? x.op.name.slice(0, 3) : '?'));
           }
         }
@@ -151,7 +151,12 @@
       // objective line
       let o = '';
       const side = a.side, mode = GAME.mode;
-      if (GAME.arcade) o = 'First team to ' + DATA.MODES[mode].limit + ' kills wins';
+      if (GAME.spectator) {
+        // a spectator: both teams' jobs, not one side's
+        const at = GAME.atkTeam(), tn = t => t === 0 ? 'Team A' : 'Team B';
+        o = 'SPECTATING · ' + (GAME.arcade ? 'first team to ' + DATA.MODES[mode].limit + ' kills' : tn(at) + ' attacks · ' + tn(1 - at) + ' defends · ' +
+          (mode === 'bomb' ? (d && d.alive ? 'defuser planted' : GAME.siteNames.join(' / ')) : mode === 'secure' ? GAME.siteNames[0] + (GAME.obj.prog > 0 ? ' ' + Math.round(GAME.obj.prog / 10 * 100) + '%' : '') : 'hostage in ' + GAME.siteNames[0]));
+      } else if (GAME.arcade) o = 'First team to ' + DATA.MODES[mode].limit + ' kills wins';
       else if (ph === 'prep') o = side === 'atk' ? KEYS.fmt('Drone the building: find the objective and spot defenders [{fire}]') : KEYS.fmt('Reinforce walls [hold {interact}], barricade [{interact}], set your gadgets');
       else if (mode === 'bomb') o = d && d.alive ? (side === 'atk' ? 'Protect the defuser' : 'Disable the defuser!') : (side === 'atk' ? (a.carry === 'defuser' ? 'You carry the defuser: plant it in ' + GAME.siteNames.join(' or ') : 'Plant the defuser in ' + GAME.siteNames.join(' or ')) : 'Defend ' + GAME.siteNames.join(' and '));
       else if (mode === 'secure') o = (side === 'atk' ? 'Secure ' : 'Hold ') + GAME.siteNames[0] + (GAME.obj.prog > 0 ? '  ·  ' + Math.round(GAME.obj.prog / 10 * 100) + '%' + (GAME.obj.contested ? ' CONTESTED' : '') : '');
@@ -163,7 +168,23 @@
   };
   /* Deathmatch: you and the leader instead of two teams */
   function arcadeTop(a, e, dt) {
-    const st = ARC.standings(), me = st.indexOf(a), lead = st[0] === a ? st[1] : st[0];
+    const st = ARC.standings();
+    if (GAME.spectator) {
+      // a spectator: the leader and whoever is second
+      const L = st[0], S2 = st[1];
+      e.s0.textContent = L && L.match ? L.match.k : 0; e.s1.textContent = S2 && S2.match ? S2.match.k : 0;
+      const key = 'dms' + (L ? GAME.who(L) : '') + (S2 ? GAME.who(S2) : '');
+      if (key !== H.teamKey) {
+        H.teamKey = key; e.t0.innerHTML = ''; e.t1.innerHTML = '';
+        if (L) e.t0.append($('div', { class: 'ti alive dmt' }, 'LEADER · ' + GAME.who(L)));
+        if (S2) e.t1.append($('div', { class: 'ti alive dmt' }, '2ND · ' + GAME.who(S2)));
+        e.t0.className = 'h-team t0 dm'; e.t1.className = 'h-team t1 dm';
+      }
+      e.obj.textContent = 'SPECTATING · everyone for themselves · first to ' + DATA.MODES.dm.limit + ' kills';
+      e.obj.style.display = '';
+      return H.body(a, e, dt);
+    }
+    const me = st.indexOf(a), lead = st[0] === a ? st[1] : st[0];
     e.s0.textContent = a.match ? a.match.k : 0; e.s1.textContent = lead && lead.match ? lead.match.k : 0;
     const key = 'dm' + (me + 1) + (lead ? GAME.who(lead) : '');
     if (key !== H.teamKey) {
@@ -179,8 +200,13 @@
   }
   H.body = function (a, e, dt) {
     const isMatch = G.mode === 'match';
+    // a spectator has no operator of their own: the panels show whoever is being watched
+    const spx = !!(a.ghost && isMatch), me = a;
+    const show = (x, on) => { const v = on ? '' : 'none'; if (x.style.display !== v) x.style.display = v; };
+    if (spx) a = PLAYER.view === 'spectate' && PLAYER.spec ? PLAYER.spec : a;
+    show(e.hp, !spx || a !== me); show(e.wpn, !spx || a !== me); show(e.slots, !spx);
     // ---- health
-    e.opname.textContent = a.op.name + (a.isPlayer && a.side ? ' · ' + (a.side === 'atk' ? 'ATTACK' : 'DEFENSE') : '');
+    e.opname.textContent = (spx ? GAME.who(a) + ' · ' : '') + a.op.name + ((a.isPlayer || spx) && a.side ? ' · ' + (a.side === 'atk' ? 'ATTACK' : 'DEFENSE') : '');
     e.hpfill.style.width = Math.max(0, a.hp / a.maxHp * 100) + '%';
     e.hpover.style.width = Math.min(100, a.over / a.maxHp * 100) + '%';
     e.hpnum.textContent = Math.ceil(a.hp + a.over);
@@ -193,7 +219,9 @@
     const wa = PLAYER.view === 'spectate' && PLAYER.spec && PLAYER.spec.wpn ? PLAYER.spec : a, w = wa.wpn;
     if (w) {
       e.wname.textContent = (wa.shieldOp && wa.shieldUp ? 'BULWARK + ' : '') + w.def.name + (w.def.auto ? (w.auto ? '  AUTO' : '  SINGLE') : '');
-      e.mag.textContent = w.reload > 0 ? '··' : w.mag; e.res.textContent = '/' + w.reserve;
+      // (a guest is not sent anyone else's magazine)
+      const ammo = !GAME.client || wa === G.player;
+      e.mag.textContent = !ammo ? '' : w.reload > 0 ? '··' : w.mag; e.res.textContent = ammo ? '/' + w.reserve : '';
       e.mag.classList.toggle('low', w.mag <= Math.ceil(w.def.mag * 0.25));
     }
     H.slotT = (H.slotT || 0) - dt;
@@ -216,7 +244,9 @@
     // ---- view mode overlay
     const P = PLAYER;
     let vtxt = '';
-    if (P.view === 'drone') vtxt = 'DRONE' + (P.drone && P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} drive · {sprint} boost ' + (P.dBoostCd > 0.05 ? '(' + Math.ceil(P.dBoostCd) + 's)' : '(ready)') + ' · {vault} jump · {fire} spot' + (P.drone && P.drone.surge ? ' · {aim} surge (' + a.ability.zaps + ')' : '') + ' · {device} exit</small>');
+    if (spx) vtxt = P.view === 'free' ? KEYS.fmt('FREE CAMERA<small>{forward}{left}{back}{right} fly · {vault} up · {crouch} down · {sprint} faster · {fire}/{aim} follow a player</small>')
+      : P.view === 'spectate' && P.spec ? 'WATCHING ' + GAME.who(P.spec) + ' · ' + P.spec.op.name + KEYS.fmt('<small>{fire}/{aim} next / previous player · {device} free camera</small>') : '';
+    else if (P.view === 'drone') vtxt = 'DRONE' + (P.drone && P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} drive · {sprint} boost ' + (P.dBoostCd > 0.05 ? '(' + Math.ceil(P.dBoostCd) + 's)' : '(ready)') + ' · {vault} jump · {fire} spot' + (P.drone && P.drone.surge ? ' · {aim} surge (' + a.ability.zaps + ')' : '') + ' · {device} exit</small>');
     else if (P.view === 'cams') vtxt = (P.cam ? P.cam.name : 'CAMERA') + KEYS.fmt('<small>{left}/{right} switch · {fire} spot · {device} exit</small>');
     else if (P.view === 'spectate') vtxt = 'SPECTATING ' + (P.spec ? P.spec.op.name : '—') + KEYS.fmt('<small>{fire}/{aim} switch · {device} ' + (a.side === 'atk' ? 'drones' : 'cameras') + '</small>');
     else if (a.state === 'dbno') vtxt = 'DOWN<small>wait for a teammate to revive you</small>';

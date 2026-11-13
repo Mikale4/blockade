@@ -342,7 +342,7 @@
       wrap.append($('div', { class: 'os-top' },
         $('div', { class: 'os-side' }, 'BAN PHASE'),
         $('div', { class: 'os-info' }, $('b', {}, cfg.map.name + ' · RANKED'),
-          $('span', {}, cfg.captain ? 'Ban one attacker and one defender. Nobody on either team can play them this match.' : (cfg.capName || 'Your captain') + ' is choosing the bans for your team.')),
+          $('span', {}, cfg.spec ? 'You are spectating: the team captains are choosing their bans.' : cfg.captain ? 'Ban one attacker and one defender. Nobody on either team can play them this match.' : (cfg.capName || 'Your captain') + ' is choosing the bans for your team.')),
         $('div', { class: 'os-score ban-clock' }, done ? '' : String(Math.max(0, Math.ceil(left))))));
       const body = $('div', { class: 'ban-body' });
       for (const side of ['atk', 'def']) {
@@ -378,7 +378,7 @@
       $('div', { class: 'ban-list' }, ...((ids || []).length ? ids.map(id => { const o = DATA.OPMAP[id]; return $('div', { class: 'os-op wb row ban off', style: { '--uc': UNITS[o.unit].color } }, MENU.bust(o, 44), $('b', {}, o.name), $('span', {}, o.side === 'atk' ? 'ATTACKER' : 'DEFENDER'), $('em', {}, 'BANNED')); }) : [$('p', { class: 'ban-wait' }, 'No bans')])));
     wrap.append($('div', { class: 'os-top' }, $('div', { class: 'os-side' }, 'BANNED'),
       $('div', { class: 'os-info' }, $('b', {}, 'Out for the whole match'), $('span', {}, 'Both teams, attack and defense')), $('div', { class: 'os-score' }, '')));
-    wrap.append($('div', { class: 'ban-reveal' }, row('YOUR TEAM BANNED', cfg.teams[cfg.my]), row('THE OTHER TEAM BANNED', cfg.teams[1 - cfg.my])));
+    wrap.append($('div', { class: 'ban-reveal' }, row(cfg.spec ? 'TEAM A BANNED' : 'YOUR TEAM BANNED', cfg.teams[cfg.spec ? 0 : cfg.my]), row(cfg.spec ? 'TEAM B BANNED' : 'THE OTHER TEAM BANNED', cfg.teams[cfg.spec ? 1 : 1 - cfg.my])));
     show(wrap);
     SFX.ui();
     if (cfg.onDone) setTimeout(() => { if (wrap.isConnected) cfg.onDone(); }, 4000);
@@ -528,15 +528,16 @@
     else rows = [...stats.values()].map(s => ({ name: s.name, op: DATA.OPMAP[s.op].name, team: s.team, me: s.me, human: s.human, s: s.s, k: s.k, a: s.a, d: s.d, hs: s.hs, r: s.r }));
     if (M.ffa) rows.sort((a, b) => b.k - a.k || a.d - b.d);
     else rows.sort((a, b) => (a.team === mt ? 0 : 1) - (b.team === mt ? 0 : 1) || b.s - a.s);
-    const me = rows.find(r => r.me) || {}, place = rows.indexOf(me) + 1;
-    const won = M.ffa ? place === 1 : score[mt] > score[1 - mt], draw = !M.ffa && score[mt] === score[1 - mt];
-    SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won); MUSIC.play('after');
+    const me = rows.find(r => r.me) || {}, place = rows.indexOf(me) + 1, spec = !!o.spectator;
+    const won = !spec && (M.ffa ? place === 1 : score[mt] > score[1 - mt]), draw = !M.ffa && score[mt] === score[1 - mt];
+    if (!spec) SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won || spec); MUSIC.play('after');
     // my record: the other team's average rating is what a ranked result is measured against
     const foes = rows.filter(r => r.team !== mt), oppR = foes.length ? foes.reduce((t, r) => t + (r.r || 1000), 0) / foes.length : null;
     let rec = null;
-    if (Auth.user) rec = Auth.record({ won, rounds: M.arcade ? 0 : score[0] + score[1], roundsWon: M.arcade ? 0 : score[mt], k: me.k || 0, d: me.d || 0, a: me.a || 0, hs: me.hs || 0, op: o.online ? (o.stats.find(s => s.h === Online.myId()) || {}).op : ([...stats.values()].find(s => s.me) || {}).op, online: !!o.online, ranked, oppR });
-    const title = M.ffa ? ARC.ordinal(place) + ' PLACE' : draw ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
-    const big = M.ffa ? (me.k || 0) + ' KILLS' : score[mt] + ' – ' + score[1 - mt];
+    if (Auth.user && !spec) rec = Auth.record({ won, rounds: M.arcade ? 0 : score[0] + score[1], roundsWon: M.arcade ? 0 : score[mt], k: me.k || 0, d: me.d || 0, a: me.a || 0, hs: me.hs || 0, op: o.online ? (o.stats.find(s => s.h === Online.myId()) || {}).op : ([...stats.values()].find(s => s.me) || {}).op, online: !!o.online, ranked, oppR });
+    // a spectator: who won, and no record of their own
+    const title = spec ? (M.ffa ? (rows[0] ? rows[0].name + ' WINS' : 'MATCH OVER') : draw ? 'DRAW' : (score[0] > score[1] ? 'TEAM A' : 'TEAM B') + ' WINS') : M.ffa ? ARC.ordinal(place) + ' PLACE' : draw ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
+    const big = spec && M.ffa ? ((rows[0] || {}).k || 0) + ' KILLS' : M.ffa ? (me.k || 0) + ' KILLS' : score[mt] + ' – ' + score[1 - mt];
     // Ranked: the rank you were and the rank you are now
     let rk = null;
     if (rec && ranked && rec.delta != null) {
@@ -545,7 +546,7 @@
         $('span', { class: 'muted' }, rec.rating + (RANKED.placing() ? ' · placements ' + Auth.S.rank.games + '/' + RANKED.PLACEMENTS : up ? ' · PROMOTED TO ' + t1.label + '!' : down ? ' · dropped to ' + t1.label : '')));
     }
     const nameCell = r => $('span', { class: 'sb-op' }, r.me ? 'YOU' : r.name, !r.me && !r.human && !ranked ? $('em', { class: 'bot' }, 'BOT') : null);
-    show($('div', { class: 'panel over ' + (won ? 'win' : 'lose') },
+    show($('div', { class: 'panel over ' + (won || spec ? 'win' : 'lose') },
       $('h2', {}, title), $('div', { class: 'big-score' }, big), ranked ? $('div', { class: 'muted' }, 'RANKED MATCH') : M.arcade ? $('div', { class: 'muted' }, M.name) : null,
       rec ? $('p', { class: 'xpgain' }, '+' + rec.xp + ' XP' + (rec.up ? ' · LEVEL UP! LV ' + rec.lv : '') + ' · ◈ +' + rec.cr + ' credits' + (rec.first ? ' (first win of the day +250)' : '')) : null,
       rk,

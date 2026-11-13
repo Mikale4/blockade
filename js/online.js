@@ -28,7 +28,7 @@
   const PROTO = 'blk-room-1';
   const PEER_JS = ['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
   const PREFIX = 'blockade-room-', ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const ROOM_MAX = 10, TEAM_MAX = 5;
+  const ROOM_MAX = 10, TEAM_MAX = 5, SPEC_MAX = 6;   // ten players, and up to six spectators on top
   const QUICK = ['GG!', 'Good luck!', 'Nice shot!', 'Ready!', 'One more?', 'Be right back', 'Rotate!', 'Thanks for the game!'];
   const DENY = {
     version: 'That room is on a different version of the game. Reload the page (Ctrl+F5) and try again.',
@@ -112,9 +112,10 @@
   }
   function listing() {
     const R = N && N.room; if (!R || !R.listed) return null;
-    return { name: R.name, host: Auth.name, hostId: Auth.id, n: R.members.length, max: R.max, priv: R.priv, map: R.map, mode: R.mode, rounds: R.rounds,
+    const sp = R.members.filter(m => m.spec).length, n = R.members.length - sp;
+    return { name: R.name, host: Auth.name, hostId: Auth.id, n, sp, max: R.max, priv: R.priv, map: R.map, mode: R.mode, rounds: R.rounds,
       ranked: R.ranked ? 1 : 0, r: partyRating(R), ps: R.party ? partyOf(R).length : 0,
-      state: R.locked ? 'locked' : R.members.length >= R.max ? 'full' : R.playing ? 'playing' : 'open' };
+      state: R.locked ? 'locked' : n >= R.max ? 'full' : R.playing ? 'playing' : 'open' };
   }
   const partyOf = R => R.members.filter(m => m.party);
   function partyRating(R) {
@@ -128,7 +129,9 @@
     pushT = setTimeout(() => { if (!N || !N.host) return; toAll({ t: 'room', room: N.room }, true); Dir.update(); setPresence(); redraw(); }, 30);
   }
   function sysSay(text) { if (!N) return; const c = { sys: text }; if (N.host) { toAll({ t: 'chat', c }, true); gotChat(c); } }
-  const teamCount = t => N.room.members.filter(m => m.team === t).length;
+  const teamCount = t => N.room.members.filter(m => !m.spec && m.team === t).length;
+  const specCount = () => N.room.members.filter(m => m.spec).length;
+  const canSpectate = R => !R.ranked && !R.party;
   function hostConn(conn) {
     conn.on('data', d => hostData(conn, d));
     conn.on('close', () => memberGone(conn.peer, 'left'));
@@ -147,7 +150,10 @@
       const chal = R.chal && uid === R.chal.to;
       if (R.locked && !chal) return deny('locked');
       if (R.playing) return deny('playing');
-      if (R.members.length >= R.max) return deny('full');
+      const nSpec = R.members.filter(x => x.spec).length, nPlay = R.members.length - nSpec;
+      let spec = canSpectate(R) && !!d.spec;
+      if (!spec && nPlay >= R.max) { if (canSpectate(R) && nSpec < SPEC_MAX) spec = true; else return deny('full'); }
+      if (spec && nSpec >= SPEC_MAX) return deny('full');
       if (R.priv && !chal && String(d.pass || '') !== N.pass) return deny(d.pass ? 'wrongpass' : 'pass');
       // joining a party (by invite or its code) puts you in it, on the party's team; a stranger
       // who found the party's ranked match goes to the other team first
@@ -159,10 +165,10 @@
       if (joinsParty) team = 0;
       else if (R.party && R.ranked) team = teamCount(1) < TEAM_MAX ? 1 : 0;
       if (teamCount(team) >= TEAM_MAX) team = 1 - team;
-      const m = { id, uid, name: U.clean(me.name, 16) || 'Player', lv: (+me.lv | 0) || 1, r: Math.round(+me.r || 1000), team, ready: false, host: false, party: joinsParty };
+      const m = { id, uid, name: U.clean(me.name, 16) || 'Player', lv: (+me.lv | 0) || 1, r: Math.round(+me.r || 1000), team, ready: false, host: false, party: joinsParty, spec };
       R.members.push(m);
       conn.send({ t: 'welcome', you: id, room: R, pass: R.priv ? N.pass : '' });
-      sysSay(m.name + ' joined.');
+      sysSay(m.name + (spec ? ' joined as a spectator.' : ' joined.'));
       if (chal) { R.chal = null; }
       pushRoom(); return;
     }
@@ -175,7 +181,14 @@
     if (typeof d.t === 'string' && d.t.startsWith('np.')) { NP.hostGot(id, d); return; }
     switch (d.t) {
       case 'ready': if (R.playing) return; m.ready = !!d.on; pushRoom(); break;
-      case 'team': if (R.playing || R.party || R.ranked) return; if (d.tm !== 0 && d.tm !== 1) return; if (m.team !== d.tm && teamCount(d.tm) >= TEAM_MAX) return; m.team = d.tm; m.ready = m.host; pushRoom(); break;
+      case 'team': if (R.playing || R.party || R.ranked) return; if (d.tm !== 0 && d.tm !== 1) return; if ((m.spec || m.team !== d.tm) && teamCount(d.tm) >= TEAM_MAX) return; m.spec = false; m.team = d.tm; m.ready = m.host; pushRoom(); break;
+      // watch instead of play (anyone, the host too), or back onto the team with room
+      case 'spec': {
+        if (R.playing || !canSpectate(R)) return;
+        if (d.on) { if (m.spec || specCount() >= SPEC_MAX) return; m.spec = true; m.ready = true; sysSay(m.name + ' is spectating.'); }
+        else { if (!m.spec) return; const t = teamCount(0) <= teamCount(1) ? 0 : 1; if (teamCount(t) >= TEAM_MAX) return; m.spec = false; m.team = t; m.ready = m.host; sysSay(m.name + ' is playing.'); }
+        pushRoom(); break;
+      }
       case 'say': {
         const x = U.clean(d.x, 160); if (!x) return;
         if (R.chat === 'off' && !m.host) return;
@@ -200,11 +213,18 @@
   Online.set = (k, v) => { if (!N || !N.host || N.room.playing) return; N.room[k] = v; if (k === 'priv' && v && !N.pass) N.pass = U.rid(4).toUpperCase(); pushRoom(); };
   Online.kick = id => { const m = memberOf(id); if (!m || m.host) return; toMember(id, { t: 'kick' }); setTimeout(() => memberGone(id, 'kick'), 200); };
   Online.block = id => { const m = memberOf(id); if (!m || m.host) return; N.blocked.add(m.uid); Online.kick(id); };
-  Online.move = id => { if (!N || !N.host || N.room.playing) return; const m = memberOf(id); if (!m) return; const t = 1 - m.team; if (teamCount(t) >= TEAM_MAX) { toast('That team is full.', 'bad'); return; } m.team = t; pushRoom(); };
+  Online.move = id => {
+    if (!N || !N.host || N.room.playing) return; const m = memberOf(id); if (!m) return;
+    // a spectator goes onto the team with room
+    if (m.spec) { const t = teamCount(0) <= teamCount(1) ? 0 : 1; if (teamCount(t) >= TEAM_MAX) { toast('Both teams are full.', 'bad'); return; } m.spec = false; m.team = t; m.ready = m.host; pushRoom(); return; }
+    const t = 1 - m.team; if (teamCount(t) >= TEAM_MAX) { toast('That team is full.', 'bad'); return; } m.team = t; pushRoom(); };
+  Online.toSpec = id => { if (!N || !N.host || N.room.playing || !canSpectate(N.room)) return; const m = memberOf(id); if (!m || m.spec) return; if (specCount() >= SPEC_MAX) { toast('The spectator seats are full.', 'bad'); return; } m.spec = true; m.ready = true; pushRoom(); };
   Online.start = () => {
     if (!N || !N.host) return;
     const R = N.room;
     if (R.playing) return;
+    // everyone watching: five bots against five, or nothing to watch
+    if (!R.members.some(m => !m.spec) && !R.bots) { toast('Nobody is playing: set BOTS to Fill slots for an all-bot match, or join a team.', 'bad'); return; }
     R.playing = true; R.members.forEach(m => m.ready = false);
     pushRoom();
     toAll({ t: 'start', room: R }, true);
@@ -253,7 +273,7 @@
     switch (d.t) {
       case 'welcome': N.myId = d.you; N.room = d.room; N.stage = 'room'; if (d.pass) N.pass = d.pass; N.chat = N.chat || []; setPresence(); Online.showRoom(); break;
       case 'deny': toast(DENY[d.why] || 'You couldn\'t join that room.', 'bad'); endSession(); Online.open(); break;
-      case 'room': { const was = N.room && N.room.playing; N.room = d.room; setPresence(); if (!d.room.playing && !NP.active) redraw(); if (was && !d.room.playing && !NP.active) Online.showRoom(); break; }
+      case 'room': { const was = N.room && N.room.playing; N.room = d.room; setPresence(); if (!d.room.playing && !NP.active) redraw(); if (was && !d.room.playing && !NP.active && !document.querySelector('.panel.over')) Online.showRoom(); break; }   // (the results stay up until BACK TO ROOM)
       case 'chat': gotChat(d.c); break;
       case 'kick': toast('The host removed you from the room.', 'bad'); endSession(); Online.open(); break;
       case 'closed': hostGone(N.room && N.room.party ? 'The party leader left: the party is over.' : 'The host closed the room.'); break;
@@ -356,7 +376,7 @@
       }
     }, 500);
   }
-  Online.join = async (code, pass) => {
+  Online.join = async (code, pass, spec) => {
     code = String(code || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{5}$/.test(code)) { toast('Room codes are five letters or numbers.', 'bad'); return; }
     if (N && N.room && N.room.code === code) { Online.showRoom(); return; }
@@ -365,7 +385,7 @@
     const S0 = N = { stage: 'joining', host: false, chat: [], pass: pass || '', tries: [] };
     UI.screen(el('div', { class: 'page loadingpg' }, el('div', { class: 'spin' }), 'Joining room ' + code + '…'));
     try { await loadPeer(); } catch (e) { if (N === S0) { N = null; toast(e.message, 'bad'); Online.open(); } return; }
-    const hello = () => ({ t: 'hello', ver: PROTO, me: meInfo(), pass: S0.pass });
+    const hello = () => ({ t: 'hello', ver: PROTO, me: meInfo(), pass: S0.pass, spec: !!spec });
     const adopt = link => {
       if (N !== S0 || S0.conn) { try { link.close(); } catch (e) { /* fine */ } return; }
       S0.conn = link; clearTimeout(S0.relayT);
@@ -451,9 +471,15 @@
         left.append(el('div', { class: 'lobbyacts' }, UI.btn('QUICK PLAY', () => Online.quick(), 'big'), UI.btn('HOST A ROOM', () => hostForm(), ''), el('div', { class: 'joincode' }, code, UI.btn('JOIN', () => Online.join(code.value), 'small'))));
         const rooms = listedRooms().sort((a, b) => (a.state === 'open' ? 0 : 1) - (b.state === 'open' ? 0 : 1) || b.n - a.n);
         if (!rooms.length) left.append(el('p', { class: 'empty' }, 'No rooms open right now. Host one, or use QUICK PLAY.'));
-        for (const r of rooms) left.append(el('button', { class: 'roomrow ' + r.state, onclick: () => r.priv ? askPass(r.code) : Online.join(r.code, '') },
-          el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name, r.ranked ? el('em', { class: 'pill ranked' }, 'RANKED') : null), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + ' · ' + mapName(r.map) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].arcade ? '' : ' · first to ' + r.rounds))),
-          el('div', { class: 'rr' }, el('b', {}, r.n + '/' + r.max), el('em', { class: 'pill ' + r.state }, r.state.toUpperCase()))));
+        for (const r of rooms) {
+          const go = spec => r.priv ? askPass(r.code, spec) : Online.join(r.code, '', spec);
+          const row = el('button', { class: 'roomrow ' + r.state, onclick: () => go(false) },
+            el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name, r.ranked ? el('em', { class: 'pill ranked' }, 'RANKED') : null), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + ' · ' + mapName(r.map) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].arcade ? '' : ' · first to ' + r.rounds))),
+            el('div', { class: 'rr' }, el('b', {}, r.n + '/' + r.max), r.sp ? el('small', {}, r.sp + ' watching') : null, el('em', { class: 'pill ' + r.state }, r.state.toUpperCase())));
+          // rooms that take spectators: a button to join and watch
+          left.append(r.ranked || r.state === 'playing' || r.state === 'locked' ? row : el('div', { class: 'roomrow-w' }, row,
+            el('button', { class: 'btn small ghost specbtn', title: 'Join to watch: follow any player, or fly a free camera', onclick: () => go(true) }, 'SPECTATE')));
+        }
       } else if (tab === 'players') {
         const S = Auth.S;
         const ps = [...Net.players.values()].filter(p => p.id !== Auth.id && !S.blocked[p.id]).sort((a, b) => (S.friends[b.id] ? 1 : 0) - (S.friends[a.id] ? 1 : 0) || a.n.localeCompare(b.n));
@@ -467,10 +493,10 @@
           el('span', {}, el('b', {}, p.n, el('small', {}, ' ' + UI.tagOf(p.id))), el('small', {}, (p.w || 0) + ' online wins · ' + (p.m || 0) + ' matches')), UI.rating(p.r))));
       }
     };
-    const askPass = code => {
+    const askPass = (code, spec) => {
       const inp = el('input', { class: 'input', type: 'password', placeholder: 'Password', maxlength: 24 });
       inp.addEventListener('keydown', e => e.stopPropagation());
-      UI.modal({ title: 'PRIVATE ROOM', body: [el('p', {}, 'Room ' + code + ' needs a password.'), inp], buttons: [['JOIN', () => Online.join(code, inp.value), 'big'], ['CANCEL', () => { }, 'ghost']] });
+      UI.modal({ title: 'PRIVATE ROOM', body: [el('p', {}, 'Room ' + code + ' needs a password.'), inp], buttons: [[spec ? 'SPECTATE' : 'JOIN', () => Online.join(code, inp.value, spec), 'big'], ['CANCEL', () => { }, 'ghost']] });
       setTimeout(() => inp.focus(), 50);
     };
     UI.screen(page);
@@ -521,22 +547,23 @@
       body.innerHTML = '';
       if (R.ranked) return drawRanked(R);
       if (R.party) return drawParty(R);
+      const specs = R.members.filter(m => m.spec), specN = specs.length, playersN = R.members.length - specN;
       // header
       body.append(el('div', { class: 'panel roomhead' },
-        el('div', {}, el('h2', {}, R.name), el('small', {}, (R.priv ? 'PRIVATE' : R.listed ? 'PUBLIC' : 'CODE ONLY') + (R.locked ? ' · LOCKED' : '') + ' · ' + R.members.length + '/' + R.max + ' players')),
+        el('div', {}, el('h2', {}, R.name), el('small', {}, (R.priv ? 'PRIVATE' : R.listed ? 'PUBLIC' : 'CODE ONLY') + (R.locked ? ' · LOCKED' : '') + ' · ' + playersN + '/' + R.max + ' players' + (specN ? ' · ' + specN + ' spectating' : ''))),
         el('div', { class: 'roomcode' }, el('small', {}, 'ROOM CODE'), el('b', { class: 'sel' }, R.code), UI.btn('COPY', () => { try { navigator.clipboard.writeText(R.code); toast('Copied the room code.'); } catch (e) { /* fine */ } }, 'ghost small')),
         R.priv && N.pass ? el('div', { class: 'roomcode' }, el('small', {}, 'PASSWORD'), el('b', { class: 'sel' }, N.pass)) : null));
       // teams
       const firstSide = R.side === 'random' ? 'random' : R.side;
       const teamCol = t => {
-        const ms = R.members.filter(m => m.team === t);
+        const ms = R.members.filter(m => !m.spec && m.team === t);
         const col = el('div', { class: 'panel teamcol t' + t }, el('h3', {}, t === 0 ? 'TEAM A' : 'TEAM B', el('small', {}, firstSide === 'random' ? ' · sides decided at start' : ' · ' + ((t === 0) === (firstSide === 'atk') ? 'attacks first' : 'defends first'))));
         for (const m of ms) col.append(el('div', { class: 'mrow' + (m.id === N.myId ? ' me' : '') },
           UI.avatar(m.uid, m.name), el('span', { class: 'mn' }, el('button', { class: 'linkbtn', onclick: () => Social.card(m.uid) }, m.name), el('small', {}, ' ' + UI.tagOf(m.uid) + ' · LV ' + m.lv)),
           m.host ? el('em', { class: 'pill host' }, 'HOST') : el('em', { class: 'pill ' + (m.ready ? 'ready' : '') }, m.ready ? 'READY' : 'NOT READY'),
-          host && !m.host ? el('span', { class: 'macts' }, el('button', { class: 'linkbtn', onclick: () => Online.move(m.id) }, 'move'), el('button', { class: 'linkbtn', onclick: () => Online.kick(m.id) }, 'kick'), el('button', { class: 'linkbtn', onclick: () => Online.block(m.id) }, 'block')) : null));
+          host && !m.host ? el('span', { class: 'macts' }, el('button', { class: 'linkbtn', onclick: () => Online.move(m.id) }, 'move'), specN < SPEC_MAX ? el('button', { class: 'linkbtn', onclick: () => Online.toSpec(m.id) }, 'spectate') : null, el('button', { class: 'linkbtn', onclick: () => Online.kick(m.id) }, 'kick'), el('button', { class: 'linkbtn', onclick: () => Online.block(m.id) }, 'block')) : null));
         for (let i = ms.length; i < TEAM_MAX; i++) col.append(el('div', { class: 'mrow empty' }, el('span', { class: 'mn' }, R.bots ? 'BOT' : 'EMPTY SLOT')));
-        if (me.team !== t && !R.playing && ms.length < TEAM_MAX) col.append(UI.btn('JOIN ' + (t === 0 ? 'TEAM A' : 'TEAM B'), () => toHost({ t: 'team', tm: t }), 'small ghost'));
+        if ((me.spec || me.team !== t) && !R.playing && ms.length < TEAM_MAX) col.append(UI.btn('JOIN ' + (t === 0 ? 'TEAM A' : 'TEAM B'), () => toHost({ t: 'team', tm: t }), 'small ghost'));
         return col;
       };
       // settings
@@ -553,14 +580,25 @@
       // chat
       const chat = el('div', { class: 'panel roomchat' }, el('h3', {}, 'ROOM CHAT'), chatBox, el('div', { class: 'quick' }, ...QUICK.map(q => el('button', { class: 'qbtn', onclick: () => Online.say(q) }, q))), el('div', { class: 'chatsend' }, input, UI.btn('SEND', send, '')));
       // actions
-      const others = R.members.filter(m => !m.host);
+      const others = R.members.filter(m => !m.host && !m.spec);
       const waiting = others.filter(m => !m.ready).length;
       const acts = el('div', { class: 'panel roomacts' },
-        host ? UI.btn(R.playing ? 'MATCH IN PROGRESS' : waiting ? 'START ANYWAY (' + waiting + ' not ready)' : 'START MATCH', () => { if (!R.playing) Online.start(); }, 'big' + (waiting ? ' ghost' : '')) :
+        host ? UI.btn(R.playing ? 'MATCH IN PROGRESS' : !playersN ? (R.bots ? 'START BOT MATCH' : 'NOBODY IS PLAYING') : waiting ? 'START ANYWAY (' + waiting + ' not ready)' : 'START MATCH', () => { if (!R.playing) Online.start(); }, 'big' + (waiting || (!playersN && !R.bots) ? ' ghost' : '')) :
+          me.spec ? el('span', { class: 'muted specnote' }, 'You are spectating: the match starts when the host starts it.') :
           UI.btn(me.ready ? 'READY ✓ (click to unready)' : 'READY UP', () => toHost({ t: 'ready', on: !me.ready }), 'big' + (me.ready ? ' ghost' : '')),
         UI.btn('INVITE FRIENDS', () => inviteForm(), ''),
         UI.btn('LEAVE ROOM', () => Online.leave(), 'ghost'));
-      body.append(el('div', { class: 'teams' }, teamCol(0), el('div', { class: 'vs' }, 'VS'), teamCol(1)), el('div', { class: 'roomlow' }, set, chat), acts);
+      // spectators: they watch the match, switching between every player or flying a free camera
+      const free = teamCount(0) < TEAM_MAX || teamCount(1) < TEAM_MAX;
+      const specPanel = el('div', { class: 'panel specrow' },
+        el('div', { class: 'spechead' }, el('h3', {}, 'SPECTATORS', el('small', {}, ' · ' + specN + '/' + SPEC_MAX + ' · watch any player, or fly a free camera' + (!playersN ? ' · nobody is playing: ' + (R.bots ? 'ten bots play the match' : 'turn bots on to watch them') : ''))),
+          R.playing ? null : me.spec ? (free ? UI.btn('JOIN A TEAM', () => toHost({ t: 'spec', on: false }), 'small') : null) : specN < SPEC_MAX ? UI.btn('SPECTATE', () => toHost({ t: 'spec', on: true }), 'small ghost') : null),
+        el('div', { class: 'specs' }, ...(specN ? specs.map(m => el('div', { class: 'mrow' + (m.id === N.myId ? ' me' : '') },
+          UI.avatar(m.uid, m.name), el('span', { class: 'mn' }, el('button', { class: 'linkbtn', onclick: () => Social.card(m.uid) }, m.name), el('small', {}, ' ' + UI.tagOf(m.uid) + ' · LV ' + m.lv)),
+          m.host ? el('em', { class: 'pill host' }, 'HOST') : el('em', { class: 'pill watch' }, 'WATCHING'),
+          host && !m.host ? el('span', { class: 'macts' }, free ? el('button', { class: 'linkbtn', onclick: () => Online.move(m.id) }, 'to a team') : null, el('button', { class: 'linkbtn', onclick: () => Online.kick(m.id) }, 'kick'), el('button', { class: 'linkbtn', onclick: () => Online.block(m.id) }, 'block')) : null)) :
+          [el('p', { class: 'muted' }, 'Nobody is spectating.')])));
+      body.append(el('div', { class: 'teams' }, teamCol(0), el('div', { class: 'vs' }, 'VS'), teamCol(1)), specPanel, el('div', { class: 'roomlow' }, set, chat), acts);
       drawChat();
     };
     // Ranked: who's been found so far and the countdown to the start; nothing to set or ready up

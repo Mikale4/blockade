@@ -48,7 +48,9 @@
     NP.prevSettings = { diff: G.settings.difficulty, rounds: G.settings.roundsToWin, swap: G.settings.swapEveryRound };
     G.settings.difficulty = room.diff; G.settings.roundsToWin = room.rounds; G.settings.swapEveryRound = true;
     GAME.net = true; GAME.client = !host; GAME.ranked = !!room.ranked; GAME.bans = []; NP.ban = null;
-    const mm = room.members.find(m => m.id === me); GAME.myTeam = mm ? mm.team : 0;
+    const mm = room.members.find(m => m.id === me);
+    // a spectator plays nobody: they watch, seeing the score from Team A's side
+    GAME.spectator = !!(mm && mm.spec); GAME.myTeam = mm && !mm.spec ? mm.team : 0;
     Online.setPresence();
     MENU.loading('Loading ' + (MAPS.LIST.find(m => m.id === room.map) || {}).name + '…', () => {
       if (host) GAME.startMatch({ mode: room.mode, map: room.map, side: room.side, online: true, ranked: !!room.ranked });
@@ -61,7 +63,7 @@
     for (const m of NP.mirrors.values()) m.destroy();
     NP.mirrors.clear();
     if (NP.prevSettings) { G.settings.difficulty = NP.prevSettings.diff; G.settings.roundsToWin = NP.prevSettings.rounds; G.settings.swapEveryRound = NP.prevSettings.swap; }
-    GAME.net = false; GAME.client = false; GAME.myTeam = 0;
+    GAME.net = false; GAME.client = false; GAME.myTeam = 0; GAME.spectator = false;
     clearTimeout(NP.selT); clearTimeout(NP.banT); NP.ban = null;
   };
   /* the host's world: every voxel that changes goes to the guests */
@@ -77,11 +79,16 @@
   NP.waiting = waiting;
 
   /* ======================================================== operator select */
+  /* the members who play (spectators only watch: no operator, no pick, no ban) */
+  NP.players = () => NP.room.members.filter(m => !m.spec);
+  NP.waiting = text => waiting(text);
+  /* the host is spectating: wait for the players' picks (none at all: the bots start at once) */
+  NP.specWait = () => { waiting('Spectating · the players are picking their operators…'); NP.tryStart(); };
   NP.select = () => {
     // host: everyone picks; the round starts when all have (or after 45 s)
     NP.picks.clear();
     const R = NP.room;
-    const teams = {}; for (const m of R.members) teams[m.id] = m.team;
+    const teams = {}; for (const m of NP.players()) teams[m.id] = m.team;
     Online.toAll({ t: 'np.sel', round: GAME.round, score: GAME.score, sites: GAME.siteNames, sd: [GAME.sideOf(0), GAME.sideOf(1)], mode: GAME.mode, teams, bans: GAME.bans }, true);
     clearTimeout(NP.selT);
     NP.selT = setTimeout(() => { if (NP.active && NP.host && GAME.phase === 'select') { GAME.startRound(); } }, 45000);
@@ -90,17 +97,18 @@
      defender; a team with nobody but bots on it has them ban at random */
   NP.banPhase = () => {
     const caps = [null, null], names = [null, null], teams = {};
-    for (const m of NP.room.members) { teams[m.id] = m.team; if (caps[m.team] == null) { caps[m.team] = m.id; names[m.team] = m.name; } }
+    for (const m of NP.players()) { teams[m.id] = m.team; if (caps[m.team] == null) { caps[m.team] = m.id; names[m.team] = m.name; } }
     NP.ban = { caps, picks: [null, null] };
     Online.toAll({ t: 'np.ban', caps, names, time: 30, teams }, true);
     banScreen(caps, names, 30);
     clearTimeout(NP.banT);
     NP.banT = setTimeout(NP.banFinish, 33000);   // a captain who never answers doesn't hold the match up
+    if (caps[0] == null && caps[1] == null) setTimeout(NP.banCheck, 1200);   // nobody playing: the bots ban, and on we go
   };
   function banScreen(caps, names, time) {
     const tm = GAME.myTeam;
     MENU.banSelect({
-      captain: caps[tm] === NP.me, capName: names[tm], time, map: G.map, online: true,
+      captain: !GAME.spectator && caps[tm] === NP.me, capName: names[tm], time, map: G.map, online: true, spec: GAME.spectator,
       onPick: p => { if (NP.host) NP.banPick(NP.me, p); else Online.toHost({ t: 'np.banpick', p }); },
     });
   }
@@ -123,19 +131,19 @@
     for (const t of [0, 1]) if (B.caps[t] == null) teams[t] = GAME.randomBans(teams[1 - t]);
     GAME.bans = [...new Set(teams[0].concat(teams[1]))];
     Online.toAll({ t: 'np.bans', teams, bans: GAME.bans }, true);
-    MENU.banReveal({ teams, my: GAME.myTeam, onDone: () => { if (NP.active && NP.host && GAME.phase === 'ban') GAME.prepareRound(); } });
+    MENU.banReveal({ teams, my: GAME.myTeam, spec: GAME.spectator, onDone: () => { if (NP.active && NP.host && GAME.phase === 'ban') GAME.prepareRound(); } });
   };
   NP.myPick = c => {
     if (NP.host) { NP.picks.set(NP.me, { op: c.op.id, lo: c.loadout, sp: c.spawn }); NP.tryStart(); }
     else Online.toHost({ t: 'np.pick', op: c.op.id, lo: c.loadout, sp: c.spawn });
     if (!NP.host || !NP.allPicked()) waiting('Waiting for the other players to pick…');
   };
-  NP.allPicked = () => NP.room.members.every(m => NP.picks.has(m.id));
+  NP.allPicked = () => NP.players().every(m => NP.picks.has(m.id));
   NP.tryStart = () => { if (NP.host && GAME.phase === 'select' && NP.allPicked()) { clearTimeout(NP.selT); GAME.startRound(); } };
   /* who plays what this round */
   NP.humanPicks = () => {
     const out = [], taken = [new Set(), new Set()];
-    for (const m of NP.room.members) {
+    for (const m of NP.players()) {
       const side = GAME.ffa ? 'any' : GAME.sideOf(m.team), p = NP.picks.get(m.id) || {};
       let op = OPMAP[p.op];
       // Deathmatch: any operator, and two players may pick the same one
@@ -352,7 +360,7 @@
         const tm = Array.isArray(d.teams) ? d.teams : [];
         const teams = [GAME.cleanBans(tm[0]), GAME.cleanBans(tm[1])];
         GAME.bans = [...new Set(teams[0].concat(teams[1]))];
-        MENU.banReveal({ teams, my: GAME.myTeam });
+        MENU.banReveal({ teams, my: GAME.myTeam, spec: GAME.spectator });
         break;
       }
       case 'np.sel': {
@@ -361,6 +369,7 @@
         GAME.round = d.round; NP.sides = d.sd; GAME.siteNames = d.sites; GAME.mode = d.mode;
         if (d.teams && d.teams[NP.me] != null) GAME.myTeam = d.teams[NP.me];
         GAME.score = d.score; GAME.phase = 'select';
+        if (GAME.spectator) { waiting('Spectating · the players are picking their operators…'); break; }
         const mine = GAME.myTeam;
         MENU.opSelect({ side: GAME.ffa ? 'any' : NP.sides[mine], round: d.round, score: [d.score[mine], d.score[1 - mine]], mode: d.mode, sites: d.sites, map: G.map, online: true, onReady: c => NP.myPick(c) });
         break;
@@ -388,13 +397,14 @@
       if (a.hostage) GAME.obj.hostage = a;
       a.match = { k: 0, d: 0, a: 0, s: 0 }; a.rating = r.rr;
     }
+    if (GAME.spectator) G.player = PLAYER.ghost();
     GAME.phase = d.ph; GAME.timer = d.tm; GAME.active = true;
     G.mode = 'match'; MENU.hide(); HUD.show(true);
     PLAYER.roundStart(); HUD.roundStart();
     SFX.voice('start');
     const M = DATA.MODES[GAME.mode] || {};
     if (GAME.arcade) HUD.banner(M.name, GAME.ffa ? 'Everyone for themselves · first to ' + M.limit + ' kills' : 'First team to ' + M.limit + ' kills', 3);
-    else HUD.banner('ROUND ' + (GAME.round + 1), (NP.sides[GAME.myTeam] === 'atk' ? 'ATTACK' : 'DEFENSE') + ' · PREPARATION PHASE', 2.5);
+    else HUD.banner('ROUND ' + (GAME.round + 1), (GAME.spectator ? 'SPECTATING · TEAM ' + (NP.sides[0] === 'atk' ? 'A' : 'B') + ' ATTACKS' : NP.sides[GAME.myTeam] === 'atk' ? 'ATTACK' : 'DEFENSE') + ' · PREPARATION PHASE', 2.5);
     Online.setPresence();
   }
   function tryPilot() {
@@ -500,11 +510,11 @@
         break;
       }
       case 'rend': {
-        const place = e.arc && e.pl ? e.pl[NP.me] || 0 : 0;
-        const won = e.arc && GAME.ffa ? place === 1 : e.w === GAME.myTeam;
-        SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(won);
-        const title = e.arc ? (GAME.ffa ? ARC.ordinal(place) + ' PLACE' : e.w < 0 ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT') : won ? 'ROUND WON' : 'ROUND LOST';
-        const ban = dur => HUD.banner(title, e.arc ? e.r : e.r + '  ·  ' + GAME.score[GAME.myTeam] + ' – ' + GAME.score[1 - GAME.myTeam], dur, won ? 'win' : 'lose');
+        const place = e.arc && e.pl ? e.pl[NP.me] || 0 : 0, sp = GAME.spectator;
+        const won = !sp && (e.arc && GAME.ffa ? place === 1 : e.w === GAME.myTeam);
+        if (!sp) SFX.voice(won ? 'win' : 'lose'); MUSIC.sting(sp || won);
+        const title = sp ? GAME.specTitle(e.w, !!e.arc) : e.arc ? (GAME.ffa ? ARC.ordinal(place) + ' PLACE' : e.w < 0 ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT') : won ? 'ROUND WON' : 'ROUND LOST';
+        const ban = dur => HUD.banner(title, e.arc ? e.r : e.r + '  ·  ' + GAME.score[GAME.myTeam] + ' – ' + GAME.score[1 - GAME.myTeam], dur, sp || won ? 'win' : 'lose');
         PLAYER.leaveDrone(true); PLAYER.leaveCams();
         // the host says which kill ended it; replay it from this side's own recording
         let dur = 0;
@@ -524,7 +534,7 @@
       if (a.tyaw != null) a.yaw = U.turn(a.yaw, a.tyaw, k);
     }
     for (const m of NP.mirrors.values()) m.update(dt);
-    const a = G.player; if (!a) return;
+    const a = G.player; if (!a || a.ghost) return;
     NP.inT += dt;
     if (NP.inT >= 0.05 && (GAME.phase === 'prep' || GAME.phase === 'action')) {
       NP.inT = 0;
@@ -536,13 +546,14 @@
     }
   };
   /* a request to the host, carrying where I am and where I'm looking */
-  NP.act = (k, extra) => { const a = G.player; if (!a) return; Online.toHost(Object.assign({ t: 'np.act', k, p: pv(a.pos), yw: r4(a.yaw), pt: r4(a.pitch) }, extra || {})); };
+  NP.act = (k, extra) => { const a = G.player; if (!a || a.ghost) return; Online.toHost(Object.assign({ t: 'np.act', k, p: pv(a.pos), yw: r4(a.yaw), pt: r4(a.pitch) }, extra || {})); };
   NP.shot = (o, dirs, w) => Online.toHost({ t: 'np.shot', o: pv(o), d: dirs.map(v => [r4(v.x), r4(v.y), r4(v.z)]), w });
 
   function matchOver(d) {
     GAME.active = false; GAME.phase = 'end';
+    const sp = GAME.spectator;
     NP.stop(); PLAYER.release();
-    MENU.matchOver(d.score, null, { online: true, stats: d.stats, myTeam: d.stats.find(s => s.h === Online.myId()) ? d.stats.find(s => s.h === Online.myId()).tm : GAME.myTeam });
+    MENU.matchOver(d.score, null, { online: true, spectator: sp, stats: d.stats, myTeam: d.stats.find(s => s.h === Online.myId()) ? d.stats.find(s => s.h === Online.myId()).tm : GAME.myTeam });
   }
   NP.matchOverLocal = matchOver;
 })();

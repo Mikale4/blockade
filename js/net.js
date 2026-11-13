@@ -219,7 +219,7 @@
     if (!r || typeof r !== 'object' || typeof r.name !== 'string' || typeof r.host !== 'string') return;
     if (!(Math.abs(Date.now() - num(r.ts)) < 45000)) return;
     const old = Net.rooms.get(code); if (old && old.ts > r.ts) return;
-    Net.rooms.set(code, { code, v: r.v, name: U.clean(r.name, 24), host: U.clean(r.host, 16), hostId: String(r.hostId || '').slice(0, 16), n: num(r.n) | 0, max: num(r.max) | 0, priv: !!r.priv,
+    Net.rooms.set(code, { code, v: r.v, name: U.clean(r.name, 24), host: U.clean(r.host, 16), hostId: String(r.hostId || '').slice(0, 16), n: num(r.n) | 0, sp: num(r.sp) | 0, max: num(r.max) | 0, priv: !!r.priv,
       state: ['open', 'full', 'playing', 'locked'].includes(r.state) ? r.state : 'open', mode: String(r.mode || 'bomb').slice(0, 8), map: String(r.map || '').slice(0, 12), rounds: num(r.rounds, 3) | 0,
       ranked: !!r.ranked, rating: Math.round(num(r.rating, 1000)), ts: r.ts, seen: Date.now() });
     later('rooms', 100);

@@ -39,6 +39,14 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   Everyone else readies up, and there's room chat (in matches too, with Enter).
 - **Online matches:** you and your friends in the same match, on the same team or against
   each other, with bots in the remaining slots.
+- **Spectating:** a room has up to six spectator seats on top of its ten players. Press
+  SPECTATE in a room (the host can too), or SPECTATE beside a room in the list to join just to
+  watch; a room whose ten player seats are taken seats newcomers as spectators. A spectator
+  watches any player on either team in first person, with their gun on screen (fire / aim for
+  next / previous), or presses the device key (5) for a free camera that flies anywhere, through
+  walls (WASD, Space up, crouch down, sprint faster). Spectators don't pick or ban operators, and
+  matches they watch don't count toward their stats. With everyone spectating and BOTS set to
+  Fill slots, the match is ten bots, five against five.
 - **Ranked:** Bomb, first to four rounds. FIND MATCH looks for real players near your rating
   (an open ranked room, or it opens one and waits up to 30 seconds). Seats nobody fills go to
   bots playing at your level; offline it's you and bots. Ranks run Bronze, Silver, Gold,

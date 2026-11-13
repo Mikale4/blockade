@@ -99,6 +99,15 @@
 .roomrow small { display: block; color: var(--dim); font-size: 12px; }
 .roomrow .rr { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .roomrow.playing, .roomrow.full, .roomrow.locked { opacity: 0.7; }
+/* spectating */
+.roomrow-w { display: flex; gap: 6px; align-items: stretch; } .roomrow-w .roomrow { flex: 1; } .roomrow-w .specbtn { flex: none; align-self: stretch; }
+.roomrow .rr small { color: var(--dim); font-size: 11px; }
+.specrow .spechead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.specrow h3 { margin: 0; font: 800 15px var(--f); letter-spacing: 0.16em; } .specrow h3 small { color: var(--dim); font-size: 12px; letter-spacing: 0.06em; }
+.specrow .specs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 5px; }
+.specrow .specs .muted { margin: 2px 0; }
+.pill.watch { background: rgba(124,232,192,0.16); color: #7ce8c0; }
+.specnote { align-self: center; }
 .prow > span { flex: 1; display: flex; flex-direction: column; }
 .prow b { font: 700 15px var(--f); letter-spacing: 0.06em; }
 .prow small { color: var(--dim); font-size: 12px; }
