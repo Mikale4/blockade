@@ -34,9 +34,16 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   your Ranked rating and your credits.
 - **Online lobby:** a room list, everyone online, a leaderboard and lobby chat. Use QUICK PLAY,
   HOST A ROOM (public, private with a password, or code only), or join by code.
-- **Rooms:** two teams of five. The host picks the map, mode, rounds, bot skill and starting
-  side, can fill empty slots with bots, and can lock the room or kick and block players.
-  Everyone else readies up, and there's room chat (in matches too, with Enter).
+- **Rooms:** two teams of one to five. The host picks:
+  - the mode and the map, or **Random** for a different map each match
+  - the **team size** (1v1 to 5v5; in Deathmatch, 2 to 10 players)
+  - rounds to win, the **drone phase** (15 seconds to 1:30) and the **round time** (2 to 5 minutes)
+  - a **ban phase** before round one, as in Ranked
+  - bot skill, the starting side, and whether bots fill the empty seats
+
+  The host can also lock the room or kick and block players. Shrinking the team size moves
+  anyone over the new size to the other team, and the host is told if the players no longer
+  fit. Everyone else readies up, and there's room chat (in matches too, with Enter).
 - **Online matches:** you and your friends in the same match, on the same team or against
   each other, with bots in the remaining slots.
 - **Spectating:** a room has up to six spectator seats on top of its ten players. Press
@@ -46,7 +53,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   next / previous), or presses the device key (5) for a free camera that flies anywhere, through
   walls (WASD, Space up, crouch down, sprint faster). Spectators don't pick or ban operators, and
   matches they watch don't count toward their stats. With everyone spectating and BOTS set to
-  Fill slots, the match is ten bots, five against five.
+  Fill slots, the match is all bots (five against five in a 5v5 room).
 - **Ranked:** Bomb, first to four rounds. FIND MATCH looks for real players near your rating
   (an open ranked room, or it opens one and waits up to 30 seconds). Seats nobody fills go to
   bots playing at your level; offline it's you and bots. Ranks run Bronze, Silver, Gold,

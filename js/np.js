@@ -52,9 +52,11 @@
     // a spectator plays nobody: they watch, seeing the score from Team A's side
     GAME.spectator = !!(mm && mm.spec); GAME.myTeam = mm && !mm.spec ? mm.team : 0;
     Online.setPresence();
-    MENU.loading('Loading ' + (MAPS.LIST.find(m => m.id === room.map) || {}).name + '…', () => {
-      if (host) GAME.startMatch({ mode: room.mode, map: room.map, side: room.side, online: true, ranked: !!room.ranked });
-      else { GAME.mode = room.mode; GAME.mapId = room.map; MAIN.loadMap(room.map); GAME.active = true; GAME.phase = 'select'; waiting('Waiting for the host…'); }
+    // the map this match is on (a room set to Random has picked one)
+    const map = MAPS.LIST.some(m => m.id === room.cur) ? room.cur : room.map;
+    MENU.loading('Loading ' + (MAPS.LIST.find(m => m.id === map) || {}).name + '…', () => {
+      if (host) GAME.startMatch({ mode: room.mode, map, side: room.side, online: true, ranked: !!room.ranked, bans: !!room.bans, size: room.size, prep: room.prep, time: room.time });
+      else { GAME.mode = room.mode; GAME.mapId = map; MAIN.loadMap(map); GAME.active = true; GAME.phase = 'select'; waiting('Waiting for the host…'); }
     });
   };
   NP.stop = () => {

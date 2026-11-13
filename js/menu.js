@@ -321,7 +321,7 @@
     render();
   };
 
-  /* ------------------------------------------------------------- ranked ban phase */
+  /* ------------------------------------------------- the ban phase (ranked, or a room's option) */
   /* cfg: { captain, capName, time, map, online, onPick(ids) }. The captain picks one attacker and
      one defender and locks them in; when the clock runs out whatever is picked goes in. */
   MENU.banSelect = function (cfg) {
@@ -341,7 +341,7 @@
       const can = cfg.captain && !done;
       wrap.append($('div', { class: 'os-top' },
         $('div', { class: 'os-side' }, 'BAN PHASE'),
-        $('div', { class: 'os-info' }, $('b', {}, cfg.map.name + ' · RANKED'),
+        $('div', { class: 'os-info' }, $('b', {}, cfg.map.name + (GAME.ranked ? ' · RANKED' : '')),
           $('span', {}, cfg.spec ? 'You are spectating: the team captains are choosing their bans.' : cfg.captain ? 'Ban one attacker and one defender. Nobody on either team can play them this match.' : (cfg.capName || 'Your captain') + ' is choosing the bans for your team.')),
         $('div', { class: 'os-score ban-clock' }, done ? '' : String(Math.max(0, Math.ceil(left))))));
       const body = $('div', { class: 'ban-body' });

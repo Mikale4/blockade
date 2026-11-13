@@ -34,16 +34,21 @@
     GAME.round = 0; GAME.score = [0, 0]; GAME.sandbox = false; GAME.active = true;
     GAME.stats = new Map(); GAME.seats = null; GAME.bans = [];
     GAME.ranked = !!cfg.ranked;
+    // an online room's own rules: seats a team, how long the drone and action phases run
+    GAME.teamSize = U.clamp((cfg.size | 0) || 5, 1, 5);
+    GAME.prepTime = cfg.prep > 0 ? cfg.prep : PREP;
+    GAME.actionTime = cfg.time > 0 ? cfg.time : ACTION;
     // ranked plays by its own rules: first to four, bots as good as your rank
     if (cfg.ranked && !cfg.online) { if (!GAME.prevSettings) GAME.prevSettings = { r: G.settings.roundsToWin, d: G.settings.difficulty, s: G.settings.swapEveryRound }; G.settings.roundsToWin = cfg.rounds || 4; if (cfg.diff != null) G.settings.difficulty = cfg.diff; G.settings.swapEveryRound = true; }
     if (!cfg.online) { GAME.net = false; GAME.client = false; GAME.myTeam = 0; GAME.spectator = false; }
     MAIN.loadMap(cfg.map);
     if (GAME.net && NP.host) NP.hookWorld();
     if (window.Net && Auth.user && !GAME.net) Net.setStatus('play', 'Playing ' + DATA.MODES[cfg.mode].name + ' against bots');
-    // ranked opens with a ban phase: each team takes one attacker and one defender off the table
-    if (GAME.ranked && !GAME.arcade) GAME.banPhase(); else GAME.prepareRound();
+    // ranked (and a room that turns it on) opens with a ban phase: each team takes one attacker
+    // and one defender off the table
+    if ((GAME.ranked || cfg.bans) && !GAME.arcade) GAME.banPhase(); else GAME.prepareRound();
   };
-  /* ---- ranked ban phase. Before round one each team bans one attacker and one defender, and
+  /* ---- the ban phase. Before round one each team bans one attacker and one defender, and
      nobody on either team can play them for the rest of the match. Against bots you ban for
      your team and the bots ban for theirs; online each team's captain (its first player) bans,
      and a team with no players on it has its bots ban at random. */
@@ -143,7 +148,7 @@
     if (ffa) {
       humans.forEach((h, i) => { h.team = i; });
       teams = humans.map(h => [mkHuman(h)]);
-      const ops = pick('any', humans.map(h => h.op.id), fill ? 10 - humans.length : 0);
+      const ops = pick('any', humans.map(h => h.op.id), fill ? GAME.teamSize * 2 - humans.length : 0);
       ops.forEach((op, i) => { const t = teams.length; teams.push([mkBot(op, t, op.side, 'd' + i)]); });
       GAME.myTeam = G.player ? G.player.team : 0;
     } else {
@@ -151,7 +156,7 @@
       for (const h of humans) teams[h.team].push(mkHuman(h));
       for (const t of [0, 1]) {
         const side = GAME.sideOf(t), taken = teams[t].map(a => a.op.id);
-        pick(side, taken, fill ? 5 - teams[t].length : 0).forEach((op, i) => teams[t].push(mkBot(op, t, side, 't' + t + ':' + i)));
+        pick(side, taken, fill ? GAME.teamSize - teams[t].length : 0).forEach((op, i) => teams[t].push(mkBot(op, t, side, 't' + t + ':' + i)));
       }
     }
     G.actors = [].concat(...teams);
@@ -211,7 +216,7 @@
     const defT = 1 - atk;
     for (const c of map.cams) new GAD.Cam(V().set(c.x, c.y, c.z), c.yaw, c.pitch, defT, c.name, false);
     GAME.pool = {}; GAME.pool[defT] = 10 + defTeam.filter(a => a.op.id === 'brick').length * 2; GAME.pool[atk] = 0;
-    GAME.phase = 'prep'; GAME.timer = PREP; GAME.planted = false;
+    GAME.phase = 'prep'; GAME.timer = GAME.prepTime || PREP; GAME.planted = false;
     AI.roundStart();
     PLAYER.roundStart();
     HUD.roundStart();
@@ -258,7 +263,7 @@
     }
   };
   GAME.beginAction = function () {
-    GAME.phase = 'action'; GAME.timer = ACTION;
+    GAME.phase = 'action'; GAME.timer = GAME.actionTime || ACTION;
     AI.lateDefense(); AI.actionStart();
     PLAYER.actionStart();
     if (GAME.net) NP.actionStart();

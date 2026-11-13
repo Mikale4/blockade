@@ -11,9 +11,11 @@
    rooms are listed; any room can be joined by its five-letter code; "code only"
    rooms aren't listed.
 
-   A ROOM: up to ten players on two teams of five. The host runs it: map, mode,
-   rounds, bot difficulty, starting side, bots filling empty slots, privacy,
-   lock, kick / block. Everyone readies up; the host starts the match.
+   A ROOM: two teams of one to five (the host sets the team size; ten players at
+   most), and up to six spectators. The host runs it: map (or a random one each
+   match), mode, rounds, team size, drone phase and round length, a ban phase,
+   bot difficulty, starting side, bots filling empty slots, privacy, lock,
+   kick / block. Everyone readies up; the host starts the match.
 
    THE LINKS: browsers connect directly (WebRTC through PeerJS; the free PeerJS
    service only introduces them). If a direct link can't get through, the room's
@@ -25,7 +27,7 @@
 (function () {
   'use strict';
   const el = U.el;
-  const PROTO = 'blk-room-1';
+  const PROTO = 'blk-room-2';   // (2: team size, drone/round time, ban phase, random map)
   const PEER_JS = ['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
   const PREFIX = 'blockade-room-', ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const ROOM_MAX = 10, TEAM_MAX = 5, SPEC_MAX = 6;   // ten players, and up to six spectators on top
@@ -56,7 +58,15 @@
   const toast = (t, c) => UI.toast(t, c || 'gold');
   const meInfo = () => ({ uid: Auth.id, name: Auth.name, lv: Auth.lv(), r: Auth.S.rank.rating });
   const memberOf = id => N && N.room ? N.room.members.find(m => m.id === id) || null : null;
-  const mapName = id => (MAPS.LIST.find(m => m.id === id) || { name: id }).name;
+  const mapName = id => id === 'random' ? 'Random map' : (MAPS.LIST.find(m => m.id === id) || { name: id }).name;
+  // the room settings everyone sees (the host's buttons, and the host-a-room form)
+  const OPT = {
+    size: (ffa) => [1, 2, 3, 4, 5].map(n => [n, ffa ? n * 2 + ' players' : n + 'v' + n]),
+    prep: [[15, '15 s'], [30, '30 s'], [45, '45 s'], [60, '1 min'], [90, '1:30']],
+    time: [[120, '2 min'], [180, '3 min'], [240, '4 min'], [300, '5 min']],
+    bans: [[false, 'Off'], [true, 'On']],
+    maps: () => [['random', 'Random']].concat(MAPS.LIST.map(m => [m.id, m.name])),
+  };
   const modeName = id => (DATA.MODES[id] || { name: id }).name;
   Online.inRoom = () => !!(N && N.room && N.stage === 'room');
   Online.room = () => N && N.room;
@@ -99,9 +109,13 @@
 
   /* ===================================================== the host's side */
   function newRoom(o, code) {
+    // team size: ranked and parties are always five a side
+    const size = o.ranked || o.party ? TEAM_MAX : U.clamp((o.size | 0) || TEAM_MAX, 1, TEAM_MAX);
     return {
-      code, name: U.clean(o.name, 24) || Auth.name + '\'s room', priv: !!o.priv, listed: o.listed !== false, locked: false, max: ROOM_MAX,
+      code, name: U.clean(o.name, 24) || Auth.name + '\'s room', priv: !!o.priv, listed: o.listed !== false, locked: false, max: size * 2, size,
       map: o.map || 'roadhouse', mode: o.mode || 'bomb', rounds: o.rounds || 3, diff: o.diff == null ? 1 : o.diff, side: o.side || 'random', bots: o.bots !== false,
+      // how long the drone (preparation) phase and the action phase last, and a ban phase before round one
+      prep: o.prep || 45, time: o.time || 180, bans: !!o.bans, cur: null, last: null,
       members: [], playing: false, chat: 'on', chal: o.chal || null,
       // Ranked: fixed rules, no ready-up; the match starts by itself when the wait runs out
       ranked: !!o.ranked, startAt: o.ranked ? Date.now() + (o.wait || 30) * 1000 : 0, done: false,
@@ -113,7 +127,7 @@
   function listing() {
     const R = N && N.room; if (!R || !R.listed) return null;
     const sp = R.members.filter(m => m.spec).length, n = R.members.length - sp;
-    return { name: R.name, host: Auth.name, hostId: Auth.id, n, sp, max: R.max, priv: R.priv, map: R.map, mode: R.mode, rounds: R.rounds,
+    return { name: R.name, host: Auth.name, hostId: Auth.id, n, sp, max: R.max, sz: R.size, priv: R.priv, map: R.playing && R.cur ? R.cur : R.map, mode: R.mode, rounds: R.rounds,
       ranked: R.ranked ? 1 : 0, r: partyRating(R), ps: R.party ? partyOf(R).length : 0,
       state: R.locked ? 'locked' : n >= R.max ? 'full' : R.playing ? 'playing' : 'open' };
   }
@@ -130,6 +144,7 @@
   }
   function sysSay(text) { if (!N) return; const c = { sys: text }; if (N.host) { toAll({ t: 'chat', c }, true); gotChat(c); } }
   const teamCount = t => N.room.members.filter(m => !m.spec && m.team === t).length;
+  const tmax = () => (N && N.room && N.room.size) || TEAM_MAX;   // seats on each team
   const specCount = () => N.room.members.filter(m => m.spec).length;
   const canSpectate = R => !R.ranked && !R.party;
   function hostConn(conn) {
@@ -163,8 +178,8 @@
       let team = teamCount(0) <= teamCount(1) ? 0 : 1;
       if (chal) team = R.chal.together ? 0 : 1;
       if (joinsParty) team = 0;
-      else if (R.party && R.ranked) team = teamCount(1) < TEAM_MAX ? 1 : 0;
-      if (teamCount(team) >= TEAM_MAX) team = 1 - team;
+      else if (R.party && R.ranked) team = teamCount(1) < tmax() ? 1 : 0;
+      if (!spec && teamCount(team) >= tmax()) team = 1 - team;
       const m = { id, uid, name: U.clean(me.name, 16) || 'Player', lv: (+me.lv | 0) || 1, r: Math.round(+me.r || 1000), team, ready: false, host: false, party: joinsParty, spec };
       R.members.push(m);
       conn.send({ t: 'welcome', you: id, room: R, pass: R.priv ? N.pass : '' });
@@ -181,12 +196,12 @@
     if (typeof d.t === 'string' && d.t.startsWith('np.')) { NP.hostGot(id, d); return; }
     switch (d.t) {
       case 'ready': if (R.playing) return; m.ready = !!d.on; pushRoom(); break;
-      case 'team': if (R.playing || R.party || R.ranked) return; if (d.tm !== 0 && d.tm !== 1) return; if ((m.spec || m.team !== d.tm) && teamCount(d.tm) >= TEAM_MAX) return; m.spec = false; m.team = d.tm; m.ready = m.host; pushRoom(); break;
+      case 'team': if (R.playing || R.party || R.ranked) return; if (d.tm !== 0 && d.tm !== 1) return; if ((m.spec || m.team !== d.tm) && teamCount(d.tm) >= tmax()) return; m.spec = false; m.team = d.tm; m.ready = m.host; pushRoom(); break;
       // watch instead of play (anyone, the host too), or back onto the team with room
       case 'spec': {
         if (R.playing || !canSpectate(R)) return;
         if (d.on) { if (m.spec || specCount() >= SPEC_MAX) return; m.spec = true; m.ready = true; sysSay(m.name + ' is spectating.'); }
-        else { if (!m.spec) return; const t = teamCount(0) <= teamCount(1) ? 0 : 1; if (teamCount(t) >= TEAM_MAX) return; m.spec = false; m.team = t; m.ready = m.host; sysSay(m.name + ' is playing.'); }
+        else { if (!m.spec) return; const t = teamCount(0) <= teamCount(1) ? 0 : 1; if (teamCount(t) >= tmax()) return; m.spec = false; m.team = t; m.ready = m.host; sysSay(m.name + ' is playing.'); }
         pushRoom(); break;
       }
       case 'say': {
@@ -210,21 +225,39 @@
     pushRoom();
   }
   /* host controls */
-  Online.set = (k, v) => { if (!N || !N.host || N.room.playing) return; N.room[k] = v; if (k === 'priv' && v && !N.pass) N.pass = U.rid(4).toUpperCase(); pushRoom(); };
+  Online.set = (k, v) => {
+    if (!N || !N.host || N.room.playing) return;
+    const R = N.room;
+    if (k === 'size') {
+      // fewer seats: everyone playing has to fit, and anyone over a team's new size moves across
+      if (R.ranked || R.party) return;
+      v = U.clamp(v | 0, 1, TEAM_MAX);
+      const ps = R.members.filter(m => !m.spec);
+      if (ps.length > v * 2) { toast(ps.length + ' players don\'t fit in ' + v + 'v' + v + ': move some to the spectators, or remove them, first.', 'bad'); return; }
+      R.size = v; R.max = v * 2;
+      for (const t of [0, 1]) for (const m of ps.filter(x => x.team === t).sort((a, b) => (b.host ? 1 : 0) - (a.host ? 1 : 0)).slice(v)) { m.team = 1 - t; m.ready = false; }
+      pushRoom(); return;
+    }
+    R[k] = v; if (k === 'priv' && v && !N.pass) N.pass = U.rid(4).toUpperCase(); pushRoom();
+  };
   Online.kick = id => { const m = memberOf(id); if (!m || m.host) return; toMember(id, { t: 'kick' }); setTimeout(() => memberGone(id, 'kick'), 200); };
   Online.block = id => { const m = memberOf(id); if (!m || m.host) return; N.blocked.add(m.uid); Online.kick(id); };
   Online.move = id => {
     if (!N || !N.host || N.room.playing) return; const m = memberOf(id); if (!m) return;
     // a spectator goes onto the team with room
-    if (m.spec) { const t = teamCount(0) <= teamCount(1) ? 0 : 1; if (teamCount(t) >= TEAM_MAX) { toast('Both teams are full.', 'bad'); return; } m.spec = false; m.team = t; m.ready = m.host; pushRoom(); return; }
-    const t = 1 - m.team; if (teamCount(t) >= TEAM_MAX) { toast('That team is full.', 'bad'); return; } m.team = t; pushRoom(); };
+    if (m.spec) { const t = teamCount(0) <= teamCount(1) ? 0 : 1; if (teamCount(t) >= tmax()) { toast('Both teams are full.', 'bad'); return; } m.spec = false; m.team = t; m.ready = m.host; pushRoom(); return; }
+    const t = 1 - m.team; if (teamCount(t) >= tmax()) { toast('That team is full.', 'bad'); return; } m.team = t; pushRoom(); };
   Online.toSpec = id => { if (!N || !N.host || N.room.playing || !canSpectate(N.room)) return; const m = memberOf(id); if (!m || m.spec) return; if (specCount() >= SPEC_MAX) { toast('The spectator seats are full.', 'bad'); return; } m.spec = true; m.ready = true; pushRoom(); };
   Online.start = () => {
     if (!N || !N.host) return;
     const R = N.room;
     if (R.playing) return;
-    // everyone watching: five bots against five, or nothing to watch
+    // everyone watching: bots against bots, or nothing to watch
     if (!R.members.some(m => !m.spec) && !R.bots) { toast('Nobody is playing: set BOTS to Fill slots for an all-bot match, or join a team.', 'bad'); return; }
+    // a random map: a different one from last match's
+    R.cur = R.map === 'random' || !MAPS.LIST.some(m => m.id === R.map) ? U.pick(MAPS.LIST.filter(m => m.id !== R.last)).id : R.map;
+    R.last = R.cur;
+    if (R.map === 'random') sysSay('Random map: ' + mapName(R.cur) + '.');
     R.playing = true; R.members.forEach(m => m.ready = false);
     pushRoom();
     toAll({ t: 'start', room: R }, true);
@@ -235,7 +268,7 @@
   Online.matchEnded = () => {
     if (!N || !N.host) return;
     const R = N.room;
-    R.playing = false; R.members.forEach(m => m.ready = m.host);
+    R.playing = false; R.cur = null; R.members.forEach(m => m.ready = m.host);
     if (R.party) { dropStrangers('The ranked match is over.'); toParty(R); }
     pushRoom();
   };
@@ -324,7 +357,7 @@
     if (!window.Net || !Auth.user) return;
     if (!N || !N.room) { if (G.mode === 'menu' || G.mode === 'select') Net.setStatus('lobby', 'In the online lobby'); return; }
     const R = N.room, pub = R.listed && !R.priv ? R.code : null;
-    if (R.playing) Net.setStatus('play', 'Playing ' + modeName(R.mode) + ' on ' + mapName(R.map), pub);
+    if (R.playing) Net.setStatus('play', 'Playing ' + modeName(R.mode) + ' on ' + mapName(R.cur || R.map), pub);
     else Net.setStatus('room', 'In a room · ' + mapName(R.map), pub);
   }
   Online.setPresence = setPresence;
@@ -474,7 +507,7 @@
         for (const r of rooms) {
           const go = spec => r.priv ? askPass(r.code, spec) : Online.join(r.code, '', spec);
           const row = el('button', { class: 'roomrow ' + r.state, onclick: () => go(false) },
-            el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name, r.ranked ? el('em', { class: 'pill ranked' }, 'RANKED') : null), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + ' · ' + mapName(r.map) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].arcade ? '' : ' · first to ' + r.rounds))),
+            el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name, r.ranked ? el('em', { class: 'pill ranked' }, 'RANKED') : null), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].ffa ? '' : ' · ' + (r.sz || 5) + 'v' + (r.sz || 5)) + ' · ' + mapName(r.map) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].arcade ? '' : ' · first to ' + r.rounds))),
             el('div', { class: 'rr' }, el('b', {}, r.n + '/' + r.max), r.sp ? el('small', {}, r.sp + ' watching') : null, el('em', { class: 'pill ' + r.state }, r.state.toUpperCase())));
           // rooms that take spectators: a button to join and watch
           left.append(r.ranked || r.state === 'playing' || r.state === 'locked' ? row : el('div', { class: 'roomrow-w' }, row,
@@ -508,22 +541,27 @@
 
   /* host-a-room form */
   function hostForm() {
-    const o = { name: Auth.name + '\'s room', map: 'roadhouse', mode: 'bomb', rounds: 3, diff: G.settings.difficulty, side: 'random', bots: true, priv: false, listed: true, pass: '' };
+    const o = { name: Auth.name + '\'s room', map: 'roadhouse', mode: 'bomb', rounds: 3, size: 5, prep: 45, time: 180, bans: false, diff: G.settings.difficulty, side: 'random', bots: true, priv: false, listed: true, pass: '' };
     const body = el('div', { class: 'chalform' });
     const draw = () => {
       body.innerHTML = '';
       const seg = (label, val, opts, fn) => el('div', { class: 'seg2' }, el('span', null, label), el('div', null, ...opts.map(([v, t]) => el('button', { class: String(val) === String(v) ? 'on' : '', onclick: () => { fn(v); draw(); } }, t))));
       const name = el('input', { class: 'input', maxlength: 24, value: o.name }); name.addEventListener('input', () => o.name = name.value); name.addEventListener('keydown', e => e.stopPropagation());
       const pass = el('input', { class: 'input', maxlength: 24, placeholder: 'Password', value: o.pass }); pass.addEventListener('input', () => o.pass = pass.value); pass.addEventListener('keydown', e => e.stopPropagation());
-      body.append(el('div', { class: 'seg2' }, el('span', null, 'NAME'), name),
+      const M = DATA.MODES[o.mode] || {}, bool = v => v === true || v === 'true';
+      body.append(...[el('div', { class: 'seg2' }, el('span', null, 'NAME'), name),
         seg('MODE', o.mode, Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name]), v => o.mode = v),
-        seg('MAP', o.map, MAPS.LIST.map(m => [m.id, m.name]), v => o.map = v),
-        seg('FIRST TO', o.rounds, [[2, '2'], [3, '3'], [4, '4'], [5, '5']], v => o.rounds = +v),
-        seg('BOTS', o.bots, [[true, 'Fill empty slots'], [false, 'Humans only']], v => o.bots = v === true || v === 'true'),
+        seg('MAP', o.map, OPT.maps(), v => o.map = v),
+        seg(M.ffa ? 'PLAYERS' : 'TEAM SIZE', o.size, OPT.size(M.ffa), v => o.size = +v),
+        M.arcade ? null : seg('FIRST TO', o.rounds, [[2, '2'], [3, '3'], [4, '4'], [5, '5']], v => o.rounds = +v),
+        M.arcade ? null : seg('DRONE PHASE', o.prep, OPT.prep, v => o.prep = +v),
+        M.arcade ? null : seg('ROUND TIME', o.time, OPT.time, v => o.time = +v),
+        M.arcade ? null : seg('BAN PHASE', o.bans, OPT.bans, v => o.bans = bool(v)),
+        seg('BOTS', o.bots, [[true, 'Fill empty slots'], [false, 'Humans only']], v => o.bots = bool(v)),
         seg('BOT SKILL', o.diff, DATA.DIFFS.map((d, i) => [i, d.name]), v => o.diff = +v),
         seg('TEAM A STARTS', o.side, [['atk', 'Attack'], ['def', 'Defense'], ['random', 'Random']], v => o.side = v),
         seg('ROOM', o.priv ? 'priv' : o.listed ? 'pub' : 'code', [['pub', 'Public'], ['priv', 'Private (password)'], ['code', 'Code only']], v => { o.priv = v === 'priv'; o.listed = v !== 'code'; }),
-        o.priv ? el('div', { class: 'seg2' }, el('span', null, 'PASSWORD'), pass) : null);
+        o.priv ? el('div', { class: 'seg2' }, el('span', null, 'PASSWORD'), pass) : null].filter(Boolean));
     };
     draw();
     UI.modal({ title: 'HOST A ROOM', cls: 'wide', body: [body], buttons: [['OPEN ROOM', () => { if (o.priv && !o.pass) o.pass = U.rid(4).toUpperCase(); Online.host(o); }, 'big'], ['CANCEL', () => { }, 'ghost']] });
@@ -562,21 +600,26 @@
           UI.avatar(m.uid, m.name), el('span', { class: 'mn' }, el('button', { class: 'linkbtn', onclick: () => Social.card(m.uid) }, m.name), el('small', {}, ' ' + UI.tagOf(m.uid) + ' · LV ' + m.lv)),
           m.host ? el('em', { class: 'pill host' }, 'HOST') : el('em', { class: 'pill ' + (m.ready ? 'ready' : '') }, m.ready ? 'READY' : 'NOT READY'),
           host && !m.host ? el('span', { class: 'macts' }, el('button', { class: 'linkbtn', onclick: () => Online.move(m.id) }, 'move'), specN < SPEC_MAX ? el('button', { class: 'linkbtn', onclick: () => Online.toSpec(m.id) }, 'spectate') : null, el('button', { class: 'linkbtn', onclick: () => Online.kick(m.id) }, 'kick'), el('button', { class: 'linkbtn', onclick: () => Online.block(m.id) }, 'block')) : null));
-        for (let i = ms.length; i < TEAM_MAX; i++) col.append(el('div', { class: 'mrow empty' }, el('span', { class: 'mn' }, R.bots ? 'BOT' : 'EMPTY SLOT')));
-        if ((me.spec || me.team !== t) && !R.playing && ms.length < TEAM_MAX) col.append(UI.btn('JOIN ' + (t === 0 ? 'TEAM A' : 'TEAM B'), () => toHost({ t: 'team', tm: t }), 'small ghost'));
+        for (let i = ms.length; i < tmax(); i++) col.append(el('div', { class: 'mrow empty' }, el('span', { class: 'mn' }, R.bots ? 'BOT' : 'EMPTY SLOT')));
+        if ((me.spec || me.team !== t) && !R.playing && ms.length < tmax()) col.append(UI.btn('JOIN ' + (t === 0 ? 'TEAM A' : 'TEAM B'), () => toHost({ t: 'team', tm: t }), 'small ghost'));
         return col;
       };
       // settings
       const set = el('div', { class: 'panel roomset' }, el('h3', {}, 'MATCH SETTINGS'));
       const seg = (label, key, opts) => el('div', { class: 'seg2' }, el('span', null, label), host && !R.playing ? el('div', null, ...opts.map(([v, t]) => el('button', { class: String(R[key]) === String(v) ? 'on' : '', onclick: () => { SFX.ui(); Online.set(key, typeof R[key] === 'number' ? +v : typeof R[key] === 'boolean' ? (v === true || v === 'true') : v); } }, t))) : el('b', null, (opts.find(o => String(o[0]) === String(R[key])) || ['', String(R[key])])[1]));
-      set.append(seg('MODE', 'mode', Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name])),
-        seg('MAP', 'map', MAPS.LIST.map(m => [m.id, m.name])),
-        seg('FIRST TO', 'rounds', [[2, '2'], [3, '3'], [4, '4'], [5, '5']]),
+      const M = DATA.MODES[R.mode] || {};
+      set.append(...[seg('MODE', 'mode', Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name])),
+        seg('MAP', 'map', OPT.maps()),
+        seg(M.ffa ? 'PLAYERS' : 'TEAM SIZE', 'size', OPT.size(M.ffa)),
+        M.arcade ? null : seg('FIRST TO', 'rounds', [[2, '2'], [3, '3'], [4, '4'], [5, '5']]),
+        M.arcade ? null : seg('DRONE PHASE', 'prep', OPT.prep),
+        M.arcade ? null : seg('ROUND TIME', 'time', OPT.time),
+        M.arcade ? null : seg('BAN PHASE', 'bans', OPT.bans),
         seg('BOTS', 'bots', [[true, 'Fill slots'], [false, 'Humans only']]),
         seg('BOT SKILL', 'diff', DATA.DIFFS.map((d, i) => [i, d.name])),
         seg('TEAM A STARTS', 'side', [['atk', 'Attack'], ['def', 'Defense'], ['random', 'Random']]),
         host ? seg('ROOM', 'locked', [[false, 'Open'], [true, 'Locked']]) : null,
-        host ? seg('CHAT', 'chat', [['on', 'On'], ['off', 'Host only']]) : null);
+        host ? seg('CHAT', 'chat', [['on', 'On'], ['off', 'Host only']]) : null].filter(Boolean));
       // chat
       const chat = el('div', { class: 'panel roomchat' }, el('h3', {}, 'ROOM CHAT'), chatBox, el('div', { class: 'quick' }, ...QUICK.map(q => el('button', { class: 'qbtn', onclick: () => Online.say(q) }, q))), el('div', { class: 'chatsend' }, input, UI.btn('SEND', send, '')));
       // actions
@@ -589,9 +632,9 @@
         UI.btn('INVITE FRIENDS', () => inviteForm(), ''),
         UI.btn('LEAVE ROOM', () => Online.leave(), 'ghost'));
       // spectators: they watch the match, switching between every player or flying a free camera
-      const free = teamCount(0) < TEAM_MAX || teamCount(1) < TEAM_MAX;
+      const free = teamCount(0) < tmax() || teamCount(1) < tmax();
       const specPanel = el('div', { class: 'panel specrow' },
-        el('div', { class: 'spechead' }, el('h3', {}, 'SPECTATORS', el('small', {}, ' · ' + specN + '/' + SPEC_MAX + ' · watch any player, or fly a free camera' + (!playersN ? ' · nobody is playing: ' + (R.bots ? 'ten bots play the match' : 'turn bots on to watch them') : ''))),
+        el('div', { class: 'spechead' }, el('h3', {}, 'SPECTATORS', el('small', {}, ' · ' + specN + '/' + SPEC_MAX + ' · watch any player, or fly a free camera' + (!playersN ? ' · nobody is playing: ' + (R.bots ? R.max + ' bots play the match' : 'turn bots on to watch them') : ''))),
           R.playing ? null : me.spec ? (free ? UI.btn('JOIN A TEAM', () => toHost({ t: 'spec', on: false }), 'small') : null) : specN < SPEC_MAX ? UI.btn('SPECTATE', () => toHost({ t: 'spec', on: true }), 'small ghost') : null),
         el('div', { class: 'specs' }, ...(specN ? specs.map(m => el('div', { class: 'mrow' + (m.id === N.myId ? ' me' : '') },
           UI.avatar(m.uid, m.name), el('span', { class: 'mn' }, el('button', { class: 'linkbtn', onclick: () => Social.card(m.uid) }, m.name), el('small', {}, ' ' + UI.tagOf(m.uid) + ' · LV ' + m.lv)),
