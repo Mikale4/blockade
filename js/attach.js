@@ -59,6 +59,9 @@
     SG: { optic: ['iron', 'reflex', 'red', 'holo'], barrel: ['choke'], under: ['agrip', 'laser'], mag: ['xmag'] },
     PISTOL: { optic: ['iron', 'reflex', 'red'], barrel: ['sup', 'comp'], under: ['laser'], mag: ['xmag'] },
     MP: { optic: ['iron', 'reflex', 'red'], barrel: ['sup', 'comp', 'flash'], under: ['vgrip', 'laser'], mag: ['xmag'] },
+    // seasons 10-14: a bolt-action rifle wears a scope; a crossbow a sight and nothing else
+    SR: { optic: ['acog', 'var', 'scope4'], barrel: ['sup', 'brake'], under: [], mag: ['xmag'] },
+    XBOW: { optic: ['iron', 'reflex', 'red', 'holo'], barrel: [], under: ['laser'], mag: [] },
   };
   /* guns that are different from their kind */
   const EXCEPT = {
@@ -67,6 +70,10 @@
     slug8: { barrel: ['brake', 'flash'], optic: ['iron', 'reflex', 'red', 'holo', 'acog'] },   // a slug gun reaches out
     stub: { barrel: [], optic: ['iron'], under: ['laser'] },            // a sawn-off sidearm
     maul: { optic: ['iron', 'reflex', 'red'] },
+    volta: { mag: [] },                                                // no magazine: it runs on heat
+    spindle: { mag: [], under: [] },                                   // a belt and a carry handle
+    stinger: { optic: ['iron'], barrel: [], under: ['laser'], mag: [] },   // two darts, and that's it
+    lattice: { mag: ['fmag'] },                                        // its clamped pair is the extended mag
   };
   const ATT = window.ATT = { LIST, SLOTS, SLOT_NAMES };
   ATT.fits = function (id, slot) {

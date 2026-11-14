@@ -139,6 +139,10 @@
     }
     return false;
   };
+  /* thin out every cloud reaching within r of p: it fades away over the next 2 s (Drench's rain, an extinguisher) */
+  FX.clearSmoke = function (p, r) {
+    for (const c of FX.smokes) if (U.dist3(p, c.pos) < r + c.R * 0.6 && c.dur > c.t + 2) c.dur = c.t + 2;
+  };
   FX.inSmoke = function (p) { for (const c of FX.smokes) if (c.r > 1 && U.dist3(p, c.pos) < c.r * 0.8) return true; return false; };
 
   FX.update = function (dt) {

@@ -360,7 +360,8 @@
   }
   /* a gun's numbers as bars, against the same gun stock: what the attachments buy and cost */
   const STAT_ROWS = [['DAMAGE', 'dmg'], ['FIRE RATE', 'rpm'], ['RANGE', 'range'], ['CONTROL', 'ctrl'], ['HANDLING', 'hand'], ['MOBILITY', 'mob'], ['MAGAZINE', 'mag']];
-  const statOf = d => ({ dmg: (d.dmg || 0) * Math.min(d.pellets || 1, 8), rpm: d.rpm || 0, range: d.f1 || 0, ctrl: 1 / ((d.rv || 1) * 0.6 + (d.rh || 1) * 0.4), hand: 1 / (d.adsT || 0.25), mob: d.mob || 1, mag: d.mag || 0 });
+  // (a coil gun's "magazine" is the shots it fires from cold before it overheats)
+  const statOf = d => ({ dmg: (d.dmg || 0) * Math.min(d.pellets || 1, 8), rpm: d.rpm || 0, range: d.f1 || 0, ctrl: 1 / ((d.rv || 1) * 0.6 + (d.rh || 1) * 0.4), hand: 1 / (d.adsT || 0.25), mob: d.mob || 1, mag: d.heat ? Math.round(1 / d.heat.per) : d.mag || 0 });
   let STAT_MAX = null;
   const statMax = () => STAT_MAX || (STAT_MAX = Object.values(WEAPONS).filter(w => w.type !== 'SHIELD').map(statOf).reduce((m, s) => { for (const k in s) m[k] = Math.max(m[k] || 0, s[k] * 1.12); return m; }, {}));
   const statNorm = (v, k) => U.clamp(k === 'mob' ? (v - 0.8) / (statMax().mob - 0.8) : v / statMax()[k], 0.02, 1);

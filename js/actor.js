@@ -47,6 +47,19 @@
       this.mag = d.mag || 0; this.reserve = (d.mag || 0) * (d.mags || 0);
       this.cool = 0; this.reload = 0; this.reloadMax = 0; this.bloom = 0; this.semiLock = false; this.auto = !!d.auto;
       this.shellLoop = false;
+      // seasons 10-14: a gun with firing modes holds one effective def per mode (each with the
+      // attachments' effect carried over: a mode's numbers are the stock gun's), plus heat, spin,
+      // the bolt and which half of a tandem magazine is in
+      if (d.modes) {
+        const raw = WEAPONS[id];
+        this.modeDefs = d.modes.map(m => {
+          const o = Object.assign({}, d);
+          for (const k in m) { if (k === 'label') continue; const v = m[k]; o[k] = typeof v === 'number' && typeof raw[k] === 'number' && raw[k] ? v * d[k] / raw[k] : v; }
+          o.modeLabel = m.label; return o;
+        });
+        this.mode = 0; this.def = this.modeDefs[0]; this.auto = !!this.def.auto;
+      }
+      this.heat = 0; this.vent = 0; this.spin = 0; this.boltT = 0; this.flip = false;
     }
   }
 
@@ -295,7 +308,8 @@
       return false;
     }
     speedNow() {
-      const run = this.sprint && this.mf > 0.3 && this.stance === 0 && this.ads < 0.3 && !this.carry && !this.shieldBrace();
+      const slick = this.slickT > G.time;
+      const run = this.sprint && this.mf > 0.3 && this.stance === 0 && this.ads < 0.3 && !this.carry && !this.shieldBrace() && !slick;
       let v = run ? this.spd.run : this.spd.walk;
       if (this.walk && !run) v *= 0.45;   // walking slowly: about half pace, footsteps all but silent
       v *= [1, 0.55, 0.25][this.stance];
@@ -308,6 +322,7 @@
       if (this.slow > 0 && !od) v *= 0.38;
       if (this.stun > 0 && !od) v *= 0.6;
       if (this.carry && this.carry.hostage) v *= 0.85;
+      if (slick) v *= 0.85;                                     // no footing on Skid's slick
       if (this.rooted > 0 && !od) v = 0;
       if (this.state === 'dbno') v = 0.45;
       if (this.hostage) v = this.followTarget ? 3.4 : 0;
@@ -318,6 +333,8 @@
       const W = G.world;
       if (this.vault) return this.doVault(dt);
       if (this.rappel) return this.doRappel(dt);
+      // seasons 10-14 (js/ops2.js): riding a line, climbing a ladder; true when it moved us itself
+      if (window.OPS2 && OPS2.physics(this, dt)) return;
       // stance height
       const targetH = this.state === 'dbno' ? PRONE : [STAND, CROUCH, PRONE][this.stance];
       if (targetH > this.h && !this.canStand(targetH)) { /* stay */ }
@@ -331,7 +348,7 @@
       // further out (leaning into a wall you were pressed against eased half into it and back,
       // and the shoulder came out on its far side)
       const was = this.lean;
-      this.lean = U.smooth(this.lean, leanOK ? this.leanT : 0, 12, dt);
+      this.lean = U.smooth(this.lean, leanOK ? this.leanT : 0, this.supT > G.time ? 6 : 12, dt);   // (pinned down: leaning is slow)
       const inWall = () => { const e = this.eye(U.v2); return W.boxHits(e.x - 0.12, e.y - 0.12, e.z - 0.12, e.x + 0.12, e.y + 0.12, e.z + 0.12); };
       if (this.lean && inWall()) { if (Math.abs(was) < Math.abs(this.lean)) this.lean = was; if (this.lean && inWall()) this.lean *= 0.85; }
       // desired velocity
@@ -340,7 +357,9 @@
       const ml = Math.hypot(mf, mr); if (ml > 1) { mf /= ml; mr /= ml; }
       const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
       const tx = (-sy * mf + cy * mr) * sp, tz = (-cy * mf - sy * mr) * sp;
-      const acc = this.onGround ? 14 : 3;
+      // on Skid's slick there is no grip: slow to get going and slow to stop
+      if (window.OPS2 && this.onGround && OPS2.onSlick(this)) this.slickT = G.time + 0.15;
+      const acc = this.onGround ? (this.slickT > G.time ? 1.6 : 14) : 3;
       this.vel.x = U.smooth(this.vel.x, tx, acc, dt);
       this.vel.z = U.smooth(this.vel.z, tz, acc, dt);
       // a shove (a harpoon dragging you): for a moment it moves you, whatever your legs want
@@ -414,7 +433,10 @@
             const metal = m && (MAT[m].reinf || m === M.METAL || m === M.RHATCH || m === M.CORRUGATE);
             if (!this.isPlayer) SFX.step(p, loud && !quiet, false, metal ? 'metal' : null, soft);
             else SFX.step(p, loud, true, metal ? 'metal' : null, soft);
-            if (!this.hostage) GAME.noise(p, soft ? 2.5 : quiet ? 4 : loud ? 14 : this.stance === 1 ? 4 : 8, this, 'step');
+            // a wet floor (Drench) splashes and slick squeaks: either way everyone hears it
+            const wet = window.OPS2 && OPS2.wetAt(p), slick = this.slickT > G.time;
+            if (wet || slick) SFX.step(p, true, this.isPlayer, null, false);
+            if (!this.hostage) GAME.noise(p, (soft ? 2.5 : quiet ? 4 : loud ? 14 : this.stance === 1 ? 4 : 8) * (wet ? 1.8 : 1) + (slick ? 12 : 0), this, 'step');
           }
         }
       }
@@ -755,6 +777,11 @@
       this.cloakT = Math.max(0, this.cloakT - dt); this.ramT = Math.max(0, this.ramT - dt); this.exhT = Math.max(0, this.exhT - dt);
       if (this.odT > 0) { this.odT -= dt; if (this.odT <= 0) { this.odT = 0; this.exhT = 3; } }
       this.slow = Math.max(0, this.slow - dt); this.revealed = Math.max(0, this.revealed - dt); this.deaf = Math.max(0, this.deaf - dt);
+      // set alight by a dragon's-breath shell: about 6 a second until it burns out (or rain puts it out)
+      if (this.burnT > G.time && this.state !== 'dead') {
+        this.burnAcc = (this.burnAcc || 0) + dt;
+        if (this.burnAcc >= 0.25) { this.burnAcc = 0; this.hurt(1.5, { src: this.burnBy, kind: 'fire' }); if (this.rig && this.rig.root.visible) FX.flames(this.center(new THREE.Vector3()), 0.3, 1); }
+      }
       if (this.over > 0) this.over = Math.max(0, this.over - dt * 0.6);
       this.shieldTick(dt);
       if (this.state === 'dbno') {

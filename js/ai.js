@@ -529,10 +529,11 @@
     const allies = G.actors.filter(x => x !== a && x.team === a.team && x.state === 'alive' && !x.hostage && U.dist3(x.pos, a.pos) < 9).length;
     const outnumbered = b.visN >= 2 && allies === 0;
     const tHurt = t.isActor && (t.state === 'dbno' || t.hp < t.maxHp * 0.45);
-    const dry = w.reload > 0 || w.mag <= Math.max(1, w.def.mag * 0.12);
+    const dry = w.reload > 0 || (w.def.heat ? w.vent > 0 || w.heat > 0.86 : w.mag <= Math.max(1, w.def.mag * 0.12));
     const critical = (b.task && b.task.critical) || (a.side === 'def' && S.threat && GAME.obj.defuser && GAME.obj.defuser.alive && U.dist3(a.pos, GAME.obj.defuser.pos) < 12);
     let fear = (1 - hpK) * 1.3 + (outnumbered ? 0.7 : 0) + (dry && dist < 12 ? 0.6 : 0) + Math.max(0, b.visN - 1) * 0.25 + (a.carry ? 0.35 : 0)
-      - tr.conf * 0.8 - tr.risk * 0.4 - (tHurt ? 0.4 : 0) - allies * 0.15 - b.morale * 0.2;
+      - tr.conf * 0.8 - tr.risk * 0.4 - (tHurt ? 0.4 : 0) - allies * 0.15 - b.morale * 0.2
+      + (a.supT > G.time ? 0.8 - tr.conf * 0.3 : 0);   // pinned down by suppressive fire: stay in cover
     const prev = b.fight && b.fight.t === t ? b.fight : null;
     let mode = 'duel';
     if (t.isActor && fear > 0.55 && !critical && dist > 2.5) mode = 'retreat';
@@ -735,8 +736,9 @@
         }
       }
       a.sprint = GAME.phase === 'prep' || U.dist2(a.pos, tk.at) > 8;
+      if (tk.hurry) a.walk = false;            // (a job that has to happen: no creeping there)
       tk.travel = (tk.travel || 0) + dt;
-      if (tk.travel > 25) { b.task = null; }
+      if (tk.travel > (tk.maxTravel || 25)) { b.task = null; }
       // still walking but no closer for 4 s (pressed against a wall or furniture short of a spot the
       // route can't really reach): do it from here if close enough, otherwise drop it
       const dd = U.dist3(a.pos, tk.at);
@@ -968,6 +970,8 @@
     const S = situation(a.team), act = GAME.phase === 'action';
     // Vesper sonar: near the objective, once inside, or while hunting the last defenders
     if (ab && ab.id === 'sonar' && ab.cd <= 0 && (nearObj || b.entered || S.mode === 'hunt')) GAD.ability(a);
+    // ---- seasons 10-14 (js/ops2.js)
+    if (window.OPS2 && OPS2.aiUse(a, b, { plan, obj, S, nearObj, ab, g, safe })) return;
     // ---- seasons 4-9
     if (ab && act) {
       // Wraith: cloak for the last stretch to the objective
@@ -1407,6 +1411,7 @@
       case 'nullfield': place(2, i => { const rr = plan.rooms[i % plan.rooms.length], p = NAV.randomIn(rr); return { at: p, time: 0.6, run: x => { GAD.deployAt(x, 'nullfield', p.clone().setY(p.y + 0.01), null, 0); x.ability.count--; } }; }); break;
       // Moor: an anchor on the objective before she goes roaming
       case 'recall': { const p = inner(); b.tasks.push({ at: p, time: 0.5, run: x => { GAD.deployAt(x, 'anchor', p.clone().setY(p.y + 0.01)); } }); b.role = 'roam'; break; }
+      default: if (window.OPS2) OPS2.aiPlanDef(a, plan, { place, atEntry, inner, ents, r, b }); break;
       case 'rcharge': {
         // open a rotation hole from the site into a neighbour
         const pan = AI.roomPanels(r)[0];
@@ -1422,6 +1427,7 @@
       if (g.id === 'alarm') place(g.count, i => atEntry(i + 3, (x, op, st, inw, c) => { const p = c.clone().addScaledVector(inw, 1.0); p.y = G.world.groundBelow(p.x, c.y + 0.5, p.z) + 0.02; if (Math.abs(p.y - st.y) < 0.6 && x.gadget.count > 0) { GAD.deployAt(x, 'alarm', p); x.gadget.count--; } }) || { time: 0 });
       // a fog canister on the objective, kept for when they come in or plant
       if (g.id === 'fog') { const p = inner(); b.tasks.push({ at: p, time: 0.5, run: x => { if (x.gadget.count > 0) { GAD.deployAt(x, 'fog', p.clone().setY(p.y + 0.05)); x.gadget.count--; } } }); }
+      if (window.OPS2) OPS2.aiPlanDefGadget(a, plan, { place, atEntry, inner, ents, r, b, g });
       if (g.id === 'dshield') { const p = inner(); b.tasks.push({ at: p, time: 0.6, run: x => { const op = U.pick(ents); const yaw = op ? Math.atan2(-(GAD.opCenter(op).x - p.x), -(GAD.opCenter(op).z - p.z)) : 0; const f = V().set(-Math.sin(yaw), 0, -Math.cos(yaw)); GAD.deployAt(x, 'dshield', p.clone().addScaledVector(f, 0.6), null, yaw); x.gadget.count--; } }); }
     }
   }
@@ -1615,6 +1621,8 @@
   function planAttackKit(a, plan) {
     const b = a.bot, r = plan.rooms[0];
     const id = a.ability ? a.ability.id : null;
+    // seasons 10-14 (js/ops2.js): true when it has planned this bot's kit itself
+    if (window.OPS2 && OPS2.aiPlanAtk(a, plan, { b, r, id })) return;
     // hard breach a reinforced site wall from outside
     if (id === 'bore') {
       const pans = GAME.reinforced.filter(p => plan.rooms.includes(p.room));

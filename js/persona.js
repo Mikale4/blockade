@@ -48,7 +48,7 @@
         { name: 'Point-blank', desc: 'lives at shotgun range', d: { range: -3.5, risk: 0.1 }, f: { closeQuarters: 1 } },
       ],
       ops: { entry: 3, flash: 2, flush: 2, roam: 2.5, mobile: 1, breach: 1, pick: 1, shield: 1.2, hard: 0.5 },
-      guns: { SMG: 2, SG: 2, AR: 1, LMG: 0.3, DMR: -1.5, PISTOL: -1, MP: 0.8 },
+      guns: { SMG: 2, SG: 2, AR: 1, LMG: 0.3, DMR: -1.5, PISTOL: -1, MP: 0.8, SR: -2, XBOW: -1 },
       gadgets: { stun: 2, stim: 2, frag: 1.5, breach: 1.2, impact: 2, c4: 1, claymore: -0.5, emp: 0.5, smoke: 0.3, wire: 0, dshield: -0.5, alarm: 0, fog: 0 },
     },
     tactical: {
@@ -61,7 +61,7 @@
         { name: 'Intel First', desc: 'waits for information before it moves', d: { aware: 0.1, team: 0.15, aggr: -0.1 }, f: { waitIntel: 1, slice: 1 } },
       ],
       ops: { intel: 2.5, utility: 2, trap: 1.5, team: 1, hold: 1, denial: 1, long: 0.5 },
-      guns: { AR: 2, SMG: 1.2, DMR: 1, LMG: 1, SG: 0.4, PISTOL: 0, MP: 0.5 },
+      guns: { AR: 2, SMG: 1.2, DMR: 1, LMG: 1, SG: 0.4, PISTOL: 0, MP: 0.5, SR: 0.5, XBOW: 0.5 },
       gadgets: { stun: 1.5, emp: 2, breach: 1.5, claymore: 1.5, alarm: 2, wire: 1.5, dshield: 1, smoke: 1, frag: 0.8, stim: 0.5, impact: 0.8, c4: 0.5, fog: 1 },
     },
     anchor: {
@@ -74,7 +74,7 @@
         { name: 'Last Line', desc: 'deep in the site, close range', d: { range: -4, cover: 0.1, aggr: -0.1 }, f: { deep: 1, closeQuarters: 1 } },
       ],
       ops: { hold: 3, hard: 2, cover: 2, trap: 1.5, denial: 1.5, shield: 1.5, heal: 0.5, team: 0.5 },
-      guns: { LMG: 2, SG: 1.5, AR: 1.5, SMG: 1, DMR: 0.8, PISTOL: 0, MP: 0.5 },
+      guns: { LMG: 2, SG: 1.5, AR: 1.5, SMG: 1, DMR: 0.8, PISTOL: 0, MP: 0.5, SR: 0.5, XBOW: 0 },
       gadgets: { dshield: 2.5, wire: 2, impact: 1, alarm: 1.5, c4: 0.5, fog: 1, smoke: 1, claymore: 1.5, stun: 1, frag: 0.5, breach: 0.5, emp: 0.5, stim: 1 },
     },
     support: {
@@ -87,7 +87,7 @@
         { name: 'Overwatch', desc: 'covers the team\'s pushes from behind', d: { range: 5, cover: 0.15, patience: 0.1 }, f: { overwatch: 1 } },
       ],
       ops: { team: 3, heal: 3, cover: 1.5, intel: 1, flash: 1, utility: 1, denial: 0.5 },
-      guns: { AR: 2, LMG: 1.5, SMG: 1.2, SG: 0.4, DMR: 0.5, PISTOL: 0, MP: 0.5 },
+      guns: { AR: 2, LMG: 1.5, SMG: 1.2, SG: 0.4, DMR: 0.5, PISTOL: 0, MP: 0.5, SR: 0, XBOW: 0 },
       gadgets: { smoke: 2.5, stim: 2, frag: 1, dshield: 1.5, wire: 1.5, fog: 1.5, stun: 1, breach: 1, impact: 1, alarm: 1, emp: 0.8, claymore: 0.5, c4: 0.3 },
     },
     flanker: {
@@ -100,7 +100,7 @@
         { name: 'Vertical', desc: 'comes from the floor above or below', d: { aware: 0.1 }, f: { vertical: 1 } },
       ],
       ops: { flank: 3, mobile: 2, stealth: 2, roam: 2.5, pick: 1, entry: 0.5 },
-      guns: { SMG: 2.5, SG: 1.2, AR: 1, LMG: -0.5, DMR: -0.5, PISTOL: 0, MP: 1 },
+      guns: { SMG: 2.5, SG: 1.2, AR: 1, LMG: -0.5, DMR: -0.5, PISTOL: 0, MP: 1, SR: -1, XBOW: 1 },
       gadgets: { claymore: 2.5, stun: 1, emp: 1, alarm: 1.5, c4: 1.5, fog: 1, frag: 1, stim: 1, breach: 0.8, smoke: 0.5, impact: 1, wire: 0.5, dshield: 0 },
     },
     marksman: {
@@ -112,7 +112,7 @@
         { name: 'Pick and Move', desc: 'takes a shot, then moves', d: { repos: 0.3, patience: -0.25 }, f: { relocate: 1 } },
       ],
       ops: { long: 3.5, intel: 1, cover: 1, hold: 1, denial: 0.5 },
-      guns: { DMR: 3, AR: 1.8, LMG: 1.2, SMG: -0.5, SG: -1.5, PISTOL: 0.5, MP: -0.5 },
+      guns: { DMR: 3, AR: 1.8, LMG: 1.2, SMG: -0.5, SG: -1.5, PISTOL: 0.5, MP: -0.5, SR: 3, XBOW: 1.5 },
       gadgets: { claymore: 2, dshield: 2, alarm: 2, smoke: 1, frag: 1, impact: 1, wire: 1, stun: 0.5, emp: 0.8, breach: 0.5, stim: 0.8, c4: 0.5, fog: 0.5 },
     },
     opportunist: {
@@ -124,7 +124,7 @@
         { name: 'Chameleon', desc: 'changes its game to fit the round', d: { aware: 0.1 }, f: { adapt: 1 } },
       ],
       ops: { pick: 3, flush: 1.5, intel: 1.5, trap: 1, stealth: 1, utility: 0.5 },
-      guns: { AR: 1.5, SMG: 1.5, SG: 1, DMR: 1, LMG: 0.5, PISTOL: 0, MP: 0.8 },
+      guns: { AR: 1.5, SMG: 1.5, SG: 1, DMR: 1, LMG: 0.5, PISTOL: 0, MP: 0.8, SR: 0.5, XBOW: 0.5 },
       gadgets: { frag: 2, impact: 2, c4: 2, claymore: 1, stun: 1, emp: 1, alarm: 1, fog: 1, stim: 1, smoke: 0.5, breach: 0.8, wire: 0.8, dshield: 0.5 },
     },
     lurker: {
@@ -136,7 +136,7 @@
         { name: 'Late Clock', desc: 'stays hidden until the clock runs down', d: { patience: 0.1 }, f: { late: 1 } },
       ],
       ops: { stealth: 3, roam: 3, flank: 1.5, pick: 1, mobile: 1 },
-      guns: { SMG: 2, SG: 1, AR: 0.8, LMG: -0.5, DMR: 0, PISTOL: 0, MP: 1 },
+      guns: { SMG: 2, SG: 1, AR: 0.8, LMG: -0.5, DMR: 0, PISTOL: 0, MP: 1, SR: 0, XBOW: 2 },
       gadgets: { claymore: 2, alarm: 2.5, c4: 1.5, fog: 2, emp: 1, stun: 1, frag: 1, impact: 1, stim: 1, smoke: 0.3, breach: 0.3, wire: 0.5, dshield: 0 },
     },
   };
@@ -153,6 +153,12 @@
     hollis: ['denial', 'hold'], rhea: ['flank', 'utility'], lark: ['roam', 'stealth', 'mobile', 'flank'], seam: ['team', 'hold', 'cover'],
     lumen: ['denial', 'hold', 'long'], nox: ['stealth', 'roam', 'flank'], moor: ['roam', 'entry'], warden: ['long', 'hold'],
     ferro: ['trap', 'pick', 'utility'], mimic: ['pick', 'stealth', 'trap'], veil: ['stealth', 'roam'],
+    // seasons 10-14
+    rust: ['breach', 'hard', 'team', 'utility'], skid: ['denial', 'utility', 'mobile'], grit: ['team', 'denial', 'hold'],
+    grout: ['hold', 'hard', 'cover'], drench: ['utility', 'team', 'hold'],
+    span: ['entry', 'mobile', 'team'], rung: ['breach', 'entry', 'mobile'], jolt: ['trap', 'hold', 'denial'], ferret: ['roam', 'stealth', 'mobile', 'flank'], sink: ['trap', 'pick', 'hold'],
+    phantom: ['utility', 'flank', 'stealth'], loop: ['utility', 'intel', 'stealth'], tremor: ['intel', 'team'], babel: ['utility', 'hold', 'team'], relay: ['intel', 'pick'],
+    kite: ['intel', 'long', 'mobile'], murmur: ['stealth', 'flank', 'pick'], latch: ['hold', 'utility', 'cover'], mirage: ['pick', 'trap', 'stealth'], harbor: ['cover', 'team', 'hold'],
   };
   const KEYS = ['aggr', 'caution', 'conf', 'risk', 'react', 'patience', 'aware', 'team', 'range', 'repos', 'cover', 'stealth'];
   const clamp01 = v => Math.max(0, Math.min(1, v));

@@ -497,7 +497,8 @@
   }
 
   /* ------------------------------------------------------ reinforcement */
-  const isSoftWall = m => m && MAT[m].wall && !MAT[m].reinf && m !== M.BRICK || m === M.BRICK || m === M.LOGWALL || m === M.SIDING || m === M.STUCCO || m === M.FACADE || m === M.CORRUGATE;
+  // (resin is harder than steel already: nothing to reinforce)
+  const isSoftWall = m => m && MAT[m].wall && !MAT[m].reinf && m !== M.BRICK && m !== M.RESIN || m === M.BRICK || m === M.LOGWALL || m === M.SIDING || m === M.STUCCO || m === M.FACADE || m === M.CORRUGATE;
   GAME.reinforcePanel = function (p, by) {
     const team = by.team;
     if ((GAME.pool[team] || 0) <= 0) return false;

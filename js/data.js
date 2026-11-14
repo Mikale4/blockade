@@ -113,6 +113,10 @@
   mat('WATER', 0x24506a, { pat: 'noise' });
   mat('PUDDLE', 0x353f4a, { pat: 'noise' });
   mat('DOME', 0xc3c8ce, { pat: 'plates' });
+  // seasons 10-14: Rust's degausser leaves reinforcement as brittle plate a soft breach opens;
+  // Grout's resin is bulletproof and shrugs off explosives (heavy rounds chip it, a bore cuts it)
+  mat('WEAK', 0x8a5a3a, { hp: 6, pen: 0.45, xp: true, hb: true, melee: true, pat: 'ribs', wall: true });
+  mat('RESIN', 0xd8c890, { hp: 30, pen: 0, hb: true, pat: 'noise', wall: true });
   // a voxel id beyond the table means "outside the world": solid, never drawn
   const OOB = 255;
   // ...with a table entry of its own, so a lookup at the edge of the map reads "unbreakable"
@@ -151,6 +155,24 @@
     rampart:  { name: 'RAMPART', type: 'LMG', cls: 'Belt-Fed LMG', dmg: 43, rpm: 700, mag: 100, mags: 1, reload: 5.6, reloadE: 6.2, rv: 0.62, rh: 0.5, hip: 3.8, ads: 0.26, adsT: 0.44, f0: 30, f1: 45, fmin: 0.65, destr: 1, sight: 'holo', auto: true, mob: 0.86, bipod: true, note: 'Bipod: steady when crouched or prone' },
     needler:  { name: 'NEEDLER-6', type: 'SG', cls: 'Flechette Shotgun', dmg: 20, pellets: 6, rpm: 110, mag: 6, mags: 5, shell: 0.5, rv: 2.6, rh: 0.5, hip: 3.4, ads: 2.4, adsT: 0.24, f0: 10, f1: 26, fmin: 0.35, destr: 1, sight: 'iron', auto: false, mob: 1.0, penMul: 2.2, headMul: 2, note: 'Tight flechettes that go through soft walls' },
     verdict:  { name: 'VERDICT', type: 'PISTOL', cls: 'Burst Pistol', dmg: 37, rpm: 1100, burst: 2, burstGap: 0.24, mag: 16, mags: 5, reload: 1.8, reloadE: 2.2, rv: 1.0, rh: 0.35, hip: 2.0, ads: 0.28, adsT: 0.15, f0: 15, f1: 25, fmin: 0.55, destr: 1, sight: 'iron', auto: false, mob: 1.0, sec: true, note: 'Two-round bursts' },
+    // ---- seasons 10-14. More mechanics, read by weapons.js:
+    //   modes: firing configurations FIREMODE cycles through (numbers given are the stock gun's)
+    //   heat: no magazine; each shot adds `per`, it cools at `cool`/s, and full heat vents for `vent` s
+    //   spin: seconds of trigger to spin up from 35% to full rate · bolt: seconds working the bolt
+    //   proj: a physical round with travel time and drop · markHit: a hit marks the target (s)
+    //   burn: a hit sets the target alight (s) · tandem: every other reload is this quick
+    //   taser: wired darts (range, stun) instead of bullets
+    twinfire: { name: 'TWINFIRE', type: 'AR', cls: 'Dual-Mode Rifle', dmg: 36, rpm: 820, mag: 30, mags: 5, reload: 2.4, reloadE: 3.0, rv: 0.5, rh: 0.28, hip: 2.6, ads: 0.18, adsT: 0.26, f0: 24, f1: 40, fmin: 0.62, destr: 1, sight: 'holo', auto: true, mob: 1.0,
+      modes: [{ label: 'AUTO' }, { label: 'MARKSMAN', dmg: 58, rpm: 330, auto: false, rv: 1.0, rh: 0.25, ads: 0.08, adsT: 0.3, f0: 35, f1: 55, fmin: 0.7 }], note: 'FIREMODE swaps full auto for a hard-hitting marksman mode' },
+    volta:    { name: 'VOLTA', type: 'AR', cls: 'Coil Carbine', dmg: 33, rpm: 780, mag: 99, mags: 0, reload: 1.4, reloadE: 1.4, rv: 0.38, rh: 0.24, hip: 2.3, ads: 0.18, adsT: 0.24, f0: 22, f1: 38, fmin: 0.6, destr: 1, sight: 'red', auto: true, mob: 1.0,
+      heat: { per: 0.016, cool: 0.4, vent: 2.6 }, note: 'No magazine: it heats up. Hold it down and it overheats; RELOAD vents it early' },
+    spindle:  { name: 'SPINDLE', type: 'LMG', cls: 'Rotary LMG', dmg: 34, rpm: 1150, spin: 1.1, mag: 150, mags: 1, reload: 6.0, reloadE: 6.5, rv: 0.32, rh: 0.36, hip: 4.2, ads: 0.3, adsT: 0.5, f0: 25, f1: 40, fmin: 0.6, destr: 1, sight: 'holo', auto: true, mob: 0.84, note: 'Spins up: slow first shots, then a torrent. Aiming keeps the barrels turning' },
+    longbow:  { name: 'LONGBOW', type: 'SR', cls: 'Bolt-Action Rifle', dmg: 118, rpm: 42, mag: 5, mags: 4, reload: 3.2, reloadE: 3.8, rv: 3.8, rh: 0.5, hip: 6.0, ads: 0.0, adsT: 0.55, f0: 70, f1: 100, fmin: 0.85, destr: 3, sight: 'scope4', auto: false, mob: 0.88, penMul: 1.6, bolt: 0.9, note: 'One heavy round, then work the bolt (no aiming for a moment)' },
+    quarrel:  { name: 'QUARREL', type: 'XBOW', cls: 'Crossbow', dmg: 96, rpm: 60, mag: 1, mags: 14, reload: 1.5, reloadE: 1.5, rv: 1.2, rh: 0.2, hip: 3.0, ads: 0.05, adsT: 0.3, f0: 40, f1: 60, fmin: 1, destr: 1, sight: 'red', auto: false, mob: 1.0, silent: true, noFlash: true, proj: { speed: 55, g: 0.35 }, note: 'Silent bolts that fly and drop: lead your target' },
+    tally:    { name: 'TALLY', type: 'DMR', cls: 'Marking DMR', dmg: 52, rpm: 400, mag: 15, mags: 5, reload: 2.4, reloadE: 2.9, rv: 1.2, rh: 0.32, hip: 3.0, ads: 0.08, adsT: 0.3, f0: 35, f1: 55, fmin: 0.72, destr: 1, sight: 'acog', auto: false, mob: 0.98, markHit: 3, note: 'Paint rounds: whoever you hit is marked for your team for 3 s' },
+    bramble:  { name: 'BRAMBLE', type: 'SG', cls: 'Incendiary Shotgun', dmg: 14, pellets: 8, rpm: 80, mag: 6, mags: 5, shell: 0.55, rv: 3.0, rh: 0.6, hip: 5.0, ads: 4.0, adsT: 0.24, f0: 5, f1: 14, fmin: 0.25, destr: 2, sight: 'iron', auto: false, mob: 1.0, headMul: 2, burn: 2.5, note: 'Dragon\'s-breath shells: a hit burns for a moment, and they light the floor' },
+    lattice:  { name: 'LATTICE', type: 'SMG', cls: 'Tandem-Mag SMG', dmg: 30, rpm: 860, mag: 32, mags: 6, reload: 2.1, reloadE: 2.6, rv: 0.4, rh: 0.26, hip: 2.0, ads: 0.24, adsT: 0.2, f0: 15, f1: 28, fmin: 0.55, destr: 1, sight: 'holo', auto: true, mob: 1.05, tandem: 0.9, note: 'Two magazines clamped together: every other reload is a quick flip' },
+    stinger:  { name: 'STINGER', type: 'PISTOL', cls: 'Taser Pistol', dmg: 22, rpm: 90, mag: 2, mags: 6, reload: 2.0, reloadE: 2.0, rv: 1.6, rh: 0.3, hip: 2.6, ads: 0.6, adsT: 0.15, f0: 6, f1: 10, fmin: 0.3, destr: 0, sight: 'iron', auto: false, mob: 1.0, sec: true, noFlash: true, taser: { range: 10, stun: 1.6 }, note: 'Two wired darts, 10 m: a hit stuns and slows (no headshots)' },
   };
   for (const k in WEAPONS) { WEAPONS[k].id = k; if (!WEAPONS[k].pellets) WEAPONS[k].pellets = 1; }
 
@@ -170,6 +192,10 @@
     stim:     { name: 'STIM SHOT', count: 2, side: 'atk', icon: '✚', desc: 'Jab it in: 45 health back on the spot. It takes a second, and you cannot shoot while you do it.' },
     alarm:    { name: 'PROXIMITY ALARM', count: 2, side: 'def', icon: '◉', desc: 'Stick it to a wall or the floor. An attacker within 4 m sets it shrieking and is marked for your team. One bullet silences it.' },
     fog:      { name: 'FOG CANISTER', count: 2, side: 'def', icon: '☁', desc: 'Throw it, it sticks; press again to flood the spot with thick fog for 13 seconds. Nobody sees through it.' },
+    // ---- seasons 10-14
+    flankcam: { name: 'FLANK CAM', count: 2, side: 'atk', icon: '◫', desc: 'Stick it to a wall. Any defender in its 100° view within 14 m is marked for your team for 2 s. One bullet kills it; scramblers jam it.' },
+    extinguisher: { name: 'EXTINGUISHER', count: 2, side: 'atk', icon: '❄', desc: 'A CO2 blast 4 m ahead: puts out fires, clears gas and slick, and leaves a brief white cloud.' },
+    caltrops: { name: 'CALTROPS', count: 2, side: 'def', icon: '⁂', desc: 'A 1.6 m patch of spikes on the floor. Attackers who cross it faster than a careful walk are hurt, slowed and heard; crouching or walking gets through.' },
   };
 
   /* -------------------------------------------------------------- units -- */
@@ -188,6 +214,12 @@
     breakline: { name: 'BREAKLINE', full: 'Breakline Entry Team', color: '#c97a3a', desc: 'SEASON 7 · Operation Ram Raid. One goes through walls, the other makes sure your gun fails when you arrive.' },
     kinetic:   { name: 'KINETIC', full: 'Kinetic Response Cell', color: '#e8d24a', desc: 'SEASON 8 · Operation Overclock. Speed and misdirection.' },
     resonant:  { name: 'RESONANT', full: 'Resonant Acoustics Unit', color: '#5fc9a8', desc: 'SEASON 9 · Operation Echo. One hears every shot, the other makes a room go quiet.' },
+    // ---- seasons 10-14: four operators each, two a side
+    halyard:   { name: 'HALYARD', full: 'Halyard Rope Access Team', color: '#d8853a', desc: 'SEASON 10 · Operation High Line. Industrial climbers and riggers: new ways up, down, across and through, and the people who close them.' },
+    cipher:    { name: 'CIPHER', full: 'Cipher Information Operations', color: '#3fd0e0', desc: 'SEASON 11 · Operation Dead Air. They do not hide the truth from you; they hand you a better story.' },
+    foundry:   { name: 'FOUNDRY', full: 'Foundry Materials Unit', color: '#c0603a', desc: 'SEASON 12 · Operation Cold Forge. Metallurgists and chemists who change what a wall, a floor or the ground under you is made of.' },
+    squall:    { name: 'SQUALL', full: 'Squall Environmental Response', color: '#5aa0d8', desc: 'SEASON 13 · Operation Downpour. Disaster-response specialists: sound, water and shelter.' },
+    sightline: { name: 'SIGHTLINE', full: 'Sightline Group', color: '#e0c050', desc: 'SEASON 14 · Operation Long Shadow. Who can see whom, from where, and for how long.' },
   };
 
   /* ----------------------------------------------------------- operators --
@@ -289,6 +321,22 @@
       ability: { id: 'triang', name: 'TRIANGULATOR', count: 2, desc: 'A listening post. While it stands, any defender who fires an unsuppressed gun within 25 m of it is marked for your team for 2.5 s. One bullet breaks it.' },
       look: { head: 'boonie', helmet: 0x3a6a5a, vest: 0x2e3e3a, cloth: 0x3a5048, accent: 0x7ce8c0, skin: 0xf0d0b0, hair: 0xb89060 },
       bio: 'Season 9. An artillery spotter who can tell you which window a shot came from, and what the shooter had for lunch.' },
+    // ---- seasons 10-14 (tools/NEW-OPERATORS.md)
+    { id: 'rust', name: 'RUST', real: 'Agnieszka Rustova', side: 'atk', unit: 'foundry', role: 'Reinforcement Breaker', armor: 2, speed: 2, season: 12,
+      primaries: ['halberd', 'gale12'], secondaries: ['p10', 'stub'], gadgets: ['breach', 'smoke'],
+      ability: { id: 'degauss', name: 'DEGAUSSER', count: 2, desc: 'Mount it on reinforced steel: a wall, a bunker plate, a shutter or a hatch. After a 6 s hum the plate in a 2 m × 2.5 m area turns brittle. It still stands, but breach charges, rivets, spikes, a battering charge or shotguns now open it. Dampeners and scramblers jam it; 40 HP; the hum carries.' },
+      look: { head: 'welder', pack: 'coil', helmet: 0x5a3020, vest: 0x3a3430, cloth: 0x4a3c34, accent: 0xff7a3a, skin: 0xe8c0a0, hair: 0x8a3a1a },
+      bio: 'Season 12. A shipyard metallurgist. Rust does not cut your steel; she talks it out of being steel.' },
+    { id: 'skid', name: 'SKID', real: 'Paulo Mendes', side: 'atk', unit: 'foundry', role: 'Traction Denial', armor: 1, speed: 3, season: 12,
+      primaries: ['lattice', 'vkr5'], secondaries: ['p10', 'hornet'], gadgets: ['frag', 'extinguisher'],
+      ability: { id: 'slick', name: 'SLICK CANISTER', count: 3, desc: 'Throw a canister that bursts into a 3.5 m pool of polymer slick for 18 s. Anyone on it, either team, loses traction: slow to start and slow to stop, no sprinting, a looser aim, and every step squeaks loudly. Sprinklers wash it away.' },
+      look: { head: 'respirator', pack: 'tank', helmet: 0x2a4a5a, vest: 0x30383c, cloth: 0x3c4a50, accent: 0x5ad0ff, skin: 0x8a5a3c, hair: 0x101010 },
+      bio: 'Season 12. A tyre-test engineer from a race circuit. Skid knows exactly how little it takes to put you on the floor.' },
+    { id: 'grit', name: 'GRIT', real: 'Abel Grützner', side: 'atk', unit: 'sightline', role: 'Suppression', armor: 3, speed: 1, season: 14,
+      primaries: ['spindle', 'rampart'], secondaries: ['maul', 'p10'], gadgets: ['smoke', 'frag'],
+      ability: { id: 'suppress', name: 'SUPPRESSIVE FIRE', count: 2, desc: 'Nine seconds in which Grit\'s rounds pin people down: one that passes within 1.6 m of a defender, or hits the cover they are behind, suppresses them for 2 s: a shaking view, +3° spread, aiming and leaning at half speed. Suppressed bots stop peeking and go for cover.' },
+      look: { head: 'heavy', pack: 'ammo', pads: true, helmet: 0x4a4a32, vest: 0x3a3a2c, cloth: 0x4a4a3a, accent: 0xe0c050, skin: 0xd8a888, hair: 0x2a1a10 },
+      bio: 'Season 14. Twenty years a machine-gun instructor. Grit does not need to hit you to stop you peeking.' },
     // ---------------- defenders
     { id: 'anvil', name: 'ANVIL', real: 'Gregor Sand', side: 'def', unit: 'tidebreak', role: 'Anti-Breach', armor: 3, speed: 1,
       primaries: ['torrent', 'tallow'], secondaries: ['p10', 'maul'], gadgets: ['wire', 'dshield'],
@@ -385,6 +433,17 @@
       ability: { id: 'nullfield', name: 'NULL FIELD', count: 2, desc: 'An emitter with a 7 m field. Defenders inside it cannot be marked or revealed by anything, their footsteps make no sound, and attacker drones that enter it lose signal.' },
       look: { head: 'hood', helmet: 0x2a5a4c, vest: 0x26342f, cloth: 0x2e463e, accent: 0x7ce8c0, skin: 0xf2d8c4, hair: 0xe8e0d0 },
       bio: 'Season 9. An anechoic-chamber engineer. Step into Veil\'s room and, as far as anyone can tell, you were never there.' },
+    // ---- seasons 10-14
+    { id: 'grout', name: 'GROUT', real: 'Bea Lindqvist-Oyelaran', side: 'def', unit: 'foundry', role: 'Hardening', armor: 3, speed: 1, season: 12,
+      primaries: ['bramble', 'volta'], secondaries: ['p10', 'maul'], gadgets: ['wire', 'dshield'],
+      ability: { id: 'resin', name: 'RESIN INJECTOR', count: 3, desc: 'Flood a 2 m × 2.5 m patch of soft wall, floor or hatch within 2.5 m with resin, all the way through. It turns bulletproof and shrugs off breach charges, rivets, spikes, impacts and a battering charge. It works where reinforcement can\'t, but it blocks your rotations too. A plasma bore cuts it; heavy rounds slowly chip it.' },
+      look: { head: 'hardresp', pack: 'tank', helmet: 0xd8b040, vest: 0x4a4038, cloth: 0x5a4c40, accent: 0xffd060, skin: 0x6e4a34, hair: 0x111111 },
+      bio: 'Season 12. A tunnel-grouting engineer. Grout seals cracks in mountains; your breach charge is a smaller problem.' },
+    { id: 'drench', name: 'DRENCH', real: 'Rafe Okonjo', side: 'def', unit: 'squall', role: 'Utility Counter', armor: 2, speed: 2, season: 13,
+      primaries: ['salvo9', 'gale12'], secondaries: ['p10', 'hornet'], gadgets: ['dshield', 'alarm'],
+      ability: { id: 'sprinkler', name: 'SPRINKLER HEADS', count: 3, desc: 'Mount a head on a ceiling or wall. When attacker smoke, gas, slick or fire appears within 7 m it rains for 10 s: smoke clears in seconds, gas and slick wash away, every fire under it goes out (yours too), and the wet floor makes footsteps splash. One shower each; one bullet kills a head.' },
+      look: { head: 'souwester', pack: 'tank', helmet: 0xe0c030, vest: 0x2a4a6a, cloth: 0x2e5070, accent: 0x5ab0ff, skin: 0xc89070, hair: 0x2a1810 },
+      bio: 'Season 13. A fire-suppression engineer. Drench has put out refinery fires; your smoke grenade is a light drizzle.' },
   ];
   const OPMAP = {}; OPS.forEach(o => OPMAP[o.id] = o);
 

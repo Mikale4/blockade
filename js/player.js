@@ -166,6 +166,8 @@
       case 'firemode':
         // aiming through a variable optic: the key switches its magnification instead
         if (a.wpn && a.wpn.def.sight === 'var' && a.ads > 0.5) { a.varHi = !a.varHi; HUD.toast(a.varHi ? 'OPTIC 3.0x' : 'OPTIC 1.5x'); break; }
+        // a gun with firing modes (Twinfire): the key steps through them
+        if (a.wpn && a.wpn.modeDefs) { WPN.setMode(a, (a.wpn.mode + 1) % a.wpn.modeDefs.length); HUD.toast(a.wpn.def.modeLabel + ' MODE'); break; }
         if (a.wpn && a.wpn.def.auto) { a.wpn.auto = !a.wpn.auto; HUD.toast(a.wpn.auto ? 'FULL AUTO' : 'SINGLE'); } break;
       case 'interact': { if (GAME.client) { NP.act('interact'); break; } if (a.interact) break; const its = GAME.interactions(a); if (its.length) GAME.beginInteract(a, its[0]); break; }
     }

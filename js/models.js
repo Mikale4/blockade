@@ -76,6 +76,26 @@
       case 'hood': g.box(-3, 0, -2, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-2, 0, -2, 2, 3, -2, skin); g.set(-1, 2, -3, 0x15171a).set(1, 2, -3, 0x15171a); g.box(-2, 3, -3, 2, 3, -3, hc); break;
       case 'balaclava': g.box(-2, 0, -2, 2, 5, 2, hc); g.box(-2, 2, -2, 2, 2, -2, skin); g.set(-1, 2, -3, 0x15171a).set(1, 2, -3, 0x15171a); break;
       case 'bandana': g.box(-2, 0, -3, 2, 1, -2, hc); g.box(-3, 0, -2, 3, 1, 2, hc); g.box(-2, 4, -2, 2, 5, 2, hair); g.box(-3, 2, -1, -3, 3, 1, 0x111111); g.set(-3, 2, -2, glow(acc)); break;
+      // ---- seasons 10-14: twenty new silhouettes
+      case 'welder': g.box(-3, 4, -2, 3, 5, 3, hc); g.box(-3, 5, -4, 3, 9, -3, shade(hc, 0.75)); g.box(-2, 7, -5, 2, 8, -5, 0x1a1c1e); g.set(-3, 3, -3, acc).set(3, 3, -3, acc); break;
+      case 'respirator': g.box(-3, 4, -2, 3, 5, 2, hc); g.box(-2, 0, -3, 2, 1, -3, 0x24272b); g.box(-3, 0, -4, -2, 1, -4, acc); g.box(2, 0, -4, 3, 1, -4, acc); g.box(-2, 2, -3, 2, 2, -3, glow(acc)); break;
+      case 'heavy': g.box(-3, 3, -3, 3, 6, 3, hc); g.box(-3, 0, -2, -3, 3, 3, hc); g.box(3, 0, -2, 3, 3, 3, hc); g.box(-2, 0, -4, 2, 0, -4, shade(hc, 0.6)); g.box(-2, 2, -4, 2, 2, -4, shade(hc, 0.6)); g.set(-2, 1, -4, shade(hc, 0.6)).set(2, 1, -4, shade(hc, 0.6)); break;
+      case 'hardresp': g.box(-3, 4, -3, 3, 6, 3, hc); g.box(-4, 4, -4, 4, 4, 4, hc); g.box(-2, 0, -3, 2, 1, -3, 0x2a2c30); g.set(0, 0, -4, acc); g.set(-2, 1, -4, 0x2a2c30).set(2, 1, -4, 0x2a2c30); break;
+      case 'souwester': g.box(-3, 4, -3, 3, 6, 3, hc); g.box(-3, 4, -4, 3, 4, -4, hc); g.box(-4, 3, 1, 4, 3, 5, hc); g.box(-1, 7, -1, 1, 7, 1, shade(hc, 0.85)); break;
+      case 'hardhat': g.box(-3, 4, -3, 3, 6, 3, hc); g.box(-4, 4, -4, 4, 4, 4, hc); g.box(0, 7, -2, 0, 7, 2, shade(hc, 0.85)); g.box(-1, 5, -4, 1, 5, -4, glow(0xfff2b0)); break;
+      case 'climb': g.box(-3, 3, -3, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.set(-1, 6, 0, 0x111111).set(1, 6, 0, 0x111111); g.box(-1, 4, -4, 1, 4, -4, glow(0xfff6c8)); g.box(-3, 0, -1, -3, 2, -1, 0x2a2a2a); g.box(3, 0, -1, 3, 2, -1, 0x2a2a2a); break;
+      case 'mohawk': g.box(-2, 3, -2, 2, 4, 2, skin); g.box(0, 4, -3, 0, 7, 3, hair); g.box(-1, 4, -2, 1, 5, 2, hair); g.set(-3, 2, 0, glow(acc)); g.set(3, 2, 0, 0x222222); break;
+      case 'lampcap': g.box(-2, 4, -2, 2, 5, 2, hc); g.box(-2, 4, -4, 2, 4, -3, hc); g.box(-3, 4, -1, 3, 4, 1, 0x2a2a2a); g.box(-1, 5, -3, 1, 6, -3, glow(0xfff2a0)); break;
+      case 'headset': g.box(-3, 1, -1, -3, 3, 1, 0x222428); g.box(3, 1, -1, 3, 3, 1, 0x222428); g.box(-3, 4, 0, 3, 5, 0, 0x222428); g.box(-3, 0, -2, -3, 0, -3, 0x222428); g.box(-2, 0, -3, -1, 0, -3, glow(acc)); break;
+      case 'hoodvisor': g.box(-3, 0, -2, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-2, 0, -2, 2, 3, -2, skin); g.box(-2, 2, -3, 2, 2, -3, glow(acc)); g.box(-2, 3, -3, 2, 3, -3, hc); break;
+      case 'scarf': g.box(-3, 0, -1, 3, 5, 3, hc); g.box(-2, 5, -2, 2, 5, 2, hc); g.box(-3, 3, -2, 3, 5, -2, hc); g.box(-2, -1, -2, 2, 0, 3, hc); g.set(3, 4, -2, acc); break;
+      case 'radioman': g.box(-2, 4, -2, 2, 6, 2, hc); g.box(-3, 3, -2, 3, 3, 2, hc); g.box(-3, 1, -1, -3, 3, 1, acc); g.box(3, 1, -1, 3, 3, 1, acc); g.box(3, 0, -2, 3, 0, -3, 0x222222); break;
+      case 'earmuffs': g.box(-2, 4, -2, 2, 4, 2, hair); g.box(-3, 1, -1, -3, 3, 1, hc); g.box(3, 1, -1, 3, 3, 1, hc); g.box(-3, 4, 0, 3, 5, 0, shade(hc, 0.7)); g.set(-3, 2, -2, glow(acc)); break;
+      case 'wrap': g.box(-3, 0, -3, 3, 1, 3, hc); g.box(-3, 3, -2, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-3, 1, 1, 3, 2, 3, hc); g.box(1, -1, 3, 2, 1, 4, shade(hc, 0.8)); break;
+      case 'riot': g.box(-3, 3, -3, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-3, 1, -1, -3, 3, 3, hc); g.box(3, 1, -1, 3, 3, 3, hc); g.box(-3, 5, -4, 3, 6, -4, 0x6a8aa0); break;
+      case 'pilot': g.box(-3, 2, -3, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-3, 0, -1, -3, 2, 3, hc); g.box(3, 0, -1, 3, 2, 3, hc); g.box(-2, 1, -4, 2, 3, -4, 0x1a2a3a); g.box(-3, 0, -2, -2, 0, -4, 0x222222); g.set(0, 5, -4, glow(acc)); break;
+      case 'goggles': g.box(-2, 4, -2, 2, 5, 2, hc); g.box(-2, 4, -4, 2, 4, -3, hc); g.box(-3, 3, -3, 3, 3, -3, 0x2a2a2a); g.box(-2, 3, -4, -1, 3, -4, glow(acc)); g.box(1, 3, -4, 2, 3, -4, glow(acc)); break;
+      case 'cowl': g.box(-3, 0, -1, 3, 6, 3, hc); g.box(-2, 7, 0, 2, 7, 3, hc); g.box(-1, 8, 1, 1, 8, 3, hc); g.box(-3, 3, -2, 3, 6, -2, hc); g.box(-2, 0, -2, 2, 2, -2, shade(skin, 0.55)); g.set(-1, 2, -3, glow(acc)).set(1, 2, -3, glow(acc)); break;
     }
     return g;
   }
@@ -87,9 +107,30 @@
     g.box(-3, 3, -4, -2, 5, -4, shade(vest, 0.8)); g.box(-1, 3, -4, 0, 5, -4, shade(vest, 0.8)); g.box(1, 3, -4, 2, 5, -4, shade(vest, 0.8));
     g.box(-2, 6, 4, 1, 9, 4, shade(vest, 0.85));
     g.set(w - 1, 8, -4, glow(L.accent)).set(-w, 8, -4, L.accent);
-    if (bulk > 2) { g.box(-w - 1, 7, -3, -w - 1, 10, 3, vest); g.box(w, 7, -3, w, 10, 3, vest); }
+    if (bulk > 2 || L.pads) { g.box(-w - 1, 7, -3, -w - 1, 10, 3, vest); g.box(w, 7, -3, w, 10, 3, vest); }
+    if (L.pads) { g.box(-w - 1, 10, -2, -w, 11, 2, shade(vest, 1.2)); g.box(w - 1, 10, -2, w, 11, 2, shade(vest, 1.2)); }
+    if (L.pack && PACKS[L.pack]) PACKS[L.pack](g, L);
     return g;
   }
+  /* seasons 10-14: what each new operator carries on the back (the torso faces -z) */
+  const PACKS = {
+    coil: (g, L) => { g.box(-3, 3, 4, 2, 9, 6, 0x3a3026); for (const y of [4, 6, 8]) g.box(-3, y, 7, 2, y, 7, 0xb87333); g.set(-1, 10, 5, glow(L.accent)); },
+    tank: (g, L) => { g.box(-2, 2, 4, 1, 10, 7, L.helmet); g.box(-1, 11, 5, 0, 11, 6, 0x8a8f94); g.box(2, 3, 5, 2, 9, 5, 0x222222); g.box(-2, 6, 7, 1, 6, 7, shade(L.helmet, 0.7)); },
+    ammo: (g, L) => { g.box(-3, 2, 4, 2, 7, 7, 0x4a4a32); g.box(-2, 7, 5, 1, 7, 6, 0x2a2a22); for (let i = -3; i <= 3; i++) g.set(i, 5 + (i >> 1), -4, 0xc8a040); },
+    spool: (g, L) => { g.box(-3, 4, 4, 2, 9, 7, 0x5a5a5a); g.box(-2, 5, 8, 1, 8, 8, L.accent); g.box(-4, 6, 5, -4, 7, 6, 0x333333); g.box(3, 6, 5, 3, 7, 6, 0x333333); },
+    ladder: (g, L) => { g.box(-3, 0, 5, -3, 12, 5, 0x8a8f94); g.box(2, 0, 5, 2, 12, 5, 0x8a8f94); for (let y = 1; y <= 11; y += 2) g.box(-2, y, 5, 1, y, 5, 0x6a6e74); },
+    antenna: (g, L) => { g.box(-2, 3, 4, 1, 8, 6, 0x2a2c30); g.box(1, 9, 5, 1, 16, 5, 0x333333); g.set(1, 17, 5, glow(L.accent)); g.box(-2, 6, 7, -1, 7, 7, glow(L.accent)); },
+    case: (g, L) => { g.box(-3, 3, 4, 2, 9, 5, 0x2a2a30); g.box(-2, 4, 6, 1, 8, 6, 0x1a1a1e); g.box(-2, 7, 6, 1, 7, 6, glow(L.accent)); },
+    radio: (g, L) => { g.box(-2, 3, 4, 1, 9, 6, 0x3a3a2c); g.box(-2, 10, 5, -2, 14, 5, 0x333333); g.box(0, 5, 7, 1, 6, 7, glow(L.accent)); },
+    stake: (g, L) => { g.box(-1, 2, 4, 1, 10, 6, 0x5a4a3a); for (const x of [-1, 0, 1]) g.box(x, 11, 5, x, 13, 5, 0x9aa0a6); g.set(0, 6, 7, glow(L.accent)); },
+    speaker: (g, L) => { g.box(-3, 3, 4, 2, 8, 6, 0x222222); g.box(-2, 4, 7, 1, 7, 7, 0x444444); g.set(-1, 5, 8, glow(L.accent)).set(0, 6, 8, glow(L.accent)); },
+    drape: (g, L) => { g.box(-4, 8, 4, 3, 10, 7, 0x4a5a4a); g.box(-4, 9, 8, 3, 9, 8, shade(0x4a5a4a, 0.75)); g.box(-3, 2, 4, -3, 8, 4, 0x333333); g.box(2, 2, 4, 2, 8, 4, 0x333333); },
+    cradle: (g, L) => { g.box(-1, 4, 4, 0, 9, 5, 0x333333); g.box(-5, 8, 5, 4, 8, 5, 0x333333); for (const x of [-5, 4]) g.box(x - 1, 9, 4, x + 1, 9, 6, glow(L.accent)); },
+    rails: (g, L) => { g.box(-3, 1, 4, -3, 11, 4, 0x6a6e76); g.box(2, 1, 4, 2, 11, 4, 0x6a6e76); g.box(-2, 9, 4, 1, 11, 6, L.accent); for (let y = 2; y <= 8; y += 2) g.box(-2, y, 5, 1, y, 5, 0x50545a); },
+    projector: (g, L) => { g.box(-2, 4, 4, 1, 8, 6, 0x2a2c38); g.box(-1, 6, 7, 0, 7, 7, glow(L.accent)); g.box(-3, 8, 5, -3, 12, 5, 0x333340); g.set(-3, 13, 5, glow(L.accent)); },
+    roll: (g, L) => { g.box(-4, 2, 4, 3, 4, 6, 0x5a4a3a); g.box(-3, 5, 4, 2, 7, 5, 0x3a3a3a); g.set(-3, 3, 7, 0x9aa0a6).set(2, 3, 7, 0x9aa0a6); },
+    sapper: (g, L) => { g.box(-3, 1, 4, 2, 6, 6, 0x4a3a2a); g.box(-2, 7, 4, 1, 8, 5, 0x3a2a1a); g.set(-1, 4, 7, glow(L.accent)).set(1, 4, 7, glow(L.accent)); },
+  };
   function buildArm(L) { const g = new Grid(); g.box(-1, -9, -1, 0, 0, 0, L.cloth); g.box(-1, -9, -1, 0, -8, 0, 0x2a2622); g.box(-1, -4, -1, 0, -3, 0, shade(L.cloth, 0.8)); return g; }
   function buildThigh(L) { const g = new Grid(); g.box(-1, -6, -1, 1, 0, 1, L.cloth); return g; }
   function buildShin(L) { const g = new Grid(); g.box(-1, -7, -1, 1, 0, 1, L.cloth); g.box(-1, -1, -2, 1, 0, -2, 0x2e2f33); g.box(-1, -7, -2, 1, -5, 1, 0x26241f); g.box(-1, -7, -3, 1, -7, -2, 0x26241f); return g; }
@@ -111,12 +152,19 @@
       }
       const A = att || {};
       if (t === 'PISTOL' || t === 'MP') {
+        if (wid === 'stinger') { g.box(0, 0, -4, 0, 1, 0, 0xd8c020); g.box(0, -3, -1, 0, -1, 0, 0x2a2a2a); g.set(0, 0, -5, glow(0x9ad8ff)); return mesh(g, S); }
         g.box(0, 0, -5, 0, 1, 0, dark); g.box(0, -3, -1, 0, -1, 0, poly);
         if (A.barrel === 'sup') g.box(0, 0, -8, 0, 1, -6, 0x15171a);
         if (A.under === 'laser') g.set(0, -1, -4, glow(0xff3030));
         return mesh(g, S);
       }
-      const len = t === 'DMR' ? 14 : t === 'SMG' ? 9 : t === 'LMG' ? 13 : t === 'SG' ? 12 : 11;
+      if (t === 'XBOW') {
+        // a crossbow: stock and rail, limbs across the front, a bolt on the rail
+        g.box(0, 0, -9, 0, 1, 4, dark); g.box(0, -2, -1, 0, -1, 0, poly); g.box(-5, 1, -9, 5, 1, -8, poly); g.box(-5, 0, -8, -5, 0, -7, poly); g.box(5, 0, -8, 5, 0, -7, poly);
+        g.box(0, 2, -10, 0, 2, -2, 0xd8d0b0); if (A.optic) g.box(0, 2, -3, 0, 3, -1, 0x15171a);
+        return mesh(g, S);
+      }
+      const len = t === 'SR' ? 17 : t === 'DMR' ? 14 : t === 'SMG' ? 9 : t === 'LMG' ? 13 : t === 'SG' ? 12 : 11;
       g.box(0, 0, -len, 0, 1, 4, dark); g.box(0, -2, -2, 0, -1, -1, poly);
       g.box(0, -1, 2, 0, 0, 5, poly);
       if (t === 'LMG') g.box(-1, -3, -4, 1, -1, -1, 0x3a3c32); else if (t !== 'SG') g.box(0, A.mag === 'xmag' ? -4 : -3, -5, 0, -1, -4, dark);
@@ -132,6 +180,14 @@
       else if (A.under === 'agrip') g.box(0, -1, -len + 3, 0, -1, -len + 4, poly);
       else if (A.under === 'laser') g.set(0, -1, -len + 2, glow(0xff3030));
       if (F) g.set(0, 1, -len + 2, F.glowMid ? glow(F.mid) : F.mid);
+      // seasons 10-14: the details that make each new gun read at a distance
+      if (wid === 'spindle') { g.box(-1, -1, -len, 1, 1, -4, dark); g.box(-1, 2, -3, 1, 3, 0, 0x3a3c32); }
+      else if (wid === 'volta') for (let z = -len + 2; z <= -3; z += 3) g.box(0, -1, z, 0, 2, z, glow(0x5ad8ff));
+      else if (wid === 'twinfire') g.set(0, 2, 1, glow(0xffa040));
+      else if (wid === 'lattice') g.box(0, -3, -6, 0, -1, -3, dark);
+      else if (wid === 'bramble') g.box(0, -1, -len + 1, 0, -1, -len + 3, 0xd84a20);
+      else if (wid === 'tally') g.box(0, -3, -4, 0, -2, -2, 0xff8a20);
+      else if (wid === 'longbow') g.box(0, 2, -9, 0, 3, -2, 0x16171a);
       return mesh(g, S);
     });
   }
@@ -214,6 +270,22 @@
       g.box(-2, -6, -2, 2, -2, 6, glove);
       return { geo: mesh(g, VS1, 0.03), sightY: 0, muzzleZ: 0, len: 0, shield: true };
     }
+    if (wid === 'stinger') {
+      // a taser pistol: a stubby yellow body with two dart bays
+      g.box(-3, -1, -14, 3, 5, 4, 0xd8c020); g.box(-2, -10, 0, 2, -1, 5, 0x2a2a2a); g.box(-3, 0, -15, -1, 2, -15, glow(0x9ad8ff)); g.box(1, 0, -15, 3, 2, -15, glow(0x9ad8ff));
+      g.box(-1, 6, -12, 1, 6, 2, 0x2a2a2a);
+      if (!bare) { g.box(-2, -12, 1, 2, -3, 5, glove); g.box(-3, -16, 1, 3, -10, 6, glove); } else g.box(-2, -12, 1, 2, -3, 5, 0x2a2a2a);
+      return { geo: mesh(g, VS1, 0.04), sightY: 6.5 * VS1, muzzleZ: -15 * VS1, sight: 'iron', iron: true };
+    }
+    if (t === 'XBOW') {
+      // a crossbow: a long rail, limbs and string across the front, a bolt laid on it
+      g.box(-2, -2, -40, 2, 2, 22, dark); g.box(-2, -10, 2, 2, -3, 6, poly); g.box(-2, -1, 10, 2, 3, 24, poly);
+      g.box(-22, 1, -38, 22, 3, -35, poly); g.box(-24, 0, -34, -22, 2, -30, poly); g.box(22, 0, -34, 24, 2, -30, poly);
+      g.box(-22, 2, -31, 22, 2, -31, 0xd8d0b0); g.box(-1, 3, -42, 1, 4, -6, 0xc8c0a0); g.box(-2, 3, -44, 2, 5, -42, 0x9aa0a6);
+      if (sight === 'red' || sight === 'holo' || sight === 'reflex') { g.box(-3, 5, -8, 3, 11, -3, dark); g.cut(-2, 6, -8, 2, 10, -3); sightY = 8; } else sightY = 5;
+      if (!bare) { g.box(-3, -10, 1, 3, -4, 6, glove); g.box(-4, -5, -26, 4, -1, -20, glove); }
+      return { geo: mesh(g, VS1, 0.04), sightY: sightY * VS1, muzzleZ: -44 * VS1, sight };
+    }
     if (t === 'PISTOL' || t === 'MP') {
       const big = wid === 'maul';
       g.box(-2, 0, -18, 2, 4, 4, dark); g.box(-2, -10, 0, 2, -1, 5, poly); g.box(-1, -1, -2, 1, -1, 0, mid);
@@ -234,7 +306,7 @@
       if (!bare) { g.box(-2, -12, 1, 2, -3, 5, glove); g.box(-3, -16, 1, 3, -10, 6, glove); }
       return { geo: mesh(g, VS1, 0.04), sightY: sightY * VS1, muzzleZ: muzzleZ * VS1, sight, iron: true };
     }
-    const L = t === 'DMR' ? 64 : t === 'SMG' ? 36 : t === 'LMG' ? 56 : t === 'SG' ? 54 : 48;
+    const L = t === 'SR' ? 74 : t === 'DMR' ? 64 : t === 'SMG' ? 36 : t === 'LMG' ? 56 : t === 'SG' ? 54 : 48;
     // receiver
     g.box(-3, -2, -18, 3, 4, 10, dark);
     g.box(-3, -4, -L + 16, 3, 2, -18, poly);           // handguard
@@ -256,6 +328,14 @@
     else if (sight === 'reflex') { g.box(-3, 6, -4, 3, 6, 0, dark); g.box(-3, 7, -4, 3, 11, -4, dark); g.cut(-2, 7, -4, 2, 10, -4); g.box(-2, 7, -3, 2, 7, -3, glow(0x7affa0)); sightY = 9; }
     else { g.box(-1, 6, -L + 18, 1, 8, -L + 18, dark); g.set(0, 9, -L + 18, dark); g.box(-2, 6, 6, 2, 8, 6, dark); g.cut(0, 7, 6, 0, 8, 6); sightY = 8.5; }
     g.set(3, 0, -10, glow(acc));
+    // seasons 10-14: what sets each new gun apart in your hands
+    if (wid === 'spindle') { for (const [x, y] of [[-3, -3], [3, -3], [0, 3], [-3, 2], [3, 2]]) g.box(x - 1, y - 1, -L, x + 1, y + 1, -18, dark); g.box(-5, 6, -14, 5, 8, -2, 0x3a3c32); }
+    else if (wid === 'volta') { for (let z = -L + 18; z <= -20; z += 5) g.box(-4, -4, z, 4, 3, z + 1, glow(0x5ad8ff)); g.box(-3, -12, -12, 3, -3, -6, 0x26344e); }
+    else if (wid === 'twinfire') { g.box(3, 1, -2, 4, 2, 2, glow(0xffa040)); g.box(-4, 1, -2, -3, 2, 2, mid); }
+    else if (wid === 'lattice') { g.box(-2, -14, -16, 2, -3, -12, poly); g.box(-1, -15, -14, 1, -15, -10, mid); }
+    else if (wid === 'bramble') { g.box(-3, -7, -L + 4, 3, -5, -L + 12, 0xd84a20); g.box(-1, -4, 8, 1, -3, 12, 0xd84a20); }
+    else if (wid === 'tally') { g.box(-2, -12, -6, 2, -3, -2, 0xff8a20); g.box(-3, 6, 2, 3, 7, 4, 0xff8a20); }
+    else if (wid === 'longbow') { g.box(3, 2, 4, 6, 3, 6, mid); g.box(5, 3, 4, 6, 5, 5, mid); }
     // underbarrel: a grip, or a laser on the handguard's side
     if (A.under === 'vgrip') g.box(-2, -12, -L + 20, 2, -5, -L + 23, poly);
     else if (A.under === 'agrip') { g.box(-2, -7, -L + 18, 2, -5, -L + 24, poly); g.box(-2, -9, -L + 23, 2, -7, -L + 25, poly); }
@@ -318,6 +398,13 @@
     alarm: g => { g.box(-3, 0, -3, 3, 2, 3, 0x3a3f45); g.box(-2, 3, -2, 2, 3, 2, 0x22262b); g.set(0, 4, 0, glow(0xffcc30)); g.set(-2, 1, -4, glow(0xff5030)); },
     fog: g => { g.box(-2, 0, -2, 2, 7, 2, 0x6a7078); g.box(-2, 8, -2, 2, 8, 2, 0xd0d0d0); g.box(-1, 9, -1, 1, 9, 1, 0x555555); g.set(0, 4, -3, glow(0x9ad8ff)); },
     spentshell: g => { g.box(0, 0, 0, 0, 0, 1, 0xd8b050); },
+    // ---- seasons 10-14: the new kit (gadgets, and the devices the new operators set down)
+    flankcam: g => { g.box(-3, -3, 0, 3, 3, 2, 0x2a2c30); g.box(-2, -2, -1, 2, 2, -1, 0x101114); g.set(0, 0, -2, glow(0x5ad8ff)); g.box(-1, 4, 1, 1, 6, 1, 0x555555); },
+    extinguisher: g => { g.box(-2, 0, -2, 2, 9, 2, 0xc8302a); g.box(-1, 10, -1, 1, 11, 1, 0x2a2a2a); g.box(-1, 11, -4, 1, 11, -2, 0x2a2a2a); g.box(-2, 6, -2, 2, 6, 2, 0xd8d8d8); },
+    caltrops: g => { for (let x = -20; x <= 20; x += 5) for (let z = -20; z <= 20; z += 5) { const o = ((x * 7 + z * 13) & 3) - 1; g.box(x + o, 0, z, x + o, 2, z, 0x8a8f94); g.set(x + o + 1, 0, z, 0x6a6e74); } },
+    degauss: g => { g.box(-9, -11, 0, 9, 11, 3, 0x3a3026); for (const y of [-8, -3, 2, 7]) g.box(-8, y, -1, 8, y + 1, -1, 0xb87333); g.box(-2, -2, -2, 2, 2, -2, glow(0xff7a3a)); },
+    slickcan: g => { g.box(-2, -3, -2, 2, 3, 2, 0x2a4a5a); g.box(-2, 0, -2, 2, 0, 2, glow(0x5ad0ff)); g.box(-1, 4, -1, 1, 4, 1, 0x888888); },
+    sprinkler: g => { g.box(-1, 0, -1, 1, 3, 1, 0x8a8f94); g.box(-4, -1, -4, 4, -1, 4, 0x6a6e74); g.box(-2, -2, -2, 2, -2, 2, 0xc8302a); g.set(0, 2, -2, glow(0x5ab0ff)); },
   };
   function gadget(id) {
     const geo = cached('gd:' + id, () => { const g = new Grid(); (GADGET_BUILD[id] || GADGET_BUILD.c4)(g); return mesh(g, S2); });

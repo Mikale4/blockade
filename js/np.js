@@ -27,7 +27,7 @@
 
   /* ---------------------------------------------- replicate sounds & effects */
   const SFX_EV = ['explosion', 'crumble', 'glass', 'impact', 'wood', 'metal', 'zap', 'sonar', 'beep', 'whoosh', 'throwS', 'melee', 'step', 'plant'];
-  const FX_EV = ['explosion', 'flash', 'smoke', 'puff'];
+  const FX_EV = ['explosion', 'flash', 'smoke', 'puff', 'clearSmoke'];
   const oS = {}, oF = {};
   const ser = a => a instanceof THREE.Vector3 ? { v: pv(a) } : typeof a === 'number' ? r2(a) : (typeof a === 'boolean' || typeof a === 'string' || a == null) ? a : null;
   const des = a => a && a.v ? V(a.v[0], a.v[1], a.v[2]) : a;
@@ -221,10 +221,16 @@
   function remoteShot(a, d) {
     if (a.state !== 'alive') return;
     a.spawnProt = 0;
-    // the gun as that player carries it (with its attachments: range, suppressor)
-    const def = ((a.w || []).find(w => w.id === d.w) || {}).def || WEAPONS[d.w]; if (!def || !Array.isArray(d.o) || !Array.isArray(d.d)) return;
+    // the gun as that player carries it (with its attachments: range, suppressor), in the mode it fired in
+    const ws = (a.w || []).find(w => w.id === d.w);
+    let def = (ws && ws.def) || WEAPONS[d.w]; if (!def || !Array.isArray(d.o) || !Array.isArray(d.d)) return;
+    if (ws && ws.modeDefs && ws.modeDefs[d.m | 0]) def = ws.modeDefs[d.m | 0];
     const o = V(d.o[0], d.o[1], d.o[2]), ends = [];
-    for (const dd of d.d.slice(0, 12)) { const dir = V(dd[0], dd[1], dd[2]).normalize(); ends.push(pv(WPN.trace(a, o, dir, def, def.pellets > 1 ? 40 : 140, 1))); }
+    // a crossbow bolt flies here, on the host, and everyone sees it as an entity
+    if (def.proj) { const dd = d.d[0]; if (Array.isArray(dd)) WPN.bolt(a, o, V(dd[0], dd[1], dd[2]).normalize(), def); a.lastShot = G.time; a.cloakT = 0; GAME.noise(o, 10, a, 'shot'); return; }
+    const range = def.taser ? def.taser.range : def.pellets > 1 ? 40 : 140;
+    for (const dd of d.d.slice(0, 12)) { const dir = V(dd[0], dd[1], dd[2]).normalize(); ends.push(pv(WPN.trace(a, o, dir, def, range, 1))); }
+    if (window.OPS2) OPS2.shotEffects(a, def, o, ends.map(e => V(e[0], e[1], e[2])));
     a.lastShot = G.time; MUSIC.lastShot = G.time;
     a.cloakT = 0;
     GAME.noise(o, def.silent ? 10 : 45, a, 'shot');
@@ -269,7 +275,9 @@
       r2(a.stun), r2(a.blind), r2(a.blindK), r2(a.rooted), r2(a.slow), r2(a.bleed), mk, a.interact ? r2(a.interact.t / a.interact.it.time) : -1, a.interact ? a.interact.it.label : '', a.followTarget ? a.followTarget.id : 0];
     if (a.net || a.isPlayer) rec.push([a.gadget ? a.gadget.count : 0, a.ability ? a.ability.count : 0, a.ability ? r2(a.ability.cd) : 0, a.ability ? a.ability.zaps : 0, a.drones, a.placed.filter(e => e.alive && e.detonate && a.gadget && e.type === a.gadget.id).length,
       // seasons 4-9: what the player's own game needs to feel (speed, misfires)
-      a.misfire > G.time ? 1 : 0, r2(a.odT), r2(a.exhT), r2(a.ramT), a.anchor && a.anchor.alive ? 1 : 0]);
+      a.misfire > G.time ? 1 : 0, r2(a.odT), r2(a.exhT), r2(a.ramT), a.anchor && a.anchor.alive ? 1 : 0,
+      // seasons 10-14: suppressed (s left), Grit's suppressive fire running (s left)
+      r2(Math.max(0, (a.supT || 0) - G.time)), r2(Math.max(0, (a.supFire || 0) - G.time))]);
     return rec;
   }
   function entRec(e) {
@@ -284,6 +292,7 @@
     if (e.type === 'fire') x.r = e.r;
     if (e.solid) { const b = e.solid; x.bx = [b.x0, b.y0, b.z0, b.x1, b.y1, b.z1].map(r2); }
     if (m && (m.scale.x !== 1 || m.scale.y !== 1)) x.sc = [r2(m.scale.x), r2(m.scale.y), r2(m.scale.z)];
+    if (window.OPS2) OPS2.entRec(e, x);
     return [e.nid, e.type, e.team, r2(e.pos.x), r2(e.pos.y), r2(e.pos.z), m ? r2(m.rotation.x) : 0, m ? r2(m.rotation.y) : 0, m ? r2(m.rotation.z) : 0, e.model || e.type, x];
   }
   function snapshot() {
@@ -323,7 +332,7 @@
       this.nid = r[0]; this.type = r[1]; this.team = r[2]; this.alive = true; this.hp = 1; this.mirror = true;
       this.pos = V(r[3], r[4], r[5]); this.tpos = this.pos.clone(); this.normal = V(0, 1, 0);
       this.look = { yaw: 0, pitch: 0 }; this.used = new Set(); this.uses = 4; this.yaw = 0; this.pitch = 0;
-      this.elec = ['cam', 'bpcam', 'dampener', 'scrambler', 'sensor', 'seeker', 'snare', 'photon', 'claymore', 'beacon', 'drone', 'decoy', 'c4', 'rcharge', 'breach', 'floodlight', 'turret', 'jamfield', 'triang', 'nullfield', 'anchor', 'alarm', 'fog'].includes(this.type);
+      this.elec = GAD.ELEC.has(this.type);
       if (this.type === 'drone') this.mesh = MD.drone(r[10] && r[10].sg ? 0xb07cff : 0x5ad8ff);
       else if (this.type === 'mannequin') { const x = r[10] || {}; this.mesh = GAD.mannequinMesh(x.op, x.w, SHOP.clean(x.cs)); }
       else if (this.type !== 'fire' && this.type !== 'irritant') this.mesh = GAD.mesh(r[9]);
@@ -342,6 +351,7 @@
       if (x.r) this.r = x.r;
       if (x.bx) { const b = x.bx; this.solid = this.hitBox = { x0: b[0], y0: b[1], z0: b[2], x1: b[3], y1: b[4], z1: b[5] }; }
       if (x.sc && this.mesh) this.mesh.scale.set(x.sc[0], x.sc[1], x.sc[2]);
+      if (window.OPS2) OPS2.mirrorSet(this, x, first);
       if (first) this.pos.copy(this.tpos);
     }
     update(dt) {
@@ -349,12 +359,13 @@
       if (this.mesh) this.mesh.position.copy(this.pos);
       if (this.type === 'fire') FX.flames(this.pos, this.r || 2.5, 3);
       if (this.type === 'irritant') GAD.hazeFx(this.pos, 3.5, dt);
+      if (window.OPS2) OPS2.mirrorFx(this, dt);
     }
     eye() { return this.pos.clone().add(V(0, 0.12, 0)); }
     fwd() { const cp = Math.cos(this.pitch); return V(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp); }
     zap() { Online.toHost({ t: 'np.act', k: 'zap' }); return true; }
     shot() { }
-    destroy() { if (!this.alive) return; this.alive = false; if (this.mesh) G.scene.remove(this.mesh); if (this.line) G.scene.remove(this.line); if (PLAYER.drone === this) PLAYER.leaveDrone(true); }
+    destroy() { if (!this.alive) return; this.alive = false; if (this.mesh) G.scene.remove(this.mesh); if (this.line) G.scene.remove(this.line); if (this.extra) for (const o of this.extra) G.scene.remove(o); if (PLAYER.drone === this) PLAYER.leaveDrone(true); }
   }
   NP.guestGot = d => {
     if (!NP.active || NP.host) return;
@@ -474,7 +485,8 @@
     if (me) a.interact = r[23] >= 0 ? { it: { label: r[24], time: 1, kind: 'net', ok: () => true, run: () => { } }, t: r[23], from: a.pos.clone() } : null;
     a.followTarget = r[25] ? NP.byId.get(r[25]) || null : null;
     if (me && r[26]) { const c = r[26]; if (a.gadget) a.gadget.count = c[0]; if (a.ability) { a.ability.count = c[1]; a.ability.cd = c[2]; a.ability.zaps = c[3]; } a.drones = c[4]; a.netPlaced = c[5];
-      a.misfire = c[6] ? G.time + 0.3 : 0; a.odT = c[7] || 0; a.exhT = c[8] || 0; a.ramT = c[9] || 0; a.netAnchor = !!c[10]; }
+      a.misfire = c[6] ? G.time + 0.3 : 0; a.odT = c[7] || 0; a.exhT = c[8] || 0; a.ramT = c[9] || 0; a.netAnchor = !!c[10];
+      a.supT = c[11] ? G.time + c[11] : 0; a.supFire = c[12] ? G.time + c[12] : 0; }
     a.cloakT = (r[15] & 16) ? 1 : 0;
   }
   function playEv(e) {
@@ -557,7 +569,7 @@
   };
   /* a request to the host, carrying where I am and where I'm looking */
   NP.act = (k, extra) => { const a = G.player; if (!a || a.ghost) return; Online.toHost(Object.assign({ t: 'np.act', k, p: pv(a.pos), yw: r4(a.yaw), pt: r4(a.pitch) }, extra || {})); };
-  NP.shot = (o, dirs, w) => Online.toHost({ t: 'np.shot', o: pv(o), d: dirs.map(v => [r4(v.x), r4(v.y), r4(v.z)]), w });
+  NP.shot = (o, dirs, w, m) => Online.toHost({ t: 'np.shot', o: pv(o), d: dirs.map(v => [r4(v.x), r4(v.y), r4(v.z)]), w, m: m | 0 });
 
   function matchOver(d) {
     GAME.active = false; GAME.phase = 'end';

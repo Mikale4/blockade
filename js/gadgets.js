@@ -12,6 +12,7 @@
   const NAMES = { alarm: 'Proximity alarm', fog: 'Fog canister', emp: 'EMP grenade',  turret: 'Watchdog turret', jamfield: 'Misfire coil', triang: 'Triangulator', nullfield: 'Null field', anchor: 'Recall anchor', mannequin: 'Body double', cam: 'Camera', bpcam: 'Armored camera',
     snare: 'Snare line', sensor: 'Proximity sensor', scrambler: 'Scrambler', dampener: 'Dampener', seeker: 'Hunter seeker', floodlight: 'Floodlight', c4: 'Detonator pack', rcharge: 'Rotation charge', decoy: 'Decoy emitter', claymore: 'Claymore', beacon: 'Field beacon' };
   GAD.nameOf = e => NAMES[e.type] || e.type;
+  GAD.ELEC = ELEC; GAD.NAMES = NAMES;
   /* meshes for gadgets that models.js has no builder for (the season 2 and 3 kit); online
      guests build theirs the same way, through GAD.mesh */
   const EXTRA = {
@@ -56,7 +57,11 @@
     },
   };
   const extraGeo = new Map();
+  GAD.EXTRA = EXTRA;
+  /* MESH_FN: gadgets whose mesh isn't voxels (a pool of slick, a hologram): a function that makes one */
+  GAD.MESH_FN = {};
   GAD.mesh = function (model) {
+    if (GAD.MESH_FN[model]) return GAD.MESH_FN[model]();
     if (!EXTRA[model]) return MD.gadget(model);
     if (!extraGeo.has(model)) { const g = new MD.Grid(); EXTRA[model](g); extraGeo.set(model, MD.mesh(g, 1 / 32)); }
     return new THREE.Mesh(extraGeo.get(model), new THREE.MeshBasicMaterial({ vertexColors: true }));
@@ -215,7 +220,7 @@
     const spend = () => { g.count--; a.busy = 0.45; return true; };
     switch (g.id) {
       case 'frag': new Proj('frag', a, GAD.throwStart(a), GAD.throwVel(a, 15), { fuse: 2.4, onFuse: s => { s.destroy('used'); GAD.explode(s.pos, 4.6, 165, a, { voxR: 0.7 }); } }); return spend();
-      case 'smoke': new Proj('smoke', a, GAD.throwStart(a), GAD.throwVel(a, 13), { fuse: 1.6, onFuse: s => { FX.smoke(s.pos, 3.8, 13); SFX.whoosh(s.pos); s.destroy('used'); } }); return spend();
+      case 'smoke': new Proj('smoke', a, GAD.throwStart(a), GAD.throwVel(a, 13), { fuse: 1.6, onFuse: s => { GAD.smokeOf(a, s.pos, 3.8, 13); SFX.whoosh(s.pos); s.destroy('used'); } }); return spend();
       case 'stun': new Proj('stun', a, GAD.throwStart(a), GAD.throwVel(a, 15), { fuse: 1.4, onFuse: s => { FX.flash(s.pos, 6, 0.25); SFX.explosion(s.pos, false); GAD.flash(s.pos, 8, a.team, false); for (const b of G.actors) if (b.alive && U.dist3(b.pos, s.pos) < 4) b.stun = Math.max(b.stun, 2); GAME.noise(s.pos, 40, a, 'explosion'); s.destroy('used'); } }); return spend();
       case 'impact': new Proj('impact', a, GAD.throwStart(a), GAD.throwVel(a, 16, 1.5), { impact: true, onFuse: s => { s.destroy('used'); GAD.explode(s.pos, 2.4, 60, a, { voxR: 1.1 }); } }); return spend();
       case 'c4': { const p = new Proj('c4', a, GAD.throwStart(a), GAD.throwVel(a, 11), { sticky: true, hp: 1, intercept: false });
@@ -244,8 +249,11 @@
       case 'wire': { const p = GAD.floorAhead(a, 1.2); if (!p) return false; new Wire(a, p, a.yaw); return spend(); }
       case 'dshield': { const p = GAD.floorAhead(a, 1.0); if (!p) return false; new DShield(a, p, a.yaw); return spend(); }
     }
+    if (window.OPS2 && OPS2.GADG[g.id]) return OPS2.GADG[g.id](a, g, spend);
     return false;
   };
+  /* a vision-blocking cloud that remembers whose it is */
+  GAD.smokeOf = function (a, p, r, dur) { const c = FX.smoke(p, r, dur); if (c) c.team = a ? a.team : -1; return c; };
 
   /* a fog canister: thrown, it sticks; set off by its owner it floods the spot with fog */
   function fogCan(a, pos, vel, stuck) {
@@ -254,7 +262,7 @@
     p.detonate = () => {
       if (!p.alive) return;
       if (p.empT > G.time) { SFX.beep(p.pos, 400); GAD.tell(a, 'Canister is dead: EMP'); return; }
-      p.destroy('used'); FX.smoke(p.pos.clone().add(V().set(0, 0.4, 0)), 4.2, 13); SFX.whoosh(p.pos);
+      p.destroy('used'); GAD.smokeOf(a, p.pos.clone().add(V().set(0, 0.4, 0)), 4.2, 13); SFX.whoosh(p.pos);
     };
     a.placed.push(p);
     return p;
@@ -410,7 +418,7 @@
       case 'beacon': { if (!need()) return false; const p = GAD.floorAhead(a, 1.0); if (!p) return false; new Beacon(a, p); return spend(); }
       case 'spotter': { a.zoom4 = !a.zoom4; GAD.tell(a, a.zoom4 ? 'Scope 4.0x' : 'Scope 2.5x'); return true; }
       case 'scanner': { ab.on = !ab.on; a.busy = 0.2; SFX.ui(ab.on ? 1200 : 700); return true; }
-      case 'smokegl': { if (!need()) return false; new Proj('smokegl', a, GAD.throwStart(a), a.fwd(V()).multiplyScalar(26).add(V().set(0, 1.5, 0)), { impact: true, onFuse: s => { s.destroy('used'); FX.smoke(s.pos.clone().addScaledVector(s.normal, 0.3), 4.2, 16); SFX.whoosh(s.pos); } }); SFX.whoosh(a.pos); return spend(); }
+      case 'smokegl': { if (!need()) return false; new Proj('smokegl', a, GAD.throwStart(a), a.fwd(V()).multiplyScalar(26).add(V().set(0, 1.5, 0)), { impact: true, onFuse: s => { s.destroy('used'); GAD.smokeOf(a, s.pos.clone().addScaledVector(s.normal, 0.3), 4.2, 16); SFX.whoosh(s.pos); } }); SFX.whoosh(a.pos); return spend(); }
       // ---- season 2 / 3 attackers
       case 'foam': {
         if (!need()) return false;
@@ -540,6 +548,7 @@
       case 'mannequin': { if (!need()) return false; const p = GAD.floorAhead(a, 1.0); if (!p) return false; new Mannequin(a, p, a.yaw); return spend(); }
       case 'nullfield': { if (!need()) return false; const p = GAD.floorAhead(a, 0.9); if (!p) return false; new NullField(a, p, a.yaw); return spend(); }
     }
+    if (window.OPS2 && OPS2.ABIL[id]) return OPS2.ABIL[id](a, ab, need, spend);
     return false;
   };
 
@@ -797,10 +806,10 @@
     }
   }
   class Fire extends Ent {
-    constructor(a, p) { super('fire', a, p, { model: false, hp: 999, hitR: 0, melee: false }); this.r = 2.5; this.life = 10; this.loop = SFX.loop('fire', p); this.tick = 0; this.blastproof = true; }
+    constructor(a, p, r, life) { super('fire', a, p, { model: false, hp: 999, hitR: 0, melee: false }); this.r = r || 2.5; this.life = life || 10; this.loop = SFX.loop('fire', p); this.tick = 0; this.blastproof = true; }
     update(dt) {
       this.t += dt; if (this.t > this.life) { this.destroy('used'); return; }
-      FX.flames(this.pos, this.r, 3);
+      FX.flames(this.pos, this.r, this.r > 1.5 ? 3 : 1);
       this.tick -= dt; if (this.tick > 0) return; this.tick = 0.25;
       for (const b of G.actors) {
         if (b.state === 'dead') continue;
@@ -1127,11 +1136,13 @@
       case 'alarm': return new Alarm(a, p, n);
       case 'fog': return fogCan(a, p, V(), true);
     }
+    if (window.OPS2 && OPS2.DEPLOY[id]) return OPS2.DEPLOY[id](a, p, n, yaw || 0);
     return null;
   };
   GAD.snareAt = (a, op) => { op.c = op.c || GAD.opCenter(op); return new Snare(a, op); };
   GAD.opCenter = op => { const cy = (op.y0 + op.y1 + 1) / 2 * 0.25, ca = (op.a0 + op.a1 + 1) / 2 * 0.25, cl = (op.line + 0.5) * 0.25; return op.axis === 'z' ? V().set(ca, cy, cl) : V().set(cl, cy, ca); };
   GAD.TRAPS = TRAPS;
+  GAD.Fire = Fire; GAD.Irritant = Irritant;
   GAD.update = function (dt) {
     for (const e of G.ents) {
       if (!e.alive) continue;

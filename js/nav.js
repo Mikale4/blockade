@@ -183,6 +183,8 @@
     const g = new Map(), came = new Map(), open = new Heap(), closed = new Set();
     g.set(s, 0); open.push(h(s), s);
     const avoid = opts.avoid;
+    // ground nobody wants to cross if they can help it (Skid's slick): js/ops2.js
+    const extra = window.OPS2 ? OPS2.navCost() : null;
     // solid gadgets (deployable cover, planted shields) aren't voxels: steer around them
     const solids = G.ents.filter(e => e.alive && e.solid).map(e => e.solid);
     const P = new THREE.Vector3();
@@ -208,6 +210,7 @@
         let c = NB[i + 1];
         if (flagOf(n)) c += opts.barrCost == null ? 5 : opts.barrCost;
         if (avoid) c += avoid(n) || 0;
+        if (extra) c += extra(NAV.nodePos(n, P));
         const ng = gc + c;
         if (ng < (g.has(n) ? g.get(n) : 1e9)) { g.set(n, ng); came.set(n, cur); open.push(ng + h(n), n); }
       }

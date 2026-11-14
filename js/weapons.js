@@ -8,7 +8,10 @@
   const tmpO = new THREE.Vector3(), tmpD = new THREE.Vector3(), tmpP = new THREE.Vector3();
 
   /* a shield carrier can aim too: the shield swings aside and the sidearm comes up past its edge */
-  WPN.canAds = a => a.state === 'alive' && !a.vault && !(a.sprint && a.moving > 3.4 && a.mf > 0.3 && !a.shieldBrace()) && a.busy <= 0;
+  // (a bolt-action rifle can't be aimed while the bolt is being worked)
+  WPN.canAds = a => a.state === 'alive' && !a.vault && !(a.sprint && a.moving > 3.4 && a.mf > 0.3 && !a.shieldBrace()) && a.busy <= 0 && !(a.wpn && a.wpn.boltT > 0) && !a.ride;
+  /* seconds between shots: a rotary gun's rate climbs with its spin */
+  WPN.coolOf = (w, d) => 60 / (d.rpm * (d.spin ? 0.35 + 0.65 * w.spin : 1));
 
   WPN.update = function (a, dt) {
     const w = a.wpn; if (!w) return;
@@ -16,7 +19,16 @@
     w.cool -= dt; a.swap = Math.max(0, a.swap - dt);
     w.bloom = Math.max(0, w.bloom - dt * (a.trigger ? 1.5 : 6));
     if (a.sprint && a.mf > 0.3 && a.moving > 3.4 && !a.shieldBrace()) a.sprintT = 0.18; else a.sprintT = Math.max(0, a.sprintT - dt);
-    const adsT = (w.def.adsT || 0.25) * (a.odT > 0 ? 0.45 : a.exhT > 0 ? 1.4 : 1);
+    // ---- seasons 10-14: heat bleeds off once you stop firing; a full gun vents (no firing) and
+    // comes back cold; a rotary gun spins while the trigger or aim is held; the bolt is worked
+    const d0 = w.def;
+    if (d0.heat) {
+      if (w.vent > 0) { w.vent -= dt; if (w.vent <= 0) { w.vent = 0; w.heat = 0; } }
+      else if (G.time - a.lastShot > 0.35) w.heat = Math.max(0, w.heat - d0.heat.cool * dt);
+    }
+    if (d0.spin) w.spin = U.clamp(w.spin + ((a.trigger || a.ads > 0.5) && a.state === 'alive' ? dt / d0.spin : -dt * 1.5), 0, 1);
+    if (w.boltT > 0) { w.boltT -= dt; if (w.boltT <= 0 && a === PLAYER.viewActor()) SFX.reload(a.pos, true, 1); }
+    const adsT = (w.def.adsT || 0.25) * (a.odT > 0 ? 0.45 : a.exhT > 0 ? 1.4 : 1) * (a.supT > G.time ? 2 : 1);
     const want = a.adsWant && WPN.canAds(a);
     a.ads = U.clamp(a.ads + (want ? dt : -dt) / adsT, 0, 1);
     const jammed = a.misfire > G.time;
@@ -39,7 +51,9 @@
     const bursting = w.def.burst && w.burstLeft > 0;
     if ((a.trigger || bursting) && a.state === 'alive') {
       if (w.reload > 0 || a.swap > 0 || a.vault || a.busy > 0 || a.sprintT > 0 || w.cool > 0) return;
-      if (a.shBash > 0) return;   // mid shield bash
+      if (a.shBash > 0 || a.ride) return;   // mid shield bash, or riding a line
+      if (w.vent > 0) { if (!w.clicked) { if (a.isPlayer) SFX.empty(); w.clicked = true; } return; }   // venting heat
+      if (d0.heat && a.isBot && w.heat > 0.86) return;   // a bot lets a hot gun cool rather than overheat it
       if (w.mag <= 0) {
         w.burstLeft = 0;
         if (!w.clicked) { if (a.isPlayer) SFX.empty(); w.clicked = true; }
@@ -61,11 +75,20 @@
   };
 
   WPN.reload = function (a) {
-    const w = a.wpn; if (!w || w.reload > 0 || w.reserve <= 0 || a.state !== 'alive') return;
+    const w = a.wpn; if (!w || w.reload > 0 || a.state !== 'alive') return;
+    // a coil gun has no magazine: reloading vents it early, a short lock-out that leaves it cold
+    if (w.def.heat) {
+      if (w.vent > 0 || w.heat < 0.15) return;
+      w.vent = w.def.reload; SFX.whoosh(a.pos); GAME.noise(a.pos, 8, a, 'reload');
+      return;
+    }
+    if (w.reserve <= 0) return;
     const cap = w.def.mag + (w.def.shell ? 0 : 1);
     if (w.mag >= (w.def.shell ? w.def.mag : cap) || (!w.def.shell && w.mag >= w.def.mag)) return;
     if (w.def.shell) w.reload = w.def.shell + 0.25;
     else w.reload = w.mag > 0 ? w.def.reload : w.def.reloadE;
+    // a tandem magazine: every other reload just flips the clamped pair over
+    if (w.def.tandem && !w.def.shell) { w.flip = !w.flip; if (w.flip) w.reload = w.def.tandem; }
     w.reloadMax = w.reload; w.midSnd = false;
     SFX.reload(a.pos, a === PLAYER.viewActor(), 0);
     GAME.noise(a.pos, 6, a, 'reload');
@@ -97,6 +120,8 @@
     if (!a.onGround && !a.rappel) s += 2;
     if (a.stun > 0 && !(a.odT > 0)) s += 2.5;
     if (a.exhT > 0) s += 1.2;                                  // winded after an Overdrive
+    if (a.supT > G.time) s += 3;                               // pinned down by Grit's fire
+    if (a.slickT > G.time) s += 1.5;                           // no footing on Skid's slick
     if (d.bipod && a.stance >= 1) s *= 0.7;                    // a bipod settles a belt-fed gun
     // a sidearm fired one-handed from beside the shield is loose; aiming past its edge tightens it
     if (a.shieldOp && a.shieldUp) s += 1.4 * (1 - a.ads);
@@ -108,21 +133,36 @@
     const w = a.wpn, d = w.def;
     if (GAME.client && a === G.player) return clientFire(a);
     a.spawnProt = 0; a.cloakT = 0;
-    w.mag--; w.cool = 60 / d.rpm;
+    WPN.spend(a, w, d);
     const e = a.eye(tmpO.clone()), f = a.fwd();
     const s = WPN.spreadNow(a);
+    // a crossbow's bolt flies: it is a projectile, not a trace
+    if (d.proj) { WPN.bolt(a, e, spreadDir(f, s, new THREE.Vector3()), d); WPN.afterShot(a, d, e, null); return; }
     let endP = null;
     const ends = [];
     for (let i = 0; i < d.pellets; i++) {
       const dir = spreadDir(f, s, new THREE.Vector3());
-      const r = WPN.trace(a, e, dir, d, d.pellets > 1 ? 40 : 140, 1);
+      const r = WPN.trace(a, e, dir, d, d.taser ? d.taser.range : d.pellets > 1 ? 40 : 140, 1);
       if (i === 0 || Math.random() < 0.3) endP = r;
       if (i < 3) ends.push(r);
-      // a suppressed gun shows no tracer to the other team
+      // a suppressed gun shows no tracer to the other team (a taser's wires show to everyone)
       const mine = a.team === (G.player ? G.player.team : 0);
-      if (i < 3 && !(d.silent && !mine) && (a !== PLAYER.viewActor() || d.pellets > 1 || Math.random() < 0.5)) FX.tracer(muzzlePos(a), r, mine ? 0xffe8a0 : 0xffb070);
+      if (i < 3 && !(d.silent && !mine) && (a !== PLAYER.viewActor() || d.pellets > 1 || Math.random() < 0.5)) FX.tracer(muzzlePos(a), r, d.taser ? 0x9ad8ff : mine ? 0xffe8a0 : 0xffb070);
     }
     KC.shot(a, d.id, muzzlePos(a), ends);
+    WPN.afterShot(a, d, e, ends, endP);
+  };
+  /* what a shot costs the gun: a round (a coil gun takes heat instead), the time to the next, the bolt */
+  WPN.spend = function (a, w, d) {
+    if (d.heat) { w.heat += d.heat.per; if (w.heat >= 1) { w.heat = 1; w.vent = d.heat.vent; SFX.whoosh(a.pos); if (a.isPlayer) HUD.toast('OVERHEATED', 'warn'); } }
+    else w.mag--;
+    w.cool = WPN.coolOf(w, d);
+    if (d.bolt) w.boltT = d.bolt;
+  };
+  /* everything after a shot leaves the gun: bloom, sound, noise, flash, the replay to guests, and the
+     season 10-14 effects (Grit's suppression, a dragon's-breath shell lighting the floor) */
+  WPN.afterShot = function (a, d, e, ends, endP) {
+    const w = a.wpn;
     // bloom: a gun that kicks less (grips, a brake or a compensator) stays tighter over a burst
     if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55) * (d.recoilK || 1));
     a.lastShot = G.time; MUSIC.lastShot = G.time;
@@ -132,20 +172,30 @@
     if (!d.silent) GAD.heardShot(a, e);   // Triad's listening posts
     if (local) PLAYER.onFire(d);
     else if (!d.noFlash) NP.quiet(() => FX.flash(muzzlePos(a), d.bigFlash ? 0.6 : 0.4, 0.04));   // (a suppressor or flash hider: no flash)
-    if (NP.active && NP.host) NP.push({ k: 'shot', s: a.id, o: [e.x, e.y, e.z].map(v => Math.round(v * 100) / 100), e: [[endP.x, endP.y, endP.z].map(v => Math.round(v * 100) / 100)], w: d.id });
+    if (ends && window.OPS2) OPS2.shotEffects(a, d, e, ends);
+    if (endP && NP.active && NP.host) NP.push({ k: 'shot', s: a.id, o: [e.x, e.y, e.z].map(v => Math.round(v * 100) / 100), e: [[endP.x, endP.y, endP.z].map(v => Math.round(v * 100) / 100)], w: d.id });
   };
+  /* switch a moded gun (Twinfire) to mode i: a short clack, and the next shot waits for it */
+  WPN.setMode = function (a, i) {
+    const w = a.wpn; if (!w || !w.modeDefs || !w.modeDefs[i] || w.mode === i) return;
+    w.mode = i; w.def = w.modeDefs[i]; w.auto = !!w.def.auto; w.cool = Math.max(w.cool, 0.25); w.burstLeft = 0;
+    SFX.reload(a.pos, a === PLAYER.viewActor(), 0);
+  };
+  /* a crossbow bolt: a physical round with travel time and drop (OPS2 flies it) */
+  WPN.bolt = function (a, o, dir, d) { if (window.OPS2) OPS2.bolt(a, o, dir, d); };
   /* a guest's own shot: drawn here at once, traced and judged by the host */
   function clientFire(a) {
     const w = a.wpn, d = w.def;
-    w.mag--; w.cool = 60 / d.rpm;
+    WPN.spend(a, w, d);
     const e = a.eye(new THREE.Vector3()), f = a.fwd(), s = WPN.spreadNow(a), dirs = [], ends = [];
+    const range = d.taser ? d.taser.range : d.pellets > 1 ? 40 : 140;
     for (let i = 0; i < d.pellets; i++) {
       const dir = spreadDir(f, s, new THREE.Vector3()); dirs.push(dir);
-      if (i < 3) {
-        const h = G.world.raycast(e, dir, d.pellets > 1 ? 40 : 140, true);
-        const end = h ? new THREE.Vector3(h.px, h.py, h.pz) : e.clone().addScaledVector(dir, 140);
+      if (i < 3 && !d.proj) {
+        const h = G.world.raycast(e, dir, range, true);
+        const end = h ? new THREE.Vector3(h.px, h.py, h.pz) : e.clone().addScaledVector(dir, range);
         ends.push(end);
-        FX.tracer(muzzlePos(a), end, 0xffe8a0);
+        FX.tracer(muzzlePos(a), end, d.taser ? 0x9ad8ff : 0xffe8a0);
         if (h && i === 0 && h.m !== DATA.OOB) FX.dust(end, h.nx, h.ny, h.nz, h.m);
       }
     }
@@ -153,7 +203,8 @@
     a.lastShot = G.time; a.cloakT = 0;
     SFX.shot(d, e, true); PLAYER.onFire(d);
     KC.shot(a, d.id, muzzlePos(a), ends);
-    NP.shot(e, dirs, d.id);
+    // (the host needs to know which of a gun's modes fired, and whether the rate was spun up)
+    NP.shot(e, dirs, d.id, w.mode || 0);
   }
   function muzzlePos(a) {
     const e = a.eye(new THREE.Vector3()), f = a.fwd(tmpD), r = a.right(new THREE.Vector3());
@@ -250,10 +301,17 @@
       const a = h.a, dist = h.t;
       let dmg = d.dmg * falloff(d, dist) * mul;
       let head = false;
-      if (h.part === 'head') { if (d.pellets > 1) dmg *= d.headMul || 2; else { dmg = 500; } head = true; }
+      // (a taser dart is a dart wherever it lands: no headshot)
+      if (h.part === 'head' && !d.taser) { if (d.pellets > 1) dmg *= d.headMul || 2; else { dmg = 500; } head = true; }
       else if (h.part === 'limb') dmg *= 0.75;
       const wasAlive = a.state;
       a.hurt(Math.round(dmg), { src: shooter, head, kind: 'bullet', dir });
+      // seasons 10-14: what the round does besides damage
+      if (shooter && a.team !== shooter.team && a.state !== 'dead' && !a.hostage) {
+        if (d.taser) { a.stun = Math.max(a.stun, d.taser.stun); a.slow = Math.max(a.slow, 1.2); FX.sparks(p, -dir.x, -dir.y, -dir.z, 0x9ad8ff); SFX.zap(p); WPN.aimPunch(a, 0.6); }
+        if (d.markHit) GAME.mark(a, shooter.team, d.markHit, true);
+        if (d.burn) { a.burnT = Math.max(a.burnT || 0, G.time + d.burn); a.burnBy = shooter; }
+      }
       if (!a.hostage || true) FX.blood(p, dir);
       if (shooter && shooter.isPlayer && a.team !== shooter.team) HUD.hitmarker(head, a.state !== wasAlive);
       else if (shooter && shooter.net && a.team !== shooter.team) NP.push({ k: 'hit', to: shooter.net, h: head, x: a.state !== wasAlive });
@@ -269,13 +327,13 @@
       const md = MAT[m];
       const p = tmpP.set(o.x + dir.x * t, o.y + dir.y * t, o.z + dir.z * t);
       if (md.see) { W.breakVoxel(x, y, z); SFX.glass(p); mul *= 0.95; return false; }
-      if (md.hp < 255) {
+      if (md.hp < 255 && d.destr !== 0) {
         const broke = W.hitVoxel(x, y, z, d.destr || 1);
         if (broke && md.melee) SFX.wood(p, true);
       }
       // penMul (anti-materiel rounds, flechettes): a soft wall takes much less off the bullet
       const pen = d.penMul && md.pen > 0 ? Math.min(0.97, 1 - (1 - md.pen) / d.penMul) : md.pen;
-      if (md.pen > 0 && mul * pen > 0.18) {
+      if (md.pen > 0 && mul * pen > 0.18 && !d.proj) {   // (a crossbow bolt stops in the first wall)
         if (Math.random() < 0.5) FX.dust(p, nx, ny, nz, m);
         mul *= pen; return false;
       }

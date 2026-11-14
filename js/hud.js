@@ -129,6 +129,7 @@
     const a = G.player, e = H.el; if (!a) return;
     const isMatch = G.mode === 'match';
     e.top.style.display = isMatch ? '' : 'none';
+    if (window.OPS2) OPS2.hudFrame(a, dt);   // seasons 10-14: overlays (suppression, rings, ...)
     // ---- clock & teams
     if (isMatch) {
       const ph = GAME.phase;
@@ -214,18 +215,25 @@
     e.hpover.style.width = Math.min(100, a.over / a.maxHp * 100) + '%';
     e.hpnum.textContent = Math.ceil(a.hp + a.over);
     e.hp.classList.toggle('low', a.hp < 30);
-    e.status.textContent = a.state === 'dbno' ? 'DOWN · bleeding out ' + Math.ceil(a.bleed) + 's' :
+    const st2 = window.OPS2 ? OPS2.status(a) : '';
+    e.status.textContent = a.state === 'dbno' ? 'DOWN · bleeding out ' + Math.ceil(a.bleed) + 's' : st2 ? st2 :
       a.cloakT > 0 ? 'CLOAKED' + (GAME.client ? '' : ' ' + Math.ceil(a.cloakT) + 's') : a.odT > 0 ? 'OVERDRIVE ' + Math.ceil(a.odT) + 's' : a.exhT > 0 ? 'WINDED' : a.ramT > 0 ? 'BATTERING CHARGE ' + Math.ceil(a.ramT) + 's · sprint into a soft wall' :
       a.misfire > G.time ? 'MISFIRE COIL NEARBY · weapon jamming' : GAME.dark && GAME.dark(a.team) ? 'BLACKOUT' : a.nullT > G.time ? 'NULL FIELD · you cannot be marked' : a.rooted > 0 ? 'SNARED' : a.stun > 0 ? 'CONCUSSED' : a.slow > 0 ? 'IN WIRE' : a.over > 0 ? 'OVERHEALED' : a.carry === 'defuser' ? 'CARRYING DEFUSER' : a.walk && a.moving > 0.3 ? 'WALKING · quiet' : '';
     // ---- weapon & slots
     // (watching a teammate: it is their gun on screen, so their weapon and magazine are shown)
     const wa = PLAYER.view === 'spectate' && PLAYER.spec && PLAYER.spec.wpn ? PLAYER.spec : a, w = wa.wpn;
     if (w) {
-      e.wname.textContent = (wa.shieldOp && wa.shieldUp ? 'BULWARK + ' : '') + w.def.name + (w.def.auto ? (w.auto ? '  AUTO' : '  SINGLE') : '');
+      e.wname.textContent = (wa.shieldOp && wa.shieldUp ? 'BULWARK + ' : '') + w.def.name + (w.def.modeLabel ? '  ' + w.def.modeLabel : w.def.auto ? (w.auto ? '  AUTO' : '  SINGLE') : '') + (w.boltT > 0 ? '  · BOLT' : '') + (w.def.spin && w.spin > 0.05 ? '  · ' + Math.round(w.spin * 100) + '% SPIN' : '');
       // (a guest is not sent anyone else's magazine)
       const ammo = !GAME.client || wa === G.player;
-      e.mag.textContent = !ammo ? '' : w.reload > 0 ? '··' : w.mag; e.res.textContent = ammo ? '/' + w.reserve : '';
-      e.mag.classList.toggle('low', w.mag <= Math.ceil(w.def.mag * 0.25));
+      if (w.def.heat) {
+        // a coil gun: its heat, and VENT while it cools off
+        e.mag.textContent = !ammo ? '' : w.vent > 0 ? 'VENT' : Math.round(w.heat * 100) + '%'; e.res.textContent = ammo ? ' HEAT' : '';
+        e.mag.classList.toggle('low', w.vent > 0 || w.heat > 0.8);
+      } else {
+        e.mag.textContent = !ammo ? '' : w.reload > 0 ? (w.def.tandem && w.flip ? 'FLIP' : '··') : w.mag; e.res.textContent = ammo ? '/' + w.reserve : '';
+        e.mag.classList.toggle('low', w.mag <= Math.ceil(w.def.mag * 0.25));
+      }
     }
     H.slotT = (H.slotT || 0) - dt;
     if (H.slotT <= 0) {
@@ -234,7 +242,8 @@
       const slot = (key, name, val, dim) => e.slots.append($('div', { class: 'slot' + (dim ? ' dim' : '') }, $('kbd', {}, key), $('span', {}, name), $('b', {}, val)));
       if (a.gadget) { const g = GADGETS[a.gadget.id]; const det = a.placed.some(x => x.alive && x.type === a.gadget.id && x.detonate) || a.netPlaced > 0; slot(KEYS.name('gadget'), det ? (a.gadget.id === 'fog' ? 'RELEASE FOG' : 'DETONATE') : g.name, a.gadget.count, a.gadget.count <= 0 && !det); }
       if (a.ability) {
-        const ab = a.op.ability, cnt = ab.cd ? (a.ability.cd > 0 ? Math.ceil(a.ability.cd) + 's' : 'READY') : a.ability.id === 'surge' ? a.ability.zaps + ' zaps' : ab.count >= 99 ? '' : a.ability.count;
+        const ab = a.op.ability, c2 = window.OPS2 ? OPS2.hudCount(a) : null;
+        const cnt = c2 != null ? c2 : ab.cd ? (a.ability.cd > 0 ? Math.ceil(a.ability.cd) + 's' : 'READY') : a.ability.id === 'surge' ? a.ability.zaps + ' zaps' : ab.count >= 99 ? '' : a.ability.count;
         slot(KEYS.name('ability'), ab.name, cnt, ab.count < 99 && a.ability.count <= 0);
       }
       // Deathmatch / Team Deathmatch have no drones, cameras or reinforcements
