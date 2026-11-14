@@ -200,6 +200,9 @@
   function follow(a, dt, lookAhead) {
     const b = a.bot;
     if (!b.path || b.pi >= b.path.length) { a.mf = a.mr = 0; return true; }
+    // a step over a link (a ladder, a crawl hole, a zipline): js/ops2.js takes the body across
+    if (window.OPS2 && OPS2.followLink(a, b, dt)) return false;
+    if (!b.path || b.pi >= b.path.length) { a.mf = a.mr = 0; return true; }   // (that link was the last step)
     let n = b.path[b.pi];
     let dx = n.x - a.pos.x, dz = n.z - a.pos.z;
     while (Math.hypot(dx, dz) < 0.32 && b.pi < b.path.length - 1) { b.pi++; n = b.path[b.pi]; dx = n.x - a.pos.x; dz = n.z - a.pos.z; }
@@ -322,10 +325,12 @@
     if (!G.world.los(e, c)) {
       if (tp) return null;
       const cc = t.center(V()); if (!G.world.los(e, cc)) return null;
-      if (FX.smokeBlocks(e, cc)) return null;
+      if (FX.smokeBlocks(e, cc) || (window.OPS2 && OPS2.blocksSight(a, e, cc))) return null;
       return cc;
     }
     if (FX.smokeBlocks(e, c)) return null;
+    // a ballistic curtain (either side), or a false wall (the attackers can't see through it)
+    if (window.OPS2 && OPS2.blocksSight(a, e, c)) return null;
     // far + dark + crouched in shadow: harder to notice
     return c;
   }
@@ -825,6 +830,7 @@
       a.mf = a.mr = 0;
       if (off < 0.06) {
         if (a.ability && a.ability.id === 'hijack' && a.ability.count > 0 && g.elec && a.busy <= 0) { GAD.ability(a); b.entTarget = null; }
+        else if (window.OPS2 && OPS2.aiEntTarget(a, g)) b.entTarget = null;
         else a.trigger = true;
       }
       return;
@@ -1099,8 +1105,9 @@
     const alive = t => G.actors.filter(x => x.team === t && x.state === 'alive' && !x.hostage).length;
     S.side = side; S.mine = alive(team); S.theirs = alive(1 - team); S.adv = S.mine - S.theirs;
     S.known = null; S.kt = -99;
-    for (const x of G.actors) if (x.team === team && x.bot && x.state === 'alive' && x.bot.lastSeen && x.bot.lastSeenT > S.kt) { S.kt = x.bot.lastSeenT; S.known = x.bot.lastSeen; }
+    for (const x of G.actors) if (x.team === team && x.bot && x.state === 'alive' && x.bot.lastSeen && x.bot.lastSeenT > S.kt && !(x.jamT > G.time)) { S.kt = x.bot.lastSeenT; S.known = x.bot.lastSeen; }
     for (const t of G.actors) if (t.team !== team && t.state === 'alive' && !t.hostage && GAME.marked(t, team) && G.time > S.kt) { S.kt = G.time; S.known = t.pos.clone(); }
+    if (window.OPS2) OPS2.sitHook(S, team);   // seasons 10-14: phantom contacts, seismic rings
     if (S.kt <= S.cleared) S.known = null;      // somebody already went there and found nothing
     const fresh = S.known && G.time - S.kt < 14;
     S.planted = !!(obj.defuser && obj.defuser.alive);

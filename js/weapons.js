@@ -167,7 +167,7 @@
     if (d.type !== 'SG') w.bloom = Math.min(4, w.bloom + 0.28 * (1 - a.ads * 0.55) * (d.recoilK || 1));
     a.lastShot = G.time; MUSIC.lastShot = G.time;
     const local = a === PLAYER.viewActor();
-    SFX.shot(d, e, local);
+    SFX.shot(d, (!local && window.OPS2 && OPS2.voicePos(a)) || e, local);   // (Murmur's shots sound from her projector)
     GAME.noise(e, d.silent ? 10 : 45, a, 'shot');
     if (!d.silent) GAD.heardShot(a, e);   // Triad's listening posts
     if (local) PLAYER.onFire(d);

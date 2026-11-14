@@ -85,8 +85,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   end-to-end encrypted and wait for friends who are offline. You can invite a friend to a
   match or a room, join their room, or block someone.
 
-- **38 operators** (19 attack, 19 defense) in fourteen units. The launch roster is 20 operators
-  across five units, plus nine two-operator season squads:
+- **58 operators** (29 attack, 29 defense) in nineteen units. The launch roster is 20 operators
+  across five units, plus nine two-operator season squads and the twenty of seasons 10-14:
   - **Season 1 · Ironveil:** Pike (smoke launcher) and Lark (decoy emitter)
   - **Season 2 · Driftline:** Brace (Barrier Foam: a waist-high bulletproof foam wall) and Seam
     (Patch Spray: refills a breached wall, floor or hatch with foam)
@@ -108,10 +108,32 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   - **Season 9 · Resonant:** Triad (Triangulator: a listening post that marks any defender who
     fires an unsuppressed gun near it) and Veil (Null Field: defenders inside can't be marked
     or revealed, walk silently, and drones lose signal)
+  - **Seasons 10-14 · five new units, twenty operators** (full designs and test notes in
+    [tools/NEW-OPERATORS.md](tools/NEW-OPERATORS.md)):
+    - **Halyard** (access): Span (Zipline: fire a line to a window and ride it in), Rung (Breach
+      Ladder: a ladder up through a floor or down through a hatch), Jolt (Window Guard: shocks and
+      knocks back anyone coming in through a window or off a rope) and Ferret (Crawl Cutter: a
+      low hole through a wall you go through prone)
+    - **Cipher** (information): Phantom (Signal Spoofer: three phantom attackers the defense
+      believes in until they get a clear look), Loop (Feed Loop: a camera or sensor shows a
+      30-second loop), Babel (Comms Jammer: attackers inside lose their team's picture) and Relay
+      (Backtrace Dart: a traced drone marks whoever is flying it)
+    - **Foundry** (structure): Rust (Degausser: reinforced steel turns to brittle plate a soft
+      breach opens), Grout (Resin Injector: soft walls and floors become bulletproof and
+      blast-proof) and Sink (Collapse Charge: a patch of floor drops away under an attacker)
+    - **Squall** (deception and denial): Skid (Slick Canister: a pool nobody can stop or turn on
+      quickly), Tremor (Seismic Stake: defender noise shows as rings), Murmur (Throw Voice: ten
+      seconds of her sounds coming from a projector), Drench (Sprinkler Heads: wash out smoke,
+      gas, slick and fire) and Harbor (Ballistic Curtain: stops bullets and sight, but anyone can
+      push through)
+    - **Sightline** (sight): Grit (Suppressive Fire: near misses shake, slow and widen the aim),
+      Kite (Rotor Drone: a quadcopter that flies on a 12-second battery), Latch (Remote Shutter:
+      steel shutters on doorways, slammed shut or open from anywhere) and Mirage (False Wall: a
+      hologram that is a wall to the attackers and glass to the defense)
 
   Each operator has an armor/speed rating, two primaries, two secondaries, two gadget choices
   and a unique ability.
-- **13 secondary gadgets.** Every operator picks one. The first nine are frag, smoke and stun
+- **16 secondary gadgets.** Every operator picks one. The first nine are frag, smoke and stun
   grenades, breach charges and trip claymores on attack; razor wire, deployable cover, detonator
   packs and impact grenades on defense. Four more are carried by the season 4-9 operators and a
   few of the first (Static, Halcyon, Juno, Lark) as a third choice:
@@ -124,17 +146,25 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     shrieking, which everyone nearby hears, and is marked for the defenders. One bullet silences it.
   - **Fog Canister** (defense): throw it, it sticks; press again to flood the spot with fog
     nobody can see through for 13 seconds.
+  - Three more come with the seasons 10-14 operators: the **Flank Cam** (attack: a sticky camera
+    that marks defenders in its view), the **Extinguisher** (attack: a CO2 blast that puts out
+    fires and clears gas and slick) and **Caltrops** (defense: spikes that hurt and slow anyone
+    crossing faster than a careful walk).
 - **Live busts:** wherever you pick an operator (operator select, the ban phase, the gallery,
   the range) each one is shown as a small voxel bust from the chest up, turned three-quarters
   to you and alive: breathing, looking about, glancing off now and then, blinking. The
   operator you have selected gets a larger one beside their name.
-- **22 primaries and sidearms**, eight of them with a mechanic of their own: the KB-3 (three-round
+- **31 primaries and sidearms**, eight of them with a mechanic of their own: the KB-3 (three-round
   bursts), HUSH-45 (suppressed: heard from 10 m instead of 45, no tracer for the enemy, and it
   doesn't set off a Triangulator), HAMMERHEAD .50 (punches through soft walls with most of its
   damage), MODEL 8 SLUG (one heavy slug instead of pellets), BANKSHOT (rounds skip once off a
   hard surface, so you can shoot round a corner), RAMPART (a 100-round belt that steadies when
   you crouch or go prone), NEEDLER-6 (flechettes that keep going through cover) and the VERDICT
-  (a two-round burst pistol).
+  (a two-round burst pistol). Seasons 10-14 add nine more, each a mechanic of its own:
+  TWINFIRE (switch between auto and a marksman mode), VOLTA (no magazine: it heats up and vents),
+  SPINDLE (a rotary gun that spins up), LONGBOW (bolt action), QUARREL (a crossbow whose silent
+  bolts fly and drop), TALLY (a hit marks the target), BRAMBLE (incendiary pellets), LATTICE
+  (clamped double magazines) and STINGER (a taser pistol).
 - **Weapon attachments:** every gun has up to four slots: **optic** (iron sights, reflex, red
   dot, holographic, 2.5x telescopic, a 1.5-3x variable you switch with the firemode key while
   aiming, a 4x marksman scope), **barrel** (suppressor, compensator, muzzle brake, flash hider,
@@ -408,6 +438,7 @@ match itself are not.
 attacker spawns and their cover) · `maps-kit` (floor-plan layout kit: doors, windows, stairwells,
 hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `maps-millrace` (the 18 maps) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
+`ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
 `range` (range and training) · `killcam` (replays) · `names` (bot names) · `arcade` (Deathmatch and
 Team Deathmatch) · `shop` (cosmetics, credits) · `ranked` (ranks, matchmaking) · `main` · online: `ui` (toasts, modals, top bar) · `auth`

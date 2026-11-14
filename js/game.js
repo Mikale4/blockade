@@ -450,6 +450,8 @@
   /* --------------------------------------------------------- noise & intel */
   GAME.noise = function (p, r, src, type, fake) {
     if (!r) return;
+    // seasons 10-14: Tremor's stakes hear it; Murmur's projector carries her noise somewhere else
+    if (window.OPS2) { const q = OPS2.noiseHook(p, r, src, type, fake); if (q) p = q; }
     for (const a of G.actors) {
       if (!a.bot || a.state !== 'alive') continue;
       if (src && a.team === src.team && !fake) continue;
@@ -482,7 +484,7 @@
   function camIntel() {
     if (GAME.phase !== 'action') return;
     for (const c of G.ents) {
-      if (!c.alive || (c.type !== 'cam' && c.type !== 'bpcam') || c.team < 0 || c.empT > G.time) continue;
+      if (!c.alive || (c.type !== 'cam' && c.type !== 'bpcam') || c.team < 0 || c.empT > G.time || c.loopT > G.time) continue;   // (a looped feed reports nothing)
       const def = c.team;
       for (const a of G.actors) {
         if (a.team === def || a.state !== 'alive' || a.hostage || a.cloakT > 0) continue;
@@ -543,6 +545,7 @@
   GAME.interactions = function (a) {
     const out = [], side = a.side, e = a.eye(V()), o = GAME.obj, phase = GAME.phase;
     if (a.state !== 'alive') return out;
+    if (window.OPS2) OPS2.interactions(a, out);   // seasons 10-14: ride a line, ...
     // revive
     for (const t of G.actors) if (t !== a && t.team === a.team && t.state === 'dbno' && !t.hostage && U.dist3(t.pos, a.pos) < 1.6) { out.push({ kind: 'revive', label: 'REVIVE ' + t.op.name, time: 4.5, target: t, ok: () => t.state === 'dbno' && U.dist3(t.pos, a.pos) < 2, run: () => t.revive(a) }); break; }
     if (GAME.mode === 'bomb' && phase === 'action') {

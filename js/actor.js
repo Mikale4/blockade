@@ -431,11 +431,11 @@
           if (!quiet || loud) {
             const m = W.get(Math.floor(p.x * 4), Math.floor(p.y * 4 - 0.5), Math.floor(p.z * 4));
             const metal = m && (MAT[m].reinf || m === M.METAL || m === M.RHATCH || m === M.CORRUGATE);
-            if (!this.isPlayer) SFX.step(p, loud && !quiet, false, metal ? 'metal' : null, soft);
+            if (!this.isPlayer) SFX.step(window.OPS2 && OPS2.voicePos(this) || p, loud && !quiet, false, metal ? 'metal' : null, soft);
             else SFX.step(p, loud, true, metal ? 'metal' : null, soft);
             // a wet floor (Drench) splashes and slick squeaks: either way everyone hears it
             const wet = window.OPS2 && OPS2.wetAt(p), slick = this.slickT > G.time;
-            if (wet || slick) SFX.step(p, true, this.isPlayer, null, false);
+            if (wet || slick) SFX.step(window.OPS2 && OPS2.voicePos(this) || p, true, this.isPlayer, null, false);
             if (!this.hostage) GAME.noise(p, (soft ? 2.5 : quiet ? 4 : loud ? 14 : this.stance === 1 ? 4 : 8) * (wet ? 1.8 : 1) + (slick ? 12 : 0), this, 'step');
           }
         }
@@ -777,6 +777,7 @@
       this.cloakT = Math.max(0, this.cloakT - dt); this.ramT = Math.max(0, this.ramT - dt); this.exhT = Math.max(0, this.exhT - dt);
       if (this.odT > 0) { this.odT -= dt; if (this.odT <= 0) { this.odT = 0; this.exhT = 3; } }
       this.slow = Math.max(0, this.slow - dt); this.revealed = Math.max(0, this.revealed - dt); this.deaf = Math.max(0, this.deaf - dt);
+      if (window.OPS2) OPS2.tick(this, dt);   // seasons 10-14: a feed-loop channel, ...
       // set alight by a dragon's-breath shell: about 6 a second until it burns out (or rain puts it out)
       if (this.burnT > G.time && this.state !== 'dead') {
         this.burnAcc = (this.burnAcc || 0) + dt;
@@ -947,6 +948,9 @@
       r.torso.rotation.x = -c * 0.25;
       r.torso.rotation.z = -this.lean * 0.38;
       r.aim.rotation.x = this.pitch + c * 0.25 + (this.sprint && hs > 3.5 ? -0.6 : 0) + F.tilt;
+      // seasons 10-14: hanging from a zipline (both hands up on it), climbing a ladder (hand over hand)
+      if (this.ride) { r.aim.rotation.x = 2.6; r.thighL.rotation.x = 0.5; r.thighR.rotation.x = 0.3; r.shinL.rotation.x = -0.7; r.shinR.rotation.x = -0.5; }
+      else if (this.climb) { const k = Math.sin(this.pos.y * 6); r.aim.rotation.x = 1.9 + k * 0.25; r.thighL.rotation.x = 0.6 + k * 0.4; r.thighR.rotation.x = 0.6 - k * 0.4; r.shinL.rotation.x = -0.9; r.shinR.rotation.x = -0.9; }
       r.head.rotation.x = this.pitch * 0.4;
       if (r.shield) {
         // the same poses the hit test uses (WPN.shieldRect): square in front, aside to aim, round to the flank to run

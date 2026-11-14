@@ -142,7 +142,7 @@
       case 'gadget': if (!atkPrep) { if (GAME.client) NP.act('gadget'); else GAD.secondary(a); } break;
       case 'ability': {
         P.xDown = G.time; P.xFired = false;
-        if (!a.ability || a.ability.id === 'rcharge' || atkPrep) break;
+        if (!a.ability || a.ability.id === 'rcharge' || (atkPrep && a.ability.id !== 'rotor')) break;   // (Kite flies her rotor drone in the drone phase too)
         // scanner / scope zoom are purely local; everything else the host carries out
         if (GAME.client && a.ability.id !== 'scanner' && a.ability.id !== 'spotter') NP.act('ability'); else GAD.ability(a);
         break;
@@ -150,6 +150,7 @@
       case 'melee': if (GAME.client) { if ((a.meleeT || 0) > G.time) break; const bash = a.shieldOp && a.shieldUp; a.meleeT = G.time + (bash ? 1.1 : 0.85); if (bash) a.shBash = 0.3; P.onMelee(); SFX.melee(a.eye(V())); NP.act('melee'); } else WPN.melee(a); break;
       case 'vault': {
         if (atkPrep) break;
+        if (a.climb || a.ride) { if (window.OPS2) OPS2.letGo(a); break; }   // off a ladder / a line
         if (a.rappel) {
           // beside a window: crash through it. A blocked window says so; press again to just let go
           if (a.ropeWindow()) {
@@ -220,6 +221,7 @@
   P.ping = function () {
     let e, f;
     const a = G.player;
+    if (window.OPS2 && OPS2.jammed(a)) { HUD.toast('COMMS JAMMED: your team can\'t hear you', 'warn'); return; }   // Babel's field
     if (P.view === 'drone' && P.drone) { e = P.drone.eye(); f = P.drone.fwd(); }
     else if (P.view === 'cams' && P.cam) { e = P.cam.pos.clone(); f = camFwd(P.cam); }
     else if (P.view === 'body' && a.alive) { e = a.eye(V()); f = a.fwd(V()); }
@@ -280,6 +282,7 @@
       if (!d.alive) { P.leaveDrone(); }
       else {
         d.mf = (h('forward') ? 1 : 0) - (h('back') ? 1 : 0); d.mr = (h('right') ? 1 : 0) - (h('left') ? 1 : 0);
+        d.up = (h('vault') ? 1 : 0) - (h('crouch') ? 1 : 0);   // a rotor drone (Kite) climbs and descends
         // booster (the sprint key). The cooldown is kept here too, so a guest's HUD can show it
         P.dBoostCd = Math.max(0, (P.dBoostCd || 0) - dt);
         if (h('sprint') && P.dBoostCd <= 0) { d.boost = true; P.dBoostCd = GAD.Drone.BOOST_CD; P.dBoostSend = true; }

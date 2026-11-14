@@ -149,7 +149,7 @@
     for (const a of G.actors) {
       // a replay poses everyone from the recording just for drawing, then puts the live state back
       const saved = kc ? KC.pose(a, kc) : null;
-      const hide = kc ? KC.hidden(a) : (a === G.player && P.view === 'body') || (P.view === 'spectate' && a === P.spec);
+      const hide = kc ? KC.hidden(a) : (a === G.player && P.view === 'body') || (P.view === 'spectate' && a === P.spec) || (window.OPS2 && OPS2.hideInView(a));
       a.updateRig(dt, !hide);
       if (!hide && a.rig) { const L = W.outdoor(a.pos.clone().setY(a.pos.y + 1)) ? W.light.out : W.light.in; a.tint([Math.min(1.1, L[0] * 1.05), Math.min(1.1, L[1] * 1.05), Math.min(1.1, L[2] * 1.05)]); }
       laserBeam(a, !hide && !kc);

@@ -37,6 +37,8 @@
     NAV.cols = new Array(NAV.NW * NAV.ND); NAV.flags = new Array(NAV.NW * NAV.ND);
     for (let i = 0; i < NAV.cols.length; i++) buildCol(i);
     NAV.dirty.clear();
+    NAV.links = new Map();
+    if (window.OPS2) OPS2.holes = [];   // (the crawl holes those links went through are gone with the old world)
     NAV.main = mainArea();
   };
   /* the largest connected walkable area. Sealed pockets (the closet behind a stairwell's
@@ -159,7 +161,22 @@
       if (!lvl(o[a]) || !lvl(o[b])) continue;
       const n = find(dx, dz); if (lvl(n)) out.push(n, 1.414);
     }
+    // links (seasons 10-14): a ladder, a crawl hole, a zipline joins two nodes the grid doesn't
+    const L = NAV.links.get(id); if (L) for (const l of L) out.push(l.to, l.cost);
   }
+  /* links: routes the walkable grid can't see. Each is { to, cost, kind, ref }; a path that uses
+     one marks the point it arrives at with .link, so a bot knows to climb, crawl or ride there */
+  NAV.links = new Map();
+  NAV.addLink = function (p0, p1, kind, cost, ref, oneWay) {
+    const a = NAV.nearest(p0, 1.5), b = NAV.nearest(p1, 1.5);
+    if (a < 0 || b < 0 || a === b) return false;
+    const add = (f, t, back) => { const L = NAV.links.get(f) || []; L.push({ to: t, cost, kind, ref, from: f, back: !!back }); NAV.links.set(f, L); };
+    add(a, b, false); if (!oneWay) add(b, a, true);
+    return true;
+  };
+  NAV.dropLinks = function (ref) {
+    for (const [k, L] of [...NAV.links]) { const f = L.filter(l => l.ref !== ref); if (f.length) NAV.links.set(k, f); else NAV.links.delete(k); }
+  };
   const flagOf = id => { const ci = (id / 64) | 0, y = id % 64, ys = NAV.cols[ci]; const i = ys.indexOf(y); return i >= 0 ? NAV.flags[ci][i] : 0; };
 
   /* binary heap of [f, id] */
@@ -217,9 +234,10 @@
     }
     let end = came.has(t) ? t : (opts.partial ? bestId : -1);
     if (end < 0) return null;
-    const out = [];
-    for (let c = end; c !== undefined && c !== s; c = came.get(c)) out.push(NAV.nodePos(c));
-    out.reverse();
+    const out = [], ids = [];
+    for (let c = end; c !== undefined && c !== s; c = came.get(c)) { out.push(NAV.nodePos(c)); ids.push(c); }
+    out.reverse(); ids.reverse();
+    if (NAV.links.size) { let prev = s; for (let i = 0; i < ids.length; i++) { const L = NAV.links.get(prev), l = L && L.find(x => x.to === ids[i]); if (l) out[i].link = l; prev = ids[i]; } }
     if (end === t && opts.exact !== false) { const last = out[out.length - 1]; if (last && U.dist2(last, to) < 0.7 && Math.abs(last.y - to.y) < 0.6) last.set(to.x, last.y, to.z); }
     return out;
   };

@@ -355,8 +355,29 @@
   };
 
   /* ===================================================== movement hooks */
-  /* lines and ladders (batch 2) move bodies themselves: true when they did */
+  /* lines and ladders (js/ops2-b.js) move bodies themselves: true when they did */
   OPS2.physics = function (a, dt) { return false; };
+  OPS2.followLink = function (a, b, dt) { return false; };   // a bot crossing a NAV link
+  OPS2.interactions = function (a, out) { };                // extra interactions (ride a line)
+  OPS2.guestEvent = function (e) { };                       // host events for a guest's own operator
+  OPS2.letGo = function (a) { };                            // off a ladder or a line (the jump key)
+  OPS2.tick = function (a, dt) { };                         // every actor, every frame (host): channels
+  OPS2.noiseHook = function (p, r, src, type, fake) { };    // a noise: heard by stakes, moved by a projector
+  OPS2.entTick = function (e, dt) { };                      // every entity after its own update
+  OPS2.sitHook = function (S, team) { };                    // a team's picture of the enemy (bots)
+  OPS2.markers = function (a, put, jam) { };                // extra HUD markers
+  OPS2.looped = function (e, dt) { return false; };
+  OPS2.hideInView = function (a) { return false; };
+  OPS2.jammed = function (a) { return false; };
+  OPS2.aiEntTarget = function (a, g) { return false; };
+  OPS2.blocksSight = function (a, e, c) { return false; };  // curtains, false walls (bots' eyes)
+  OPS2.voicePos = function (a) { return null; };            // where this actor's sounds come from (Murmur)
+  /* the later batches (js/ops2-b.js ...) add to these hooks: their function runs first, and the
+     one before runs too unless it returned something truthy */
+  OPS2.chain = function (name, fn) {
+    const prev = OPS2[name];
+    OPS2[name] = function () { const r = fn.apply(this, arguments); if (r) return r; return prev ? prev.apply(this, arguments) : r; };
+  };
 
   /* ========================================================== guests */
   OPS2.entRec = function (e, x) {

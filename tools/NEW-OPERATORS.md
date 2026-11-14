@@ -143,8 +143,8 @@ Ten attackers, ten defenders, in five units (two attackers and two defenders eac
   resin, through its whole depth. It becomes bulletproof and shrugs off breach charges, rivets,
   spikes, impacts and the battering charge, and it works where reinforcement can't (floors, half
   walls, any panel).
-- Limits: the plasma bore cuts it, and sustained melee or a .50 chips it. It also blocks your own
-  team's rotations.
+- Limits: the plasma bore cuts it, and heavy rounds (a .50) chip it; melee does nothing. It also
+  blocks your own team's rotations.
 - Kit: BRAMBLE / VOLTA · P-10 / MAUL · razor wire, deployable cover.
 - Look: respirator and hard hat, resin tank.
 
@@ -188,7 +188,7 @@ Ten attackers, ten defenders, in five units (two attackers and two defenders eac
 
 **HARBOR** (defender · Rotation Cover · 3/1) — *Ines Harbourne*
 - Ability BALLISTIC CURTAIN (3): hang a heavy curtain in a doorway within 3 m. It stops bullets and
-  blocks sight both ways, but anyone can push through, at half speed with a loud rustle. Hides
+  blocks sight both ways, but anyone can push through, at a crawl and with a loud rustle. Hides
   rotations.
 - Limits: explosives tear it down, three melee hits rip it, and the battering charge goes straight
   through.
@@ -198,9 +198,10 @@ Ten attackers, ten defenders, in five units (two attackers and two defenders eac
 ### SIGHTLINE Group — Season 14 · Operation Long Shadow
 
 **KITE** (attacker · Aerial Recon · 1/3) — *Saoirse Kitteridge*
-- Ability ROTOR DRONE (1 drone): a small quadcopter. Fly it from the device view, with jump to climb
-  and crouch to descend; ping to mark. The battery lasts 12 s of flight and recharges on the ground
-  (2 s per 1 s). Usable in the drone phase.
+- Ability ROTOR DRONE (1 drone): a small quadcopter. Fly it from the drone view, with jump to climb
+  and crouch to descend; fire spots. The battery lasts 12 s of flight and recharges on the ground at
+  half speed; flat, it comes down, and left alone it settles to the floor. Press the ability again to
+  fly it again. Usable in the drone phase (bots fly it then, toward the objective, spotting).
 - Limits: it buzzes loud (18 m) and has 1 HP; seekers, scramblers and Relay's darts all work on it.
 - Kit: LONGBOW / K-77 · P-10 / VERDICT · frag, flank cam.
 - Look: pilot's helmet and visor, drone cradle.
@@ -214,9 +215,10 @@ Ten attackers, ten defenders, in five units (two attackers and two defenders eac
 - Look: ear defenders, ammo pack, shoulder plates.
 
 **LATCH** (defender · Sightline Control · 2/2) — *Oona Latchford*
-- Ability REMOTE SHUTTER (2): look at an open doorway or window within 3 m to install a motorised
-  steel shutter (it starts open). Press the ability anywhere else to slam all your shutters shut,
-  or open them again. A shutter won't close on anyone.
+- Ability REMOTE SHUTTER (2): look at an open doorway or window close by (about 2.5 m) to install a
+  motorised steel shutter (it starts open). Press the ability anywhere else to slam all your shutters
+  shut, or open them again (a window gets its glass back). A shutter won't close on anyone. Bots fit
+  theirs in the main ways in, slam them when the attack comes close and open them once it's quiet.
 - Limits: the plasma bore cuts it; the degausser softens it; EMP freezes it in place for 12 s;
   shooting the motor box (1 HP) leaves it stuck as it is.
 - Kit: VOLTA / SALVO-9 · STINGER / P-10 · razor wire, caltrops.
@@ -226,8 +228,8 @@ Ten attackers, ten defenders, in five units (two attackers and two defenders eac
 - Ability FALSE WALL (2): an emitter projects a hologram filling a doorway, window or breach hole within
   3 m. Attackers see a solid wall; defenders see a faint outline and look straight through. Bullets
   and bodies pass through, and attacker bots cannot see through it.
-- Limits: it collapses for good when an attacker or a drone passes through it or a bullet crosses
-  it. One bullet kills the emitter.
+- Limits: it collapses for good when an attacker or a drone passes through it or any bullet crosses
+  it (so shooting through it gives it away), and every few seconds it shimmers for a moment.
 - Kit: LATTICE / GALE 12 · VERDICT / P-10 · impact, caltrops.
 - Look: hooded cowl, projector pack.
 
@@ -283,22 +285,31 @@ Ten attackers, ten defenders, in five units (two attackers and two defenders eac
 | 3 | GRIT | atk | 1 | built · tested offline (ability, bots in 3 maps) |
 | 4 | GROUT | def | 1 | built · tested offline (ability, bots in 3 maps) |
 | 5 | DRENCH | def | 1 | built · tested offline (ability, bots in 3 maps) |
-| 6 | SPAN | atk | 2 | planned |
-| 7 | RUNG | atk | 2 | planned |
-| 8 | JOLT | def | 2 | planned |
-| 9 | FERRET | def | 2 | planned |
-| 10 | SINK | def | 2 | planned |
-| 11 | PHANTOM | atk | 3 | planned |
-| 12 | LOOP | atk | 3 | planned |
-| 13 | TREMOR | atk | 3 | planned |
-| 14 | BABEL | def | 3 | planned |
-| 15 | RELAY | def | 3 | planned |
-| 16 | KITE | atk | 4 | planned |
-| 17 | MURMUR | atk | 4 | planned |
-| 18 | LATCH | def | 4 | planned |
-| 19 | MIRAGE | def | 4 | planned |
-| 20 | HARBOR | def | 4 | planned |
+| 6 | SPAN | atk | 2 | built · tested offline (ability, bots in 3 maps) |
+| 7 | RUNG | atk | 2 | built · tested offline (ability, bots in 3 maps) |
+| 8 | JOLT | def | 2 | built · tested offline (ability, bots in 3 maps) |
+| 9 | FERRET | def | 2 | built · tested offline (ability, bots in 3 maps) |
+| 10 | SINK | def | 2 | built · tested offline (ability, bots in 3 maps) |
+| 11 | PHANTOM | atk | 3 | built · tested offline (ability, bots in 3 maps) |
+| 12 | LOOP | atk | 3 | built · tested offline (ability, bots in 3 maps) |
+| 13 | TREMOR | atk | 3 | built · tested offline (ability, bots in 3 maps) |
+| 14 | BABEL | def | 3 | built · tested offline (ability, bots in 3 maps) |
+| 15 | RELAY | def | 3 | built · tested offline (ability, bots in 3 maps) |
+| 16 | KITE | atk | 4 | built · tested offline (ability, bots in 4 maps) and online |
+| 17 | MURMUR | atk | 4 | built · tested offline (ability, bots in 4 maps) and online |
+| 18 | LATCH | def | 4 | built · tested offline (ability, bots in 4 maps) and online |
+| 19 | MIRAGE | def | 4 | built · tested offline (ability, bots in 4 maps) and online |
+| 20 | HARBOR | def | 4 | built · tested offline (ability, bots in 4 maps) and online |
 
 Batch 1 also built all 9 weapons and 3 gadgets (each tested), the 18 new heads and back packs, the
-registry hooks (js/ops2.js), and the network fields. Pathfinding links come with batch 2. Each batch adds
-its operators to the roster only once they work for players, bots and online guests.
+registry hooks (js/ops2.js), and the network fields. Pathfinding links came with batch 2 (js/ops2-b.js:
+ladders, crawl holes, ziplines), batch 3 (js/ops2-c.js) is the information and deception kit, and
+batch 4 (js/ops2-d.js) the sight and sound kit. Each batch went into the roster only once it worked for
+players, bots and online guests.
+
+All 20 are in. Testing, per batch: every ability driven by hand in an offline match (what it does, its
+limits and counters), then all-bot rounds with the batch's operators forced onto both teams on three or
+four maps (kit used, no script errors). After batch 4, a two-tab online match (a host and a guest over a
+local peer link, new operators on both teams, a round and a half with no errors on either side) checked
+what a guest sees and does with the batch-4 kit: their own rotor flight, holograms, curtains, the voice
+projector's link to its thrower, and shutter steel arriving as voxels.

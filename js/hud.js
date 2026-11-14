@@ -258,8 +258,9 @@
     let vtxt = '';
     if (spx) vtxt = P.view === 'free' ? KEYS.fmt('FREE CAMERA<small>{forward}{left}{back}{right} fly · {vault} up · {crouch} down · {sprint} faster · {fire}/{aim} follow a player</small>')
       : P.view === 'spectate' && P.spec ? 'WATCHING ' + GAME.who(P.spec) + ' · ' + P.spec.op.name + (P.specDrone(P.spec) ? ' · DRONE' : '') + styleLine(P.spec) + KEYS.fmt('<small>{fire}/{aim} next / previous player · {device} free camera</small>') : '';
-    else if (P.view === 'drone') vtxt = 'DRONE' + (P.drone && P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} drive · {sprint} boost ' + (P.dBoostCd > 0.05 ? '(' + Math.ceil(P.dBoostCd) + 's)' : '(ready)') + ' · {vault} jump · {fire} spot' + (P.drone && P.drone.surge ? ' · {aim} surge (' + a.ability.zaps + ')' : '') + ' · {device} exit</small>');
-    else if (P.view === 'cams') vtxt = (P.cam ? P.cam.name : 'CAMERA') + KEYS.fmt('<small>{left}/{right} switch · {fire} spot · {device} exit</small>');
+    else if (P.view === 'drone' && P.drone && P.drone.rotor) vtxt = 'ROTOR · BATTERY ' + Math.ceil(P.drone.bat || 0) + 's' + (P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + (P.drone.traced != null ? ' · SIGNAL TRACED: they can see you' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} fly · {vault} climb · {crouch} descend · {fire} spot · {device} exit (it lands by itself)</small>');
+    else if (P.view === 'drone') vtxt = 'DRONE' + (P.drone && P.drone.jamT > 0.05 ? ' · SIGNAL JAMMED' : '') + (P.drone && P.drone.traced != null ? ' · SIGNAL TRACED: they can see you' : '') + KEYS.fmt('<small>{forward}{left}{back}{right} drive · {sprint} boost ' + (P.dBoostCd > 0.05 ? '(' + Math.ceil(P.dBoostCd) + 's)' : '(ready)') + ' · {vault} jump · {fire} spot' + (P.drone && P.drone.surge ? ' · {aim} surge (' + a.ability.zaps + ')' : '') + ' · {device} exit</small>');
+    else if (P.view === 'cams') vtxt = (P.cam ? P.cam.name : 'CAMERA') + (P.cam && P.cam.loopT > G.time ? '  ≋' : '') + KEYS.fmt('<small>{left}/{right} switch · {fire} spot · {device} exit</small>');
     else if (P.view === 'spectate') vtxt = 'SPECTATING ' + (P.spec ? P.spec.op.name + (P.specDrone(P.spec) ? ' · DRONE' : '') : '—') + (P.spec ? styleLine(P.spec) : '') + KEYS.fmt('<small>{fire}/{aim} switch · {device} ' + (a.side === 'atk' ? 'drones' : 'cameras') + '</small>');
     else if (a.state === 'dbno') vtxt = 'DOWN<small>wait for a teammate to revive you</small>';
     else if (a.state === 'dead' && GAME.arcade && GAME.phase === 'action') { const t = (GAME.client ? P.respawnAt : a.respawnAt) - G.time; vtxt = t > 0 ? 'RESPAWNING IN ' + Math.ceil(t) + '<small>' + (P.killer && P.killer !== a ? 'eliminated by ' + GAME.who(P.killer) : '') + '</small>' : 'RESPAWNING…'; }
@@ -326,7 +327,10 @@
       if (m._t !== text) { m._t = text; m.textContent = text; }
     };
     const camPos = G.camera.position;
+    // inside a comms jammer (Babel) the team's picture is gone: no allies, no shared marks
+    const jam = window.OPS2 && OPS2.jammed(a);
     for (const t of G.actors) {
+      if (jam && !t.hostage) continue;
       if (t === a && P.view === 'body') continue;
       if (t.state === 'dead') continue;
       const head = t.eye(V()).add(V().set(0, 0.35, 0));
@@ -346,6 +350,7 @@
       if (GAME.mode === 'hostage' && a.carry && a.carry.hostage) for (const s of G.map.spawns) put(V().set(s.x, s.y + 1.5, s.z), 'mk-site', 'EXTRACT');
     }
     for (const p of H.pings) if (p.t > G.time) put(p.p, 'mk-ping', '▼');
+    if (window.OPS2) OPS2.markers(a, put, jam);   // seasons 10-14: phantom contacts, seismic rings
     H.pings = H.pings.filter(p => p.t > G.time);
     // Quill's scanner
     if (a.ability && a.ability.id === 'scanner' && a.ability.on && P.view === 'body') {

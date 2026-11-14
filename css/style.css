@@ -89,6 +89,9 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px soli
 .h-markers { position: absolute; inset: 0; }
 .mk { position: absolute; left: 0; top: 0; font: 700 12px var(--f); white-space: nowrap; letter-spacing: 0.05em; margin: -8px 0 0 0; }
 .mk { translate: -50% 0; }
+.mk.mk-ring { color: #7ce8c0; font-size: 22px; text-shadow: 0 0 6px #2a8a70; }
+.mk.mk-ring.a1 { opacity: .6; font-size: 26px; }
+.mk.mk-ring.a2 { opacity: .3; font-size: 30px; }
 .mk-enemy { color: #ff4a3d; font-size: 18px; text-shadow: 0 0 6px #f00; }
 .mk-ally { color: #8cc8ff; } .mk-ally.down { color: #ff9a8a; }
 .mk-site { color: var(--gold); background: rgba(0,0,0,0.45); padding: 1px 6px; border: 1px solid var(--gold); }

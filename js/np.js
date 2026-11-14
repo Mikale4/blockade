@@ -206,6 +206,8 @@
     a.lean = +d.ln || 0; a.ads = +d.ad || 0; a.moving = +d.mv || 0; a.sprint = !!d.sp; a.walk = !!d.wk; a.netHold = !!d.hd; a.mf = d.mf || 0;
     if (a.w[d.cu] && a.cur !== d.cu) { a.cur = d.cu; if (a.rig) MD.setRigGun(a.rig, a.wpn.id); }
     a.rappel = d.rp ? (a.rappel || { ax: 'x', s: 1 }) : null;
+    // (seasons 10-14: on a ladder / riding a line, as far as the host needs to know)
+    a.climb = d.cl ? (a.climb || { net: true }) : null; a.ride = d.rd ? (a.ride || { net: true }) : null;
     // footsteps for everyone else to hear (and the bots)
     const moved = Math.hypot(dx, dz);
     if (moved < 2 && a.state !== 'dead' && !a.rappel && a.moving > 0.6) {
@@ -213,10 +215,10 @@
       if (a.stepAcc > (a.moving > 4 ? 0.8 : 0.62)) {
         a.stepAcc = 0;
         const quiet = (a.op.ability && a.op.ability.id === 'decoy') || a.stance === 2, loud = a.moving > 3.6, soft = a.walk && !loud;
-        if (!quiet || loud) { SFX.step(a.pos, loud && !quiet, false, null, soft); GAME.noise(a.pos, soft ? 2.5 : quiet ? 4 : loud ? 14 : a.stance === 1 ? 4 : 8, a, 'step'); }
+        if (!quiet || loud) { SFX.step((window.OPS2 && OPS2.voicePos(a)) || a.pos, loud && !quiet, false, null, soft); GAME.noise(a.pos, soft ? 2.5 : quiet ? 4 : loud ? 14 : a.stance === 1 ? 4 : 8, a, 'step'); }
       }
     }
-    if (Array.isArray(d.dr) && a.netDrone) { const dr = G.ents.find(e => e.nid === a.netDrone && e.alive); if (dr) { dr.mf = d.dr[0]; dr.mr = d.dr[1]; if (d.dr[2]) dr.jump = true; dr.yaw = d.dr[3]; dr.pitch = d.dr[4]; if (d.dr[5]) dr.boost = true; } }
+    if (Array.isArray(d.dr) && a.netDrone) { const dr = G.ents.find(e => e.nid === a.netDrone && e.alive); if (dr) { dr.mf = d.dr[0]; dr.mr = d.dr[1]; if (d.dr[2]) dr.jump = true; dr.yaw = d.dr[3]; dr.pitch = d.dr[4]; if (d.dr[5]) dr.boost = true; dr.up = +d.dr[6] || 0; } }
   }
   function remoteShot(a, d) {
     if (a.state !== 'alive') return;
@@ -238,7 +240,7 @@
     NP.push({ k: 'shot', s: a.id, o: d.o, e: ends.slice(0, 3), w: d.w });
     // the host hears and sees it too
     const mz = WPN.muzzlePos(a);
-    SFX.shot(def, o, false); if (!def.noFlash) NP.quiet(() => FX.flash(mz, 0.4, 0.04));
+    SFX.shot(def, (window.OPS2 && OPS2.voicePos(a)) || o, false); if (!def.noFlash) NP.quiet(() => FX.flash(mz, 0.4, 0.04));
     if (!def.silent || (G.player && a.team === G.player.team)) for (const e of ends.slice(0, 2)) FX.tracer(mz, V(e[0], e[1], e[2]), 0xffb070);
     KC.shot(a, def.id, mz, ends.slice(0, 3).map(e => V(e[0], e[1], e[2])));
   }
@@ -277,7 +279,9 @@
       // seasons 4-9: what the player's own game needs to feel (speed, misfires)
       a.misfire > G.time ? 1 : 0, r2(a.odT), r2(a.exhT), r2(a.ramT), a.anchor && a.anchor.alive ? 1 : 0,
       // seasons 10-14: suppressed (s left), Grit's suppressive fire running (s left)
-      r2(Math.max(0, (a.supT || 0) - G.time)), r2(Math.max(0, (a.supFire || 0) - G.time))]);
+      r2(Math.max(0, (a.supT || 0) - G.time)), r2(Math.max(0, (a.supFire || 0) - G.time)),
+      // comms jammed (s left), a feed loop being channelled (0-1)
+      r2(Math.max(0, (a.jamT || 0) - G.time)), a.loopCh ? r2(a.loopCh.t / 1.5) : 0]);
     return rec;
   }
   function entRec(e) {
@@ -486,7 +490,8 @@
     a.followTarget = r[25] ? NP.byId.get(r[25]) || null : null;
     if (me && r[26]) { const c = r[26]; if (a.gadget) a.gadget.count = c[0]; if (a.ability) { a.ability.count = c[1]; a.ability.cd = c[2]; a.ability.zaps = c[3]; } a.drones = c[4]; a.netPlaced = c[5];
       a.misfire = c[6] ? G.time + 0.3 : 0; a.odT = c[7] || 0; a.exhT = c[8] || 0; a.ramT = c[9] || 0; a.netAnchor = !!c[10];
-      a.supT = c[11] ? G.time + c[11] : 0; a.supFire = c[12] ? G.time + c[12] : 0; }
+      a.supT = c[11] ? G.time + c[11] : 0; a.supFire = c[12] ? G.time + c[12] : 0;
+      a.jamT = c[13] ? G.time + c[13] : 0; a.loopP = c[14] || 0; }
     a.cloakT = (r[15] & 16) ? 1 : 0;
   }
   function playEv(e) {
@@ -544,6 +549,7 @@
         ban(dur ? 1.4 : 6.5);
         break;
       }
+      default: if (window.OPS2) OPS2.guestEvent(e);
     }
   }
   /* guest frame: smooth the others, run gadget visuals, send my state */
@@ -562,7 +568,7 @@
       NP.inT = 0;
       const d = PLAYER.drone && PLAYER.view === 'drone' ? PLAYER.drone : null;
       Online.toHost({ t: 'np.in', p: pv(a.pos), v: pv(a.vel), yw: r4(a.yaw), pt: r4(a.pitch), st: a.stance, h: r2(a.h), ln: r2(a.lean), ad: r2(a.ads), mv: r2(a.moving || 0), cu: a.cur, sp: a.sprint ? 1 : 0, wk: a.walk ? 1 : 0, mf: a.mf,
-        hd: PLAYER.interactHeld() ? 1 : 0, rp: a.rappel ? 1 : 0, dr: d ? [d.mf || 0, d.mr || 0, d.jump ? 1 : 0, r4(d.yaw), r4(d.pitch), PLAYER.dBoostSend ? 1 : 0] : 0 });
+        hd: PLAYER.interactHeld() ? 1 : 0, rp: a.rappel ? 1 : 0, cl: a.climb ? 1 : 0, rd: a.ride ? 1 : 0, dr: d ? [d.mf || 0, d.mr || 0, d.jump ? 1 : 0, r4(d.yaw), r4(d.pitch), PLAYER.dBoostSend ? 1 : 0, d.up || 0] : 0 });
       if (d) d.jump = false;
       PLAYER.dBoostSend = false;
     }

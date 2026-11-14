@@ -1148,7 +1148,10 @@
       if (!e.alive) continue;
       // knocked out by an EMP (anything but a grenade still in the air): it does nothing, and spits a spark now and then
       if (e.empT > G.time && e.stuck !== false) { e.t += dt; if (Math.random() < dt * 2.5) FX.sparks(e.pos, e.normal.x, e.normal.y, e.normal.z, 0x9ad8ff); continue; }
+      // looped by Loop (js/ops2-c.js): a sensor or alarm says nothing; a turret sweeps but never fires
+      if (e.loopT > G.time && window.OPS2 && OPS2.looped(e, dt)) continue;
       e.update(dt);
+      if (window.OPS2) OPS2.entTick(e, dt);
     }
     if (G.ents.length > 60) G.ents = G.ents.filter(e => e.alive);
   };

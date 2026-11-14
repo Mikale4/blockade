@@ -95,6 +95,7 @@
       case 'riot': g.box(-3, 3, -3, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-3, 1, -1, -3, 3, 3, hc); g.box(3, 1, -1, 3, 3, 3, hc); g.box(-3, 5, -4, 3, 6, -4, 0x6a8aa0); break;
       case 'pilot': g.box(-3, 2, -3, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-3, 0, -1, -3, 2, 3, hc); g.box(3, 0, -1, 3, 2, 3, hc); g.box(-2, 1, -4, 2, 3, -4, 0x1a2a3a); g.box(-3, 0, -2, -2, 0, -4, 0x222222); g.set(0, 5, -4, glow(acc)); break;
       case 'goggles': g.box(-2, 4, -2, 2, 5, 2, hc); g.box(-2, 4, -4, 2, 4, -3, hc); g.box(-3, 3, -3, 3, 3, -3, 0x2a2a2a); g.box(-2, 3, -4, -1, 3, -4, glow(acc)); g.box(1, 3, -4, 2, 3, -4, glow(acc)); break;
+      case 'miner': g.box(-3, 4, -3, 3, 6, 3, hc); g.box(-4, 4, -4, 4, 4, 4, shade(hc, 0.85)); g.box(-1, 5, -5, 1, 6, -4, 0x2a2a2a); g.box(-1, 5, -6, 1, 6, -6, glow(0xfff6c8)); g.box(-3, 0, -1, -3, 3, -1, 0x2a2a2a); g.box(3, 0, -1, 3, 3, -1, 0x2a2a2a); break;
       case 'cowl': g.box(-3, 0, -1, 3, 6, 3, hc); g.box(-2, 7, 0, 2, 7, 3, hc); g.box(-1, 8, 1, 1, 8, 3, hc); g.box(-3, 3, -2, 3, 6, -2, hc); g.box(-2, 0, -2, 2, 2, -2, shade(skin, 0.55)); g.set(-1, 2, -3, glow(acc)).set(1, 2, -3, glow(acc)); break;
     }
     return g;
