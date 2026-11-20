@@ -29,6 +29,7 @@
     thirst: { ids: DRINK, word: 'water', tables: ['kitchen', 'shop', 'store'] },
     hunger: { ids: FOOD, word: 'food', tables: ['kitchen', 'shop', 'store', 'farm'] },
     ammo: { word: 'ammunition', tables: ['police', 'military', 'home', 'office'] },
+    fatigue: { ids: ['coffee'], word: 'sleep', tables: ['kitchen', 'office'] },
   };
   const squad = () => G.actors.filter(a => a.cz && a.cz.m && a.state !== 'dead');
   const fighting = a => a.bot && a.bot.target && a.bot.target.state === 'alive' && G.time - (a.bot.seenT || -99) < 4;
@@ -48,6 +49,7 @@
     // so it is sorted out before the gun runs dry
     const mag = (a.w[0] && a.w[0].def.mag) || 20;
     if (calRounds(a, calOf(a)) < mag * 2) out.push('ammo');
+    if (st.fatigue > 70) out.push('fatigue');   // tired: rest (or coffee, or a bed) before it's exhaustion
     return out;
   }
   CZ.needsOf = needsOf;
@@ -151,7 +153,9 @@
     // a dry gun: the other one
     if (a.w[a.cur] && a.w[a.cur].mag <= 0 && a.w[a.cur].reserve <= 0) { const o = a.w.findIndex((w, i) => i !== a.cur && (w.mag > 0 || w.reserve > 0)); if (o >= 0) WPN.swap(a, o); }
     a.czNeed = null;
+    restTick(a, hot);
     for (const need of needs) {
+      if (need === 'fatigue') { const c = (m.inv.coffee || 0) > 0 && m.st.fatigue > 80 && !hot; if (c) { CZ.use(a, 'coffee', true); return; } continue; }
       if (hot && need !== 'bleed' && !(need === 'hurt' && a.hp < 25)) continue;   // in a fight only what can't wait (a wound can't)
       const id = itemIn(m, need, a) || (need !== 'ammo' && fromStash(a, need));
       if (id && need !== 'ammo') { CZ.use(a, id, true); if (Math.random() < 0.3) say(a, 'self', need === 'bleed' ? ['Patching myself up.', 'Bandaging.'] : need === 'thirst' ? ['Drinking.'] : need === 'hunger' ? ['Eating something quick.'] : ['Treating it.']); return; }
@@ -223,6 +227,38 @@
     }
   };
 
+  /* ================================================================ rest and sleep */
+  /* Tired (over 70): when nothing is close, a teammate stops and rests (crouched) until it is back under
+     45, unless the squad moves off; at a restored safehouse it naps on the bed instead, all the way
+     down. Over 85 it asks to go back and sleep */
+  const bed = () => G.ents.find(e => e.alive && e.czFix === 'czbed');
+  function restTick(a, hot) {
+    const st = a.cz.m.st;
+    if (hot) { a.czRestWant = false; return; }
+    if (st.fatigue > 70) a.czRestWant = true;
+    else if (st.fatigue < (a.czNap > G.time ? 15 : 45)) { if (a.czRestWant && a.stance > 0) a.setStance(0); a.czRestWant = false; a.czNap = 0; }
+    if (st.fatigue > 85 && G.time > (a.czSleepAskT || 0)) {
+      a.czSleepAskT = G.time + 90;
+      const home = CZ.Z && CZ.isSafe(CZ.Z.id);
+      say(a, 'tired', home ? ["I'm dead on my feet. I need that bed.", 'Need to sleep. Just an hour.'] : ["I'm running on empty. We need to get back and sleep.", "I can barely keep my eyes open."], 3);
+      const p = G.player; if (p && !p.ghost && p.cz) CZ.tell(p, a.op.name + ' is exhausted · ' + (home ? 'let them use the bed, or sleep' : 'head back to a safehouse to sleep'), 'warn');
+    }
+  }
+  CZ.restGoal = function (a) {
+    if (!a.czRestWant || fighting(a)) return null;
+    const lead = CZ.leader();
+    // a safehouse bed right here: a proper nap
+    const b = CZ.Z && CZ.isSafe(CZ.Z.id) ? bed() : null;
+    if (b && (!lead || lead === a || U.dist3(lead.pos, b.pos) < 30)) {
+      const n = NAV.nearest(b.pos, 4);
+      return { pos: n >= 0 ? NAV.nodePos(n) : b.pos.clone(), kind: 'nap', r: 1.6, act: x => { if (!(x.czNap > G.time)) { x.czNap = G.time + 60; x.setStance(2); say(x, 'nap', ['Twenty minutes. Wake me if they come.', 'Lying down for a bit.'], 2); } } };
+    }
+    // otherwise a rest where it stands, crouched, as long as the squad isn't leaving it behind
+    if (lead && lead !== a && U.dist3(lead.pos, a.pos) > 22) return null;
+    if (G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 15)) return null;
+    return { pos: a.pos.clone(), kind: 'rest', r: 3, crouch: true, act: x => { if (x.stance === 0) x.setStance(1); } };
+  };
+
   /* ================================================================ scavenging */
   /* a container to go through: near the leader, not someone else's, of a kind that has what is needed */
   function pickContainer(a, need, range) {
@@ -263,6 +299,7 @@
   const oGoal = CZ.squadGoal;
   CZ.squadGoal = function (a) {
     const lead = CZ.leader();
+    if (a !== lead && CZ.S && (CZ.S.order === 'follow' || CZ.S.order === 'hold')) { const r = CZ.restGoal(a); if (r) return r; }
     if (a !== lead && CZ.S && CZ.S.order === 'follow') { const g = CZ.forageGoal(a); if (g) return g; }
     return oGoal.apply(this, arguments);
   };
@@ -311,6 +348,13 @@
     if (a.czNeed && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a))) { const e = pickContainer(a, a.czNeed, 40); if (e) return lootGoal(a, e); }
     // a safehouse: restore it, build what the story wants, sleep when the squad is worn out
     if (CZ.ZONES[here].safe && !CZ.isSafe(here) && CZ.haveAll(CZ.SAFE_UP[0].needs, CZ.sources(a))) { const g = fixGoal(a, 'czbench', x => CZ.restore(here, x)); if (g) return g; }
+    // worn out and away from home: back to the nearest safehouse to sleep (or, with none, a rest here)
+    const tiredAll = squad().reduce((t, x) => t + x.cz.m.st.fatigue, 0) / Math.max(1, squad().length), worst = Math.max(...squad().map(x => x.cz.m.st.fatigue));
+    if (!CZ.isSafe(here) && (tiredAll > 70 || worst > 85)) {
+      const homes = Object.keys(S.safe).filter(z => CZ.isSafe(z));
+      if (homes.length) { const best = homes.map(z => ({ z, n: CZ.routeTo(here, z) })).filter(x => x.n)[0]; if (best) { const g = roadGoal(a, best.n); if (g) { if (!Z.homeSaid) { Z.homeSaid = true; HUD.toast('The squad is worn out: heading back to ' + CZ.ZONES[best.z].name + ' to sleep', 'info'); } return g; } } }
+      else { a.czRestWant = true; const r = CZ.restGoal(a); if (r) return r; }
+    }
     if (CZ.isSafe(here)) {
       const tired = squad().reduce((t, x) => t + x.cz.m.st.fatigue, 0) / Math.max(1, squad().length);
       const hurt = squad().some(x => x.hp < 50);

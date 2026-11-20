@@ -60,6 +60,8 @@
     if (st.fracture) tags.push('<i class="bad">BROKEN BONE</i>');
     if (st.sick > 0) tags.push('<i class="warn">SICK</i>');
     if (st.pain > 0) tags.push('<i>PAINKILLERS</i>');
+    if (p.czResting) tags.push('<i>RESTING</i>');
+    else if (st.fatigue >= 80) tags.push('<i class="' + (st.fatigue >= 95 ? 'bad' : 'warn') + '">' + (st.fatigue >= 95 ? 'EXHAUSTED' : 'TIRED') + ' · REST OR SLEEP</i>');
     if (st.temp < 35.5) tags.push('<i class="bad">HYPOTHERMIA</i>');
     const kg = CZ.weight(m), cap = CZ.capacity(m);
     tags.push('<i class="' + (kg > cap ? 'warn' : '') + '">PACK ' + kg + ' / ' + cap + ' KG</i>');

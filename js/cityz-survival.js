@@ -78,6 +78,15 @@
       st.hunger = Math.min(100, st.hunger + RATE.hunger * diff.need * dt);
       st.thirst = Math.min(100, st.thirst + RATE.thirst * diff.need * dt * (st.sick > 0 ? 1.6 : 1));
       st.fatigue = Math.min(100, st.fatigue + RATE.fatigue * diff.need * dt * (a.sprint && a.moving > 0.5 ? 2.2 : 1));
+      // a rest: still, with no infected within 15 m, tiredness comes back down (crouched or lying
+      // faster, indoors faster), but only sleep takes it below 40. A nap on a safehouse bed goes all
+      // the way down
+      a.czResting = false;
+      if (a.czNap && a.czNap > G.time) { st.fatigue = Math.max(0, st.fatigue - 1.4 * dt); a.czResting = true; }
+      else if ((a.moving || 0) < 0.15 && st.fatigue > 40 && !(a.czCalmChk > G.time && a.czThreat)) {
+        if (!(a.czCalmChk > G.time)) { a.czCalmChk = G.time + 1; a.czThreat = G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 15); }
+        if (!a.czThreat) { st.fatigue = Math.max(40, st.fatigue - dt * (a.stance > 0 ? 0.45 : 0.22) * (G.map.inside(a.pos) ? 1.3 : 1)); a.czResting = true; }
+      }
       // stamina: sprinting spends it; you get it back walking, slower when hungry, thirsty or exhausted
       const smax = st.fatigue >= 95 ? 45 : st.fatigue > 80 ? 75 : 100;
       if (a.sprint && a.moving > 0.5) st.stamina = Math.max(0, st.stamina - 13 * dt);
