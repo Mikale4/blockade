@@ -96,6 +96,19 @@
       case 'pilot': g.box(-3, 2, -3, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-3, 0, -1, -3, 2, 3, hc); g.box(3, 0, -1, 3, 2, 3, hc); g.box(-2, 1, -4, 2, 3, -4, 0x1a2a3a); g.box(-3, 0, -2, -2, 0, -4, 0x222222); g.set(0, 5, -4, glow(acc)); break;
       case 'goggles': g.box(-2, 4, -2, 2, 5, 2, hc); g.box(-2, 4, -4, 2, 4, -3, hc); g.box(-3, 3, -3, 3, 3, -3, 0x2a2a2a); g.box(-2, 3, -4, -1, 3, -4, glow(acc)); g.box(1, 3, -4, 2, 3, -4, glow(acc)); break;
       case 'miner': g.box(-3, 4, -3, 3, 6, 3, hc); g.box(-4, 4, -4, 4, 4, 4, shade(hc, 0.85)); g.box(-1, 5, -5, 1, 6, -4, 0x2a2a2a); g.box(-1, 5, -6, 1, 6, -6, glow(0xfff6c8)); g.box(-3, 0, -1, -3, 3, -1, 0x2a2a2a); g.box(3, 0, -1, 3, 3, -1, 0x2a2a2a); break;
+      // ---- seasons 15-18
+      case 'pivot': g.box(-2, 4, -2, 2, 5, 2, hc); g.box(-2, 4, -4, 2, 4, -3, hc); g.box(-3, 1, -1, -3, 3, 1, 0x2a2a2a); g.box(3, 1, -1, 3, 3, 1, 0x2a2a2a); g.box(-3, 4, 0, 3, 4, 0, 0x2a2a2a); g.box(-2, 5, -3, 2, 5, -3, 0x333333); g.set(-1, 5, -4, glow(acc)).set(1, 5, -4, glow(acc)); g.box(-2, 0, -3, 2, 0, -3, hair); break;
+      case 'bound': g.box(-3, 3, -2, 3, 3, 2, acc); g.box(-2, 2, -3, 2, 2, -3, 0x101418); g.set(-2, 2, -3, glow(acc)); g.box(-2, 4, -2, 2, 5, 1, hair); g.box(-1, 1, 3, 1, 4, 3, hair); g.box(-1, 5, 2, 1, 6, 3, hair); break;
+      case 'plummet': g.box(-3, 3, -3, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-1, 4, -4, 1, 5, -4, 0x222222); g.set(0, 4, -5, glow(0xfff6c8)); g.box(-3, 0, -1, -3, 2, -1, 0x222222); g.box(3, 0, -1, 3, 2, -1, 0x222222); g.box(0, -2, 3, 0, 3, 3, hair); break;
+      case 'perch': g.box(-3, 4, -2, 3, 5, 3, hc); g.box(-2, 4, -4, 2, 4, -3, shade(hc, 0.8)); g.box(-2, 2, -3, 2, 2, -3, 0x9a8a30); g.set(-2, 2, -3, glow(acc)); g.box(-2, 0, -3, 2, 0, -3, hair); g.box(-3, 1, -2, -3, 3, -1, hair); g.box(3, 1, -2, 3, 3, -1, hair); break;
+      case 'winch': g.box(-3, 4, -3, 3, 6, 3, hc); g.box(-4, 4, -4, 4, 4, 4, hc); g.box(-1, 7, -1, 1, 7, 1, shade(hc, 0.85)); g.box(-3, 0, 0, -3, 3, 0, 0x222222); g.box(3, 0, 0, 3, 3, 0, 0x222222); g.box(3, 1, -2, 3, 2, -1, glow(acc)); g.box(-2, 3, 3, 2, 3, 4, hair); break;
+      case 'strain': g.box(-2, 4, -2, 2, 4, 2, hair); g.box(-2, 2, -3, 2, 2, -3, 0x222222); g.set(-1, 2, -3, 0x6ab0ff).set(1, 2, -3, 0x6ab0ff); g.box(-3, 1, -1, -3, 3, 1, 0x2a2c34); g.box(3, 1, -1, 3, 3, 1, 0x2a2c34); g.box(-3, 4, 0, 3, 5, 0, 0x2a2c34); g.box(-3, 0, -2, -3, 0, -3, 0x2a2c34); g.set(-2, 0, -3, glow(acc)); break;
+      case 'stain': g.box(-2, 4, -2, 2, 5, 2, hc); g.box(-2, 4, -4, 2, 4, -3, hc); g.box(-2, 0, -3, 2, 1, -3, 0x2a2a2a); g.set(-1, 1, -4, acc).set(1, 0, -4, acc); g.set(2, 5, -3, acc).set(-2, 5, 1, acc); g.box(-1, 1, 3, 1, 3, 3, hair); break;
+      case 'glance': g.box(-2, 4, -2, 2, 6, 2, hc); g.box(-3, 3, -2, 3, 3, 2, hc); g.box(1, 2, -4, 2, 2, -3, 0x222222); g.set(2, 2, -5, glow(acc)); g.box(-3, 0, -1, -3, 3, 1, hair); g.box(3, 0, -1, 3, 3, 1, hair); break;
+      case 'feint': g.box(-3, 4, -3, 3, 4, 3, hc); g.box(-2, 5, -2, 2, 6, 2, hc); g.box(-2, 5, -2, 2, 5, 2, acc); g.box(-2, 0, -3, 2, 1, -3, shade(hc, 1.3)); g.set(0, 2, -3, 0x15171a); break;
+      case 'glint': g.box(-3, 0, -2, 3, 5, 3, hc); g.box(-2, 6, -2, 2, 6, 2, hc); g.box(-2, 0, -2, 2, 3, -2, skin); g.box(-2, 2, -3, 2, 2, -3, glow(0xd8e8ff)); g.box(-3, 3, -3, 3, 4, -3, hc); g.box(-3, 0, -3, 3, 0, -3, hc); break;
+      case 'chaff': g.box(-3, 4, -2, 2, 5, 2, hc); g.box(-3, 5, 0, -2, 5, 2, shade(hc, 0.85)); g.set(1, 4, -3, acc); g.box(-3, 1, -1, -3, 3, 1, 0x222428); g.box(-3, 0, -2, -3, 0, -3, 0x222428); g.set(-2, 0, -3, glow(acc)); g.box(-2, 3, 3, 2, 3, 4, hair); break;
+      case 'bluff': g.box(-3, 0, -1, 3, 5, 3, hc); g.box(-2, 6, -1, 2, 6, 3, hc); g.box(-2, 0, -2, 2, 1, -2, 0x2a2a2a); g.box(-2, 2, -2, 2, 3, -2, skin); g.set(-1, 2, -3, 0x15171a).set(1, 2, -3, 0x15171a); g.set(2, 1, -3, glow(acc)); break;
       case 'cowl': g.box(-3, 0, -1, 3, 6, 3, hc); g.box(-2, 7, 0, 2, 7, 3, hc); g.box(-1, 8, 1, 1, 8, 3, hc); g.box(-3, 3, -2, 3, 6, -2, hc); g.box(-2, 0, -2, 2, 2, -2, shade(skin, 0.55)); g.set(-1, 2, -3, glow(acc)).set(1, 2, -3, glow(acc)); break;
     }
     return g;
@@ -130,6 +143,19 @@
     rails: (g, L) => { g.box(-3, 1, 4, -3, 11, 4, 0x6a6e76); g.box(2, 1, 4, 2, 11, 4, 0x6a6e76); g.box(-2, 9, 4, 1, 11, 6, L.accent); for (let y = 2; y <= 8; y += 2) g.box(-2, y, 5, 1, y, 5, 0x50545a); },
     projector: (g, L) => { g.box(-2, 4, 4, 1, 8, 6, 0x2a2c38); g.box(-1, 6, 7, 0, 7, 7, glow(L.accent)); g.box(-3, 8, 5, -3, 12, 5, 0x333340); g.set(-3, 13, 5, glow(L.accent)); },
     roll: (g, L) => { g.box(-4, 2, 4, 3, 4, 6, 0x5a4a3a); g.box(-3, 5, 4, 2, 7, 5, 0x3a3a3a); g.set(-3, 3, 7, 0x9aa0a6).set(2, 3, 7, 0x9aa0a6); },
+    // seasons 15-18
+    hinge: (g, L) => { g.box(-3, 3, 4, 2, 8, 6, 0x3a3a34); g.box(-4, 8, 5, -4, 12, 5, 0x555555); g.box(-5, 11, 4, -3, 13, 6, 0x9aa0a6); g.set(-1, 6, 7, glow(L.accent)); },
+    plates: (g, L) => { for (let i = 0; i < 3; i++) g.box(-3, 3 + i * 3, 4, 2, 4 + i * 3, 6, i % 2 ? 0x3a7a5a : 0x2a2e30); g.box(-1, 2, 7, 0, 11, 7, 0x555555); g.set(-1, 10, 7, glow(L.accent)); },
+    winchdrum: (g, L) => { g.box(-3, 4, 4, 2, 9, 7, 0x2a2e36); g.box(-2, 5, 8, 1, 8, 8, 0xc83a2a); g.box(-4, 6, 5, -4, 7, 6, 0x8a8f94); g.box(3, 6, 5, 3, 7, 6, 0x8a8f94); g.set(0, 10, 5, glow(L.accent)); },
+    poles: (g, L) => { for (const x of [-3, -1, 1]) g.box(x, 0, 5, x, 14, 5, 0x8a8f94); g.box(-3, 6, 4, 1, 7, 6, 0x4a4030); g.set(-2, 14, 5, glow(L.accent)); },
+    hoist: (g, L) => { g.box(-3, 3, 4, 2, 7, 6, 0xf0c030); g.box(-2, 8, 4, 1, 10, 6, 0x2a3440); g.set(0, 9, 7, glow(L.accent)); g.box(-3, 2, 7, 2, 2, 7, 0x2a2a2a); },
+    gauges: (g, L) => { g.box(-3, 3, 4, 2, 9, 5, 0x2a2c34); for (const y of [4, 6, 8]) g.set(-2, y, 6, glow(L.accent)).set(1, y, 6, 0x9aa0a6); },
+    dyecans: (g, L) => { for (const x of [-3, -1, 1]) { g.box(x, 3, 4, x + 1, 7, 6, 0x2a2a2a); g.box(x, 7, 4, x + 1, 7, 6, 0xff8a20); } g.set(-1, 5, 7, glow(L.accent)); },
+    periscope: (g, L) => { g.box(-1, 0, 5, 0, 14, 5, 0x555555); g.box(-2, 13, 4, 1, 15, 6, 0x333333); g.set(-1, 14, 3, glow(L.accent)); g.box(-3, 4, 4, 2, 7, 6, 0x2a3a30); },
+    charges: (g, L) => { g.box(-3, 2, 4, 2, 8, 6, 0x3a3428); for (const y of [3, 5, 7]) g.set(-2, y, 7, glow(0xff3030)).set(1, y, 7, 0x777777); },
+    taperolls: (g, L) => { g.box(-3, 3, 4, 2, 7, 6, 0x4a4434); for (const x of [-3, 0]) g.box(x, 8, 4, x + 2, 10, 6, 0xd8d0a0); g.set(0, 9, 7, glow(L.accent)); },
+    canisters: (g, L) => { for (const x of [-3, -1, 1]) g.box(x, 2, 4, x + 1, 8, 6, 0x4a5a6a); g.box(-3, 8, 4, 2, 8, 6, 0xc8d8f0); g.set(0, 5, 7, glow(L.accent)); },
+    propcase: (g, L) => { g.box(-3, 2, 4, 2, 9, 6, 0x5a3a2a); g.box(-2, 3, 7, 1, 8, 7, 0x3a2418); g.set(-1, 6, 8, glow(L.accent)).set(0, 4, 8, 0xff3030); },
     sapper: (g, L) => { g.box(-3, 1, 4, 2, 6, 6, 0x4a3a2a); g.box(-2, 7, 4, 1, 8, 5, 0x3a2a1a); g.set(-1, 4, 7, glow(L.accent)).set(1, 4, 7, glow(L.accent)); },
   };
   function buildArm(L) { const g = new Grid(); g.box(-1, -9, -1, 0, 0, 0, L.cloth); g.box(-1, -9, -1, 0, -8, 0, 0x2a2622); g.box(-1, -4, -1, 0, -3, 0, shade(L.cloth, 0.8)); return g; }

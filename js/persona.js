@@ -158,7 +158,10 @@
     grout: ['hold', 'hard', 'cover'], drench: ['utility', 'team', 'hold'],
     span: ['entry', 'mobile', 'team'], rung: ['breach', 'entry', 'mobile'], jolt: ['trap', 'hold', 'denial'], ferret: ['roam', 'stealth', 'mobile', 'flank'], sink: ['trap', 'pick', 'hold'],
     phantom: ['utility', 'flank', 'stealth'], loop: ['utility', 'intel', 'stealth'], tremor: ['intel', 'team'], babel: ['utility', 'hold', 'team'], relay: ['intel', 'pick'],
-    kite: ['intel', 'long', 'mobile'], murmur: ['stealth', 'flank', 'pick'], latch: ['hold', 'utility', 'cover'], mirage: ['pick', 'trap', 'stealth'], harbor: ['cover', 'team', 'hold'],
+    kite: ['intel', 'long', 'mobile'],
+    pivot: ['breach', 'entry', 'stealth'], stain: ['team', 'intel', 'utility'], glance: ['intel', 'long', 'stealth'], feint: ['utility', 'team', 'flank'],
+    glint: ['intel', 'hold', 'trap'], chaff: ['utility', 'hold', 'team'], bluff: ['trap', 'intel', 'stealth'], bound: ['mobile', 'entry', 'flank'], plummet: ['entry', 'flank', 'pick'],
+    perch: ['hold', 'long', 'pick'], winch: ['mobile', 'utility', 'team'], strain: ['intel', 'hold', 'utility'], murmur: ['stealth', 'flank', 'pick'], latch: ['hold', 'utility', 'cover'], mirage: ['pick', 'trap', 'stealth'], harbor: ['cover', 'team', 'hold'],
   };
   const KEYS = ['aggr', 'caution', 'conf', 'risk', 'react', 'patience', 'aware', 'team', 'range', 'repos', 'cover', 'stealth'];
   const clamp01 = v => Math.max(0, Math.min(1, v));

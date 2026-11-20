@@ -154,7 +154,7 @@
         if (b.state !== 'alive' || b.team === a.team || b.hostage) continue;
         const c = b.center(V()), to = c.clone().sub(eye), L = to.length(); if (L > 20) continue;
         to.divideScalar(L); if (to.x * f.x + to.z * f.z < 0.3) continue;
-        if (!G.world.los(eye, c) || FX.smokeBlocks(eye, c)) continue;
+        if (!G.world.los(eye, c) || FX.smokeBlocks(eye, c) || OPS2.deviceBlocks(eye, c)) continue;
         if ((b.spotT || 0) < G.time) { b.spotT = G.time + 3; GAME.mark(b, a.team, 5, true); }
         if (GAME.phase === 'action') GAME.intel(b, a.team, 30);
         const old = intel.find(e => e.a === b); if (old) { old.pos.copy(b.pos); old.t = G.time; } else intel.push({ a: b, pos: b.pos.clone(), t: G.time, op: b.op.id });

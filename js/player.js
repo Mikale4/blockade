@@ -390,6 +390,8 @@
       fov = s.fov / U.lerp(1, P.zoomNow(), a.ads);
       if (a.sprint && a.moving > 3.6) fov += 4;
       P.vmVisible = a.state === 'alive' || a.state === 'dbno';
+      // Glance's corner mirror: the view from the mirror, out to the side
+      if (a.mirror && a.mirror.pos && a.state === 'alive') { cam.position.copy(a.mirror.pos); fov = 62; P.vmVisible = false; }
     }
     if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
     SFX.setListener(cam.position, cam.rotation.y);

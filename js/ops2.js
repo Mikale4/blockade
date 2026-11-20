@@ -112,7 +112,7 @@
         if (b.state !== 'alive' || b.team === this.team || b.hostage || b.cloakT > 0 || b.nullT > G.time) continue;
         const c = b.center(V()), to = c.clone().sub(eye), d = to.length(); if (d > 14) continue;
         to.divideScalar(d); if (to.x * this.dir.x + to.z * this.dir.z < 0.64) continue;   // outside its 100°
-        if (!G.world.los(eye, c) || FX.smokeBlocks(eye, c)) continue;
+        if (!G.world.los(eye, c) || FX.smokeBlocks(eye, c) || OPS2.deviceBlocks(eye, c)) continue;
         if (!(b.marks && b.marks[this.team] > G.time + 0.5)) SFX.beep(this.pos, 2100, 0.25);
         GAME.mark(b, this.team, 2, true);
       }
@@ -371,6 +371,7 @@
   OPS2.jammed = function (a) { return false; };
   OPS2.aiEntTarget = function (a, g) { return false; };
   OPS2.blocksSight = function (a, e, c) { return false; };  // curtains, false walls (bots' eyes)
+  OPS2.deviceBlocks = function (e, c) { return false; };    // what a camera / drone can't see through (Chaff)
   OPS2.voicePos = function (a) { return null; };            // where this actor's sounds come from (Murmur)
   /* the later batches (js/ops2-b.js ...) add to these hooks: their function runs first, and the
      one before runs too unless it returned something truthy */

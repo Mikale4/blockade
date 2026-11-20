@@ -324,3 +324,10 @@ body.kc #hud, body.kc #fxLayer { visibility: hidden; }
 /* ------------------------------------------------------------ deathmatch HUD */
 .h-team.dm .dmt { width: auto; padding: 0 10px; font: 800 14px var(--f); letter-spacing: 0.12em; }
 .sb-row em.bot { font: 700 10px var(--f); font-style: normal; letter-spacing: 0.14em; color: var(--dim); border: 1px solid rgba(255,255,255,0.2); padding: 0 4px; margin-left: 6px; }
+
+/* ---- operator voice lines (js/voice.js): radio subtitles, bottom left above the HUD */
+#vo { position: fixed; left: 18px; bottom: 150px; width: min(460px, 70vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; z-index: 40; }
+.vo-line { background: rgba(10, 12, 16, 0.72); border-left: 3px solid rgba(255, 255, 255, 0.35); padding: 5px 9px; font: 13px/1.35 'Rajdhani', 'Segoe UI', sans-serif; color: #e8eaed; letter-spacing: 0.2px; transition: opacity 0.7s; }
+.vo-line b { font-weight: 700; letter-spacing: 1px; margin-right: 2px; }
+.vo-line.enemy { border-left-color: #d04a4a; opacity: 0.85; }
+.vo-line.fade { opacity: 0; }

@@ -337,10 +337,13 @@
     const d = $('div', { class: 'op-detail' });
     d.append($('div', { class: 'op-head', style: { '--uc': u.color } }, MENU.bust(op, 96), $('div', {},
       $('div', { class: 'op-title' }, $('b', {}, op.name), $('span', { class: 'unit', style: { background: u.color } }, u.name), op.season ? $('span', { class: 'season' }, 'SEASON ' + op.season) : null),
-      $('div', { class: 'op-real' }, op.real + ' · ' + op.role),
+      $('div', { class: 'op-real' }, op.real + ' · ' + op.role + (op.country ? ' · ' + op.country : '')),
       $('div', { class: 'op-stats' }, $('span', {}, 'ARMOR ', pips(op.armor, 3)), $('span', {}, 'SPEED ', pips(op.speed, 3))))));
     d.append($('div', { class: 'op-ab' }, $('kbd', {}, KEYS.name('ability')), $('b', {}, op.ability.name), $('p', {}, op.ability.desc)));
     d.append($('p', { class: 'op-bio' }, op.bio));
+    if (op.trait) d.append($('p', { class: 'op-bio' }, $('b', {}, 'PERSONALITY '), op.trait));
+    // (seasons 15-18: they introduce themselves when you pick them)
+    if (window.VOICE && MENU._intro !== op.id) { MENU._intro = op.id; VOICE.intro(op); }
     if (lo) {
       // the kit as cards: the gun (with the attachments that are on it), the gadget, as models
       const gunCard = (key, id) => { const W = WEAPONS[id], big = key === 'primary';
@@ -566,6 +569,9 @@
       toggle('Invert mouse Y', 'invertY'),
       toggle('Swap sides every round', 'swapEveryRound'),
       toggle('Kill cam (replay your death and the round-ending kill)', 'killcam'),
+      toggle('Operator voice lines (subtitles)', 'voiceLines'),
+      toggle('Speak operator voice lines', 'voiceSpeech'),
+      slider('Voice volume', 'voiceVol', 0, 1, 0.05, v => Math.round(v * 100) + '%'),
       toggle('Show FPS', 'showFps'),
       installRow(),
       $('div', { class: 'actions' }, back(onBack))), overlay);

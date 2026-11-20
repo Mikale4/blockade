@@ -51,7 +51,7 @@
     const bursting = w.def.burst && w.burstLeft > 0;
     if ((a.trigger || bursting) && a.state === 'alive') {
       if (w.reload > 0 || a.swap > 0 || a.vault || a.busy > 0 || a.sprintT > 0 || w.cool > 0) return;
-      if (a.shBash > 0 || a.ride) return;   // mid shield bash, or riding a line
+      if (a.shBash > 0 || a.ride || a.mirror) return;   // mid shield bash, or riding a line
       if (w.vent > 0) { if (!w.clicked) { if (a.isPlayer) SFX.empty(); w.clicked = true; } return; }   // venting heat
       if (d0.heat && a.isBot && w.heat > 0.86) return;   // a bot lets a hot gun cool rather than overheat it
       if (w.mag <= 0) {

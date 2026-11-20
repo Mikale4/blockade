@@ -15,3 +15,6 @@ sound effects/*.m4a
 
 # reference images and notes (not part of the game)
 /maps/
+
+# test harnesses (local only)
+/_*.js

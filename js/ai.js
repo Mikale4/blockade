@@ -344,10 +344,12 @@
       if (t.team === a.team || t.state === 'dead' || t.hostage || t.dummy) continue;
       if (prep && t.side === 'atk') continue;   // attackers are droning, not on the field
       t.isActor = true;
-      if (t.cloakT > 0 && U.dist3(e, t.pos) > 4) continue;       // a cloaked operator: only seen up close
+      const dyed = t.dyeT > G.time;                              // (Stain's dye: no hiding in it)
+      if (t.cloakT > 0 && U.dist3(e, t.pos) > 4 && !dyed) continue;       // a cloaked operator: only seen up close
       const p = canSee(a, t, e); if (!p) continue;
       let d = U.dist3(e, p);
-      if (d > 7 && GAME.dark(a.team)) continue;                   // blackout: a few metres of sight
+      if (d > 7 && GAME.dark(a.team) && !dyed) continue;          // blackout: a few metres of sight
+      if (dyed) d *= 0.6;
       vis++;
       // every enemy in sight is remembered a few seconds (what a lean must not show us to)
       const th = b.threats.find(x => x.a === t); if (th) { th.p.copy(p); th.t = G.time; } else b.threats.push({ a: t, p: p.clone(), t: G.time });
@@ -1898,7 +1900,7 @@
       for (const t of G.actors) {
         if (t.team === a.team || t.state !== 'alive' || t.hostage || t.cloakT > 0 || t.nullT > G.time) continue;
         const c = t.center(V()), to = c.clone().sub(e), dist = to.length(); if (dist > 28) continue;
-        to.normalize(); if (to.dot(f) < 0.35 || !G.world.los(e, c) || FX.smokeBlocks(e, c)) continue;
+        to.normalize(); if (to.dot(f) < 0.35 || !G.world.los(e, c) || FX.smokeBlocks(e, c) || (window.OPS2 && OPS2.deviceBlocks(e, c))) continue;
         const old = intel.find(x => x.a === t);
         if (old) { old.pos.copy(t.pos); old.t = G.time; } else intel.push({ a: t, pos: t.pos.clone(), t: G.time, op: t.op.id });
         if ((t.spotT || 0) < G.time) { t.spotT = G.time + 3; GAME.mark(t, a.team, 5, true); }

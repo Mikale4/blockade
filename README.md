@@ -85,8 +85,9 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   end-to-end encrypted and wait for friends who are offline. You can invite a friend to a
   match or a room, join their room, or block someone.
 
-- **58 operators** (29 attack, 29 defense) in nineteen units. The launch roster is 20 operators
-  across five units, plus nine two-operator season squads and the twenty of seasons 10-14:
+- **70 operators** (35 attack, 35 defense) in twenty-three units. The launch roster is 20 operators
+  across five units, plus nine two-operator season squads, the twenty of seasons 10-14 and the
+  seasons 15-18 expansion (being built in batches; see [tools/EXPANSION.md](tools/EXPANSION.md)):
   - **Season 1 · Ironveil:** Pike (smoke launcher) and Lark (decoy emitter)
   - **Season 2 · Driftline:** Brace (Barrier Foam: a waist-high bulletproof foam wall) and Seam
     (Patch Spray: refills a breached wall, floor or hatch with foam)
@@ -130,6 +131,19 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
       Kite (Rotor Drone: a quadcopter that flies on a 12-second battery), Latch (Remote Shutter:
       steel shutters on doorways, slammed shut or open from anywhere) and Mirage (False Wall: a
       hologram that is a wall to the attackers and glass to the defense)
+  - **Season 15 · Keystone** (rearranging the building): Pivot (Hinge Cutter: a door-sized panel of
+    soft wall becomes a door that opens and shuts, from anywhere or by hand), Bound (Spring Plate:
+    throws whoever steps on it up and forward, onto a roof or a ledge), Plummet (Drop Line: down
+    through a hole in a floor, which she punches herself if she has to, shooting from the ceiling),
+    Perch (Scaffold Kit: a steel scaffold with steps for high angles inside a room), Winch (Rotation
+    Hoist: rides anyone up or down a floor through a hatch in 1.5 s) and Strain (Strain Gauges: whoever
+    cuts, breaches or charges a gauged surface is marked)
+  - **Season 16 · Prism** (sight and deception): Stain (Dye Grenades: defenders caught turn bright
+    orange for 20 s, in the dark or under a cloak), Glance (Corner Mirror: look round a corner without
+    leaning out), Feint (Feint Charges: everything a breach charge does except the hole), Glint (Lens
+    Tape: any scope, drone or camera that looks at it glints), Chaff (Chaff Canister: a cloud people see
+    through and cameras, drones and scopes do not; marks fail inside it) and Bluff (Decoy Kit: fake
+    C4, cameras, alarms and sensors; whoever shoots one is marked)
 
   Each operator has an armor/speed rating, two primaries, two secondaries, two gadget choices
   and a unique ability.
@@ -154,7 +168,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   the range) each one is shown as a small voxel bust from the chest up, turned three-quarters
   to you and alive: breathing, looking about, glancing off now and then, blinking. The
   operator you have selected gets a larger one beside their name.
-- **31 primaries and sidearms**, eight of them with a mechanic of their own: the KB-3 (three-round
+- **40 primaries and sidearms**, eight of them with a mechanic of their own: the KB-3 (three-round
   bursts), HUSH-45 (suppressed: heard from 10 m instead of 45, no tracer for the enemy, and it
   doesn't set off a Triangulator), HAMMERHEAD .50 (punches through soft walls with most of its
   damage), MODEL 8 SLUG (one heavy slug instead of pellets), BANKSHOT (rounds skip once off a
@@ -164,7 +178,16 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   TWINFIRE (switch between auto and a marksman mode), VOLTA (no magazine: it heats up and vents),
   SPINDLE (a rotary gun that spins up), LONGBOW (bolt action), QUARREL (a crossbow whose silent
   bolts fly and drop), TALLY (a hit marks the target), BRAMBLE (incendiary pellets), LATTICE
-  (clamped double magazines) and STINGER (a taser pistol).
+  (clamped double magazines) and STINGER (a taser pistol). The seasons 15-18 expansion adds MAKO-556
+  (bullpup), HUSKY (50-round SMG), TALON (machine pistol), WARRANT .45, BREAKER 12 (magazine-fed
+  semi-auto shotgun), RAZOR (light DMR), HERON (semi-auto sniper), BRUNT (box-fed LMG) and NAILER
+  (a silent nail gun).
+- **Operator voice lines:** operators talk on the radio as things happen (the round starting, using
+  their kit, a kill, a contact, reloading, being hit or downed, losing a teammate, winning or losing),
+  shown as subtitles and spoken by the browser with a voice and pace per operator. The seasons 15-18
+  operators have their own lines and introduce themselves on the select screen; the others use short
+  callouts. Your team's lines come over the radio; an enemy's only when they are close. Settings turn
+  the subtitles or the speech off and set the voice volume.
 - **Weapon attachments:** every gun has up to four slots: **optic** (iron sights, reflex, red
   dot, holographic, 2.5x telescopic, a 1.5-3x variable you switch with the firemode key while
   aiming, a 4x marksman scope), **barrel** (suppressor, compensator, muzzle brake, flash hider,
@@ -439,6 +462,7 @@ attacker spawns and their cover) · `maps-kit` (floor-plan layout kit: doors, wi
 hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `maps-millrace` (the 18 maps) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·
+`ops3-a`, `ops3-b` (seasons 15-18 batches A and B, on the same registry) · `voice` (operator voice lines) ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
 `range` (range and training) · `killcam` (replays) · `names` (bot names) · `arcade` (Deathmatch and
 Team Deathmatch) · `shop` (cosmetics, credits) · `ranked` (ranks, matchmaking) · `main` · online: `ui` (toasts, modals, top bar) · `auth`

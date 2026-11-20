@@ -492,7 +492,7 @@
         const e = a.eye(V());
         const to = e.clone().sub(c.pos).normalize(), f = V().set(-Math.sin(c.yaw), 0, -Math.cos(c.yaw));
         if (to.dot(f) < -0.1) continue;
-        if (!G.world.los(c.pos, e) || FX.smokeBlocks(c.pos, e)) continue;
+        if (!G.world.los(c.pos, e) || FX.smokeBlocks(c.pos, e) || (window.OPS2 && OPS2.deviceBlocks(c.pos, e))) continue;
         if (Math.random() < 0.35) GAME.intel(a, def, 40);
       }
     }

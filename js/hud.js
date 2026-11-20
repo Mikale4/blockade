@@ -354,7 +354,7 @@
     H.pings = H.pings.filter(p => p.t > G.time);
     // Quill's scanner
     if (a.ability && a.ability.id === 'scanner' && a.ability.on && P.view === 'body') {
-      for (const g of G.ents) if (g.alive && g.team !== a.team && g.team >= 0 && GAD.TRAPS.has(g.type) && U.dist3(g.pos, a.pos) < 25) put(g.pos, 'mk-trap', g.type.toUpperCase());
+      for (const g of G.ents) if (g.alive && g.team !== a.team && g.team >= 0 && GAD.TRAPS.has(g.type) && U.dist3(g.pos, a.pos) < 25) put(g.pos, 'mk-trap', (g.scanAs || g.type).toUpperCase());
     }
     // damage numbers (range)
     H.dmgNums = H.dmgNums.filter(d => G.time - d.t < 1);

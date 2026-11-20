@@ -359,7 +359,8 @@
       const tx = (-sy * mf + cy * mr) * sp, tz = (-cy * mf - sy * mr) * sp;
       // on Skid's slick there is no grip: slow to get going and slow to stop
       if (window.OPS2 && this.onGround && OPS2.onSlick(this)) this.slickT = G.time + 0.15;
-      const acc = this.onGround ? (this.slickT > G.time ? 1.6 : 14) : 3;
+      // (thrown by a spring plate: the arc keeps its momentum until you land)
+      const acc = this.onGround ? (this.slickT > G.time ? 1.6 : 14) : this.flyT > G.time ? 0.3 : 3;
       this.vel.x = U.smooth(this.vel.x, tx, acc, dt);
       this.vel.z = U.smooth(this.vel.z, tz, acc, dt);
       // a shove (a harpoon dragging you): for a moment it moves you, whatever your legs want
@@ -410,7 +411,8 @@
         if (this.blocked(p.x, ny, p.z, 0.05)) {
           // land on the top of the voxel we hit
           ny = Math.floor(ny * 4 + 1e-3) / 4 + 0.25; if (ny > p.y) ny = Math.ceil(p.y * 4 - 1e-3) / 4;
-          if (this.vel.y < -11 && !this.dummy) this.hurt(Math.round((-this.vel.y - 11) * 9), { kind: 'fall' });
+          if (this.vel.y < -11 && !this.dummy && !(this.safeFallT > G.time)) this.hurt(Math.round((-this.vel.y - 11) * 9), { kind: 'fall' });
+          this.flyT = 0;
           this.vel.y = 0; this.onGround = true;
           // snap to exact voxel top
           while (this.blocked(p.x, ny, p.z, 0.02) && ny < p.y + 0.3) ny += 0.25;

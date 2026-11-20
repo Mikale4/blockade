@@ -72,7 +72,9 @@
     maul: { optic: ['iron', 'reflex', 'red'] },
     volta: { mag: [] },                                                // no magazine: it runs on heat
     spindle: { mag: [], under: [] },                                   // a belt and a carry handle
-    stinger: { optic: ['iron'], barrel: [], under: ['laser'], mag: [] },   // two darts, and that's it
+    stinger: { optic: ['iron'], barrel: [], under: ['laser'], mag: [] },
+    nailer: { optic: ['iron', 'reflex'], barrel: [], under: [], mag: ['xmag'] },   // a nail gun: quiet already
+    brunt: { mag: [] },                                                  // a box, not a magazine   // two darts, and that's it
     lattice: { mag: ['fmag'] },                                        // its clamped pair is the extended mag
   };
   const ATT = window.ATT = { LIST, SLOTS, SLOT_NAMES };

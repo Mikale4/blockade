@@ -208,6 +208,7 @@
     a.rappel = d.rp ? (a.rappel || { ax: 'x', s: 1 }) : null;
     // (seasons 10-14: on a ladder / riding a line, as far as the host needs to know)
     a.climb = d.cl ? (a.climb || { net: true }) : null; a.ride = d.rd ? (a.ride || { net: true }) : null;
+    a.hang = d.hg ? (a.hang || { net: true }) : null; a.hoist = d.hs ? (a.hoist || { net: true }) : null;   // (seasons 15-18)
     // footsteps for everyone else to hear (and the bots)
     const moved = Math.hypot(dx, dz);
     if (moved < 2 && a.state !== 'dead' && !a.rappel && a.moving > 0.6) {
@@ -568,7 +569,7 @@
       NP.inT = 0;
       const d = PLAYER.drone && PLAYER.view === 'drone' ? PLAYER.drone : null;
       Online.toHost({ t: 'np.in', p: pv(a.pos), v: pv(a.vel), yw: r4(a.yaw), pt: r4(a.pitch), st: a.stance, h: r2(a.h), ln: r2(a.lean), ad: r2(a.ads), mv: r2(a.moving || 0), cu: a.cur, sp: a.sprint ? 1 : 0, wk: a.walk ? 1 : 0, mf: a.mf,
-        hd: PLAYER.interactHeld() ? 1 : 0, rp: a.rappel ? 1 : 0, cl: a.climb ? 1 : 0, rd: a.ride ? 1 : 0, dr: d ? [d.mf || 0, d.mr || 0, d.jump ? 1 : 0, r4(d.yaw), r4(d.pitch), PLAYER.dBoostSend ? 1 : 0, d.up || 0] : 0 });
+        hd: PLAYER.interactHeld() ? 1 : 0, rp: a.rappel ? 1 : 0, cl: a.climb ? 1 : 0, rd: a.ride ? 1 : 0, hg: a.hang ? 1 : 0, hs: a.hoist ? 1 : 0, dr: d ? [d.mf || 0, d.mr || 0, d.jump ? 1 : 0, r4(d.yaw), r4(d.pitch), PLAYER.dBoostSend ? 1 : 0, d.up || 0] : 0 });
       if (d) d.jump = false;
       PLAYER.dBoostSend = false;
     }
