@@ -166,7 +166,17 @@ dynamic events, day and night and weather, and a story campaign in chapters with
 | Maps 7-12 (Skygate, Deepcut, Liftbridge, Broadcast House, Coldstore, Timberline) | built · mechanics tested · bot rounds |
 | Bots and the machinery | bots ride lifts on their paths; any bot beside a panel works it when it helps its side (gas on enemies, lights out on attackers, grilles down, bridge up, flats moved, a flood on enemies); one defender in two rounds holds the room with the panel nearest him |
 | Per-map loading-screen art and soundscapes | not built (the maps use the shared card, theme and ambience) |
-| City Z: everything | planned |
+| City Z: persistent world (save, clock, weather, ten places, travel by road, every change kept) | built · tested: a place left and re-entered (after a page reload) keeps its boarded windows, searched rooms, infected count and stash |
+| City Z: places (`tools/czcheck.js` builds and checks all ten) | built · all ten pass (every room reachable, all road ends joined) |
+| City Z: survival (hunger, thirst, fatigue, stamina, bleeding, fractures, body heat, sickness, infection) | built · tested (needs rise, bites infect and open wounds, effects apply) |
+| City Z: packs, weight, ammunition by calibre, found guns, searching rooms by kind, crafting | built · tested |
+| City Z: infected (walker, runner, brute, screamer, spitter, lurker, infected operators, hordes) | built · tested (they hear, chase, bite, beat barricades; the squad fights them) |
+| City Z: safehouses (restore, stash, bed and sleep, 7 upgrades), survivors with skills, daily production | built · restore, stash and sleep tested |
+| City Z: squad orders and control (follow, hold, attack, scavenge, quiet; take over any member) | built · follow, hold and taking over on death tested |
+| City Z: vehicles (drive, fuel, damage, run over, refuel, repair, drive to the next place) | built · driving tested |
+| City Z: campaign (7 objectives, characters, choices, 3 endings, day-20 deadline), events (drops, hordes, distress, road), radio | built · every story place and the finale tested; a full play-through by hand not yet |
+| City Z: online co-op (five players in one city) | not built yet: City Z is single-player with four AI teammates |
+| City Z: campaign length | honest note: seven objectives, a few hours with the scavenging between them, not 6-10 hours of authored missions |
 
 ## 6. Notes from testing
 - Batch A. Pivot: a 45-voxel door cut in 4 s; open, the path through goes from 16 m round to 1.4 m.

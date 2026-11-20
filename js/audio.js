@@ -64,6 +64,12 @@
     return o;
   }
   const now = () => SFX.ctx.currentTime;
+  /* the building blocks, for sounds made elsewhere (City Z's infected) */
+  SFX.synth = { chain, noise, tone, now };
+  /* an infected: a low wet groan; a screamer's shriek; a bite */
+  SFX.groan = function (pos, pitch) { if (!SFX.ctx) return; const d = chain(pos, 22, 0.5); if (!d) return; const t = now(), f = (pitch || 1) * (70 + Math.random() * 30); tone(d, t, 0.9 + Math.random() * 0.5, f, f * 0.7, 0.35, 'sawtooth'); noise(d, t, 0.8, 'lowpass', 500, 1, 0.4); };
+  SFX.shriek = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 80, 0.9); if (!d) return; const t = now(); tone(d, t, 1.4, 700, 1500, 0.4, 'sawtooth'); tone(d, t + 0.05, 1.3, 1050, 2100, 0.2, 'square'); noise(d, t, 1.3, 'highpass', 2500, 1, 0.5); };
+  SFX.bite = function (pos) { if (!SFX.ctx) return; const d = chain(pos, 18, 0.7); if (!d) return; const t = now(); noise(d, t, 0.2, 'bandpass', 900, 1.5, 0.9); tone(d, t, 0.25, 160, 80, 0.4, 'sawtooth'); };
 
   SFX.shot = function (wdef, pos, local) {
     if (!SFX.ctx) return;

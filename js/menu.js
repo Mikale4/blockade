@@ -251,6 +251,7 @@
           btn('RANKED', () => RANKED.open(), 'big hot'),
           btn('ONLINE LOBBY', () => Online.open(), 'big'),
           btn('PLAY VS BOTS', MENU.play, ''),
+          btn('CITY Z · SURVIVAL', () => CZ.menu(), 'hot'),
           btn('SHOP', () => SHOP.open()),
           btn('TRAINING', () => RANGE.tutorial()),
           btn('SHOOTING RANGE', () => MENU.rangePick()),

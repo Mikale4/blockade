@@ -315,6 +315,35 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     or the most kills after 7 minutes.
   - **Deathmatch:** ten players, everyone for themselves, any operator. First to 20 kills, or
     the most after 6 minutes.
+- **City Z** (CITY Z · SURVIVAL on the home menu): a single-player co-op survival campaign in one
+  persistent, quarantined city. You pick five operators; you play one and command the other four
+  (and can take over any of them; when you die you carry on as the next).
+  - **The city:** ten places joined by roads (a firehouse street, Main Street, a refugee school, a
+    hospital, a mall, a metro station, an industrial estate, a farm, the army checkpoint and a
+    ring-road truck stop), each a 90 m block of named, furnished buildings. Walk to a road end to
+    travel; time passes on the way. The save keeps everything: every room searched, every wall broken
+    and board nailed up, how many infected are left in each place, stashes, safehouses, survivors,
+    cars, the clock and the story. One real second is one minute; days and nights, rain and fog.
+  - **Staying alive:** hunger, thirst, tiredness, stamina, bleeding, broken bones, body heat,
+    sickness and the infection, each with its effects; a pack with a weight limit; ammunition by
+    calibre that is your guns' reserve; found guns to swap in. Rooms are searched for what that kind
+    of room holds. Crafting by hand and at a workbench (dressings, splints, molotovs, pipe bombs,
+    noisemakers, barricade kits, ammunition, meals).
+  - **The infected:** walkers, runners, armoured brutes, screamers that call the rest, spitters
+    that lob acid, lurkers that wait in the dark, hordes that come through, and infected operators
+    who still shoot. They hear every noise, beat down barricades, and their bites infect.
+  - **Safehouses:** restore one (the windows get boarded) for a bed, a stash and a workbench; build
+    a machine shop, steel walls, a rain collector, a garden, an infirmary and a radio. Survivors you
+    rescue go to live there and work by their skill (medic, mechanic, cook, scavenger, guard, farmer).
+  - **The squad:** orders (follow, hold, attack my target, scavenge nearby, stay quiet); they fight,
+    revive each other, treat and feed themselves from their own packs, and carry what they find.
+  - **Cars:** drivable, with fuel and damage; they carry the squad to the next place in a third of
+    the time, run down the infected, and are loud.
+  - **The story, The Grey Fever:** seven objectives across the city with characters, choices that
+    decide who lives and where, a day-20 deadline (not on Story difficulty) and three endings; the
+    city stays playable afterwards. Days bring supply drops, hordes and calls for help.
+  - Keys: I pack · M map · Y orders then 1-5 · 4 treat · 3 throw (all rebindable);
+    interact searches, talks, travels and drives. Difficulty: Story, Survivor, Nightmare.
 
   In both, you respawn 4 seconds after dying at the safest spot: away from the enemy, out of
   their sight and (in Team Deathmatch) near your team. Two seconds of spawn protection end
@@ -505,7 +534,10 @@ match itself are not.
 `world` (voxel storage, meshing, rays, destruction) · `maps` (map builder, range,
 attacker spawns and their cover) · `maps-kit` (floor-plan layout kit: doors, windows, stairwells,
 hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `maps-millrace` (the first 18 maps) ·
-`maps-xp1`, `maps-xp2` (the twelve machinery maps) · `mapmech` (their machinery: lifts, moving platforms, trains,
+`maps-xp1`, `maps-xp2` (the twelve machinery maps) · `cityz-data` (City Z's places, items, loot, recipes, infected) ·
+`cityz-zones` (building its places) · `cityz` (the persistent world, travel, the squad) · `cityz-infected` ·
+`cityz-survival` (needs, packs, searching, crafting, safehouses) · `cityz-ui` · `cityz-story` (campaign,
+people, events) · `cityz-vehicles` · `mapmech` (their machinery: lifts, moving platforms, trains,
 lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·

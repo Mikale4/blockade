@@ -304,6 +304,7 @@
     if (a.mantlet) k *= 0.6;
     if (a.mic) k *= 0.5;                                   // (Earshot listening: half speed)
     if (window.MECH && MECH.waterAt && MECH.waterAt(a.pos)) k *= 0.6;   // (wading through a flood)
+    if (a.czMul) k *= a.czMul;                             // (City Z: an infected's pace; a limp, a heavy pack)
     if (a.carry && a.carry.hostage && G.ents.some(e => e.alive && e.type === 'coil' && e.on && e.team !== a.team && U.dist3(e.pos, a.pos) < 8)) k *= 0.65;
     a.speedMul = k === 1 ? 0 : k;
     return false;

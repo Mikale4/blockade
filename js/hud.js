@@ -98,7 +98,7 @@
       ARC.standings().forEach((a, i) => {
         const s = a.match;
         b.append($('div', { class: 'sb-row ' + (a.isPlayer ? 't0 me' : 't1') + (a.state === 'dead' ? ' dead' : '') },
-          $('span', { class: 'sb-op', style: { borderColor: DATA.UNITS[a.op.unit].color } }, '#' + (i + 1) + ' ' + a.op.name), nameOf(a), $('span', {}, s.s), $('span', {}, s.k), $('span', {}, s.a), $('span', {}, s.d)));
+          $('span', { class: 'sb-op', style: { borderColor: (DATA.UNITS[a.op.unit] || {}).color || '#888' } }, '#' + (i + 1) + ' ' + a.op.name), nameOf(a), $('span', {}, s.s), $('span', {}, s.k), $('span', {}, s.a), $('span', {}, s.d)));
       });
       b.prepend($('div', { class: 'sb-cols' }, $('span', {}, 'OPERATOR'), $('span', {}, ''), $('span', {}, 'SCORE'), $('span', {}, 'K'), $('span', {}, 'A'), $('span', {}, 'D')));
       return;
@@ -111,7 +111,7 @@
       for (const a of rows) {
         const s = a.match || { k: 0, d: 0, a: 0, s: 0 };
         b.append($('div', { class: 'sb-row t' + (team === GAME.myTeam ? 0 : 1) + (a.isPlayer ? ' me' : '') + (a.state === 'dead' ? ' dead' : '') },
-          $('span', { class: 'sb-op', style: { borderColor: DATA.UNITS[a.op.unit].color } }, a.op.name), nameOf(a),
+          $('span', { class: 'sb-op', style: { borderColor: (DATA.UNITS[a.op.unit] || {}).color || '#888' } }, a.op.name), nameOf(a),
           $('span', {}, s.s), $('span', {}, s.k), $('span', {}, s.a), $('span', {}, s.d)));
       }
     }
@@ -147,7 +147,7 @@
           const box = t !== MT ? e.t1 : e.t0; box.innerHTML = '';
           for (const x of G.actors.filter(q => q.team === t && !q.hostage)) {
             const known = GAME.spectator || t === MT || x.state !== 'alive' || GAME.marked(x, MT);
-            box.append($('div', { class: 'ti ' + x.state + (x.isPlayer ? ' me' : ''), title: (x.net || x.netHuman ? x.name + ' · ' : '') + x.op.name, style: { borderColor: DATA.UNITS[x.op.unit].color } }, known ? x.op.name.slice(0, 3) : '?'));
+            box.append($('div', { class: 'ti ' + x.state + (x.isPlayer ? ' me' : ''), title: (x.net || x.netHuman ? x.name + ' · ' : '') + x.op.name, style: { borderColor: (DATA.UNITS[x.op.unit] || {}).color || '#888' } }, known ? x.op.name.slice(0, 3) : '?'));
           }
         }
         e.t0.className = 'h-team t0 ' + GAME.sideOf(MT); e.t1.className = 'h-team t1 ' + GAME.sideOf(1 - MT);
