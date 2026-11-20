@@ -159,13 +159,13 @@ dynamic events, day and night and weather, and a story campaign in chapters with
 | Batch B: Stain, Glance, Feint, Glint, Chaff, Bluff | built · each ability tested offline · bot rounds (see notes) |
 | Batch C: Sutler, Caster, Hound, Tether, Drag, Magpie | built · every ability tested offline · bot rounds on 3 maps, no errors |
 | Batch D: Archive, Lodestone, Earshot, Gust, Canary, Carom | built · every ability tested offline · bot rounds (see notes) |
-| HUD readings for guests (gauge alerts, glints, bearings, afterimages, mic bearings, sniffer alerts) | built: sent host to guest as they are made |
-| Victory poses and selection-screen artwork beyond the live busts | planned (polish phase) |
-| Unique first-person hands per operator | partial: arms take each operator's colours; no per-operator hand models yet |
+| HUD readings for guests (gauge alerts, glints, bearings, afterimages, mic bearings, sniffer alerts) | built · tested online in two tabs (host Canary, guest Strain, same team): all six kinds reached the guest, including a real sniffer detection of an attacker's claymore, and the guest's HUD drew them |
+| Victory poses and selection-screen artwork beyond the live busts | dropped at the user's request (2026-11-20) |
+| Unique first-person hands per operator | dropped at the user's request (2026-11-20); arms take each operator's colours |
 | Maps 1-6 (Underline, Zenith Tower, Vaultline, Mercy General, Galleria, Aquarium) | built · mechanics tested · bot rounds |
 | Maps 7-12 (Skygate, Deepcut, Liftbridge, Broadcast House, Coldstore, Timberline) | built · mechanics tested · bot rounds |
 | Bots and the machinery | bots ride lifts on their paths; any bot beside a panel works it when it helps its side (gas on enemies, lights out on attackers, grilles down, bridge up, flats moved, a flood on enemies); one defender in two rounds holds the room with the panel nearest him |
-| Per-map loading-screen art and soundscapes | not built (the maps use the shared card, theme and ambience) |
+| Per-map loading-screen art and soundscapes | dropped at the user's request (2026-11-20); the maps use the shared card, theme and ambience |
 | City Z: persistent world (save, clock, weather, ten places, travel by road, every change kept) | built · tested: a place left and re-entered (after a page reload) keeps its boarded windows, searched rooms, infected count and stash |
 | City Z: places (`tools/czcheck.js` builds and checks all ten) | built · all ten pass (every room reachable, all road ends joined) |
 | City Z: survival (hunger, thirst, fatigue, stamina, bleeding, fractures, body heat, sickness, infection) | built · tested (needs rise, bites infect and open wounds, effects apply) |
@@ -175,7 +175,7 @@ dynamic events, day and night and weather, and a story campaign in chapters with
 | City Z: squad orders and control (follow, hold, attack, scavenge, quiet; take over any member) | built · follow, hold and taking over on death tested |
 | City Z: vehicles (drive, fuel, damage, run over, refuel, repair, drive to the next place) | built · driving tested |
 | City Z: campaign (7 objectives, characters, choices, 3 endings, day-20 deadline), events (drops, hordes, distress, road), radio | built · every story place and the finale tested; a full play-through by hand not yet |
-| City Z: online co-op (five players in one city) | built (`js/cityz-net.js`) · tested in two tabs over a real room: the guest took over a squad member, saw the place, the infected (a horde arriving after them too) and the pharmacist, got their needs, pack and objective, drank from their pack, searched a container into it, and followed the host to the next place with the pack intact. Limits: the host alone travels, runs safehouses and talks to people; a guest's magazines start full in each new place |
+| City Z: online co-op (five players in one city) | built (`js/cityz-net.js`) · tested in two tabs over a real room: the guest took over a squad member, saw the place, the infected (a horde arriving after them too) and the pharmacist, got their needs, pack and objective, drank from their pack, searched a container into it, and followed the host to the next place with the pack intact. Limits: the host alone travels, runs safehouses and talks to people. (A guest's magazines now come from the save in each new place.) |
 | City Z: campaign length | honest note: seven objectives, a few hours with the scavenging between them, not 6-10 hours of authored missions |
 
 ## 6. Notes from testing

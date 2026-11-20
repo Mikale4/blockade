@@ -50,6 +50,8 @@
     Online.toAll({ t: 'np.czzone', zone: zid, vox: CZ.zoneState(zid).vox || '', S: publicSave() }, true);
     NP.roundStarted();
     known = new Set(G.actors.map(a => a.id));
+    // each guest's magazines as the save has them (the roster alone would hand them full ones)
+    for (const a of G.actors) if (a.net && a.cz && a.cz.m) NP.push({ k: 'czgun', to: a.net, lo: { primary: a.loadout.primary, secondary: a.loadout.secondary, gadget: a.loadout.gadget }, mags: a.w.map(w => w.mag) });
   };
   /* actors that turn up after the round's roster (the infected coming in, people) and the ones the
      host clears away: told to the guests as they happen */
@@ -176,9 +178,9 @@
       return true;
     }
     if (e.k === 'czsave' && guest()) { const keep = CZ.S && { min: CZ.S.min, day: CZ.S.day }; CZ.S = e.S; if (keep) Object.assign(CZ.S, keep); return true; }
-    if (e.k === 'czgun' && guest() && G.player) {
+    if (e.k === 'czgun' && guest() && G.player && e.to === NP.me) {
       const a = G.player; a.loadout = Object.assign({}, a.loadout, e.lo); a.resetKit(); a.w.forEach((w, i) => { w.mag = (e.mags || [])[i] || 0; w.reserve = 0; });
-      a.cz.res = []; if (a.rig) MD.setRigGun(a.rig, a.w[a.cur].id); PLAYER.vmKey = '';
+      if (a.cz) a.cz.res = []; a.cur = Math.min(a.cur || 0, a.w.length - 1); if (a.rig) MD.setRigGun(a.rig, a.w[a.cur].id); PLAYER.vmKey = '';
       return true;
     }
     return false;
