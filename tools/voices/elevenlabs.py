@@ -25,6 +25,7 @@ API = 'https://api.elevenlabs.io/v1'
 MODEL = 'eleven_flash_v2_5'          # quick and cheap; fine for short radio calls
 FORMAT = 'mp3_22050_32'              # small files: a two-second call is about 8 KB
 FLOOR = 150                          # credits always left untouched
+START_RATE = 0.2                     # credits per character to assume at first (this account's flash rate measured 0.11)
 SETTINGS = {'stability': 0.45, 'similarity_boost': 0.8, 'style': 0.2, 'use_speaker_boost': True}
 
 
@@ -133,10 +134,14 @@ def main():
     if cmd == 'make':
         limit = int(sys.argv[2]) if len(sys.argv) > 2 else len(todo)
         budget = left() - FLOOR
+        # ElevenLabs' balance moves late (it can sit still for a hundred lines and then catch up all
+        # at once), so it is never trusted to give credits back: the estimate is what we've made times
+        # a rate of at least START_RATE, and a fresh balance can only make the estimate worse
+        rate, base, chars = START_RATE, budget, 0
         print('credits left %d (keeping %d): making up to %d lines' % (budget + FLOOR, FLOOR, min(limit, len(todo))), flush=True)
         made, spent = 0, 0
         for tier, slug, hh, text in todo[:limit]:
-            if len(text) > budget - spent:
+            if base - spent - len(text) * rate < 0:
                 print('stopping: the next line would go past the floor'); break
             audio = call('/text-to-speech/%s?output_format=%s' % (cast['voices'][slug]['id'], FORMAT), {'text': text, 'model_id': MODEL, 'voice_settings': SETTINGS}, raw=True)
             d = os.path.join(OUT, slug)
@@ -144,11 +149,15 @@ def main():
             open(os.path.join(d, hh + '.mp3'), 'wb').write(audio)
             have.setdefault(slug, {})[hh] = 1
             made += 1
-            spent += len(text)
+            spent += len(text) * rate
+            chars += len(text)
             if made % 20 == 0:
                 save(idx, cast)
-                budget = left() - FLOOR; spent = 0          # the real figure, now and then
-                print('made %d · %s · credits left %d' % (made, tier, budget + FLOOR), flush=True)
+                budget = left() - FLOOR
+                # if the balance says we've spent more than the estimate, believe the balance
+                if base - budget > spent: spent = base - budget
+                if chars > 2000: rate = max(START_RATE, min(1.0, spent / chars * 1.5))
+                print('made %d · %s · credits left %d · %.2f a character' % (made, tier, budget + FLOOR, rate), flush=True)
         save(idx, cast)
         print('made %d lines; credits left %d' % (made, left()))
 

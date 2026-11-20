@@ -21,8 +21,15 @@ recordings with ElevenLabs.
 3. After changing who's who: `python tools/voices/elevenlabs.py info` then `python tools/voices/cast.py`
 4. `python tools/voices/elevenlabs.py plan`, then `python tools/voices/elevenlabs.py make`
 
-`make` never spends the last 150 credits (`FLOOR`), stops cleanly when it gets there and picks up
-where it stopped on the next run, so it can simply be run again after the monthly credits reset.
-The account can't go over its limit, so it can't charge more than the plan.
+`make` keeps the last 150 credits (`FLOOR`), stops cleanly when it gets there and picks up where it
+stopped on the next run, so it can simply be run again after the monthly credits reset. ElevenLabs'
+balance moves late, so the script counts its own spending (at least `START_RATE` credits a
+character; this account's Flash rate measured about 0.11) and only lets a fresh balance make that
+count worse. (The first full run trusted a stale balance and went down to 18 credits; fixed.) The
+account can't go over its limit, so it can't be charged more than the plan.
+
+Where it stands: the radio calls (all ten voices) and every operator's own lines are recorded, and
+515 of City Z's 1,349 lines; the other 834 (about 21,000 characters, roughly 2,300 credits) wait for
+the next run.
 
 Model `eleven_flash_v2_5`, MP3 at 22 kHz / 32 kbps (a two-second call is about 7 KB).
