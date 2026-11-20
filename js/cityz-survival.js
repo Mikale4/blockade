@@ -177,6 +177,8 @@
     if (!id && st.fracture) id = has('splint') ? 'splint' : has('medkit') ? 'medkit' : has('painkillers') ? 'painkillers' : null;
     if (!id && a.hp < a.maxHp * 0.7) id = has('medkit') ? 'medkit' : has('painkillers') ? 'painkillers' : has('bandage') ? 'bandage' : null;
     if (!id && st.infection > 25) id = has('antiviral') ? 'antiviral' : has('antibiotics') ? 'antibiotics' : null;
+    // bleeding with nothing to dress it: tear a strip from your clothes
+    if (!id && st.bleed > 0 && CZ.improvise) { if (CZ.improvise(a)) return true; CZ.tell(a, 'Nothing to dress it with (you can tear another strip in ' + Math.ceil((a.czImprovT || 0) - G.time) + ' s)', 'warn'); return false; }
     if (!id) { CZ.tell(a, st.bleed || st.fracture || a.hp < a.maxHp * 0.7 ? 'Nothing to treat it with' : 'Nothing needs treating', 'warn'); return false; }
     return CZ.use(a, id);
   };

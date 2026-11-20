@@ -56,16 +56,17 @@
     return NEED[need].ids.find(id => (m.inv[id] || 0) > 0 && !(id === 'dirtywater' && st.thirst < 88) && !(id === 'dogfood' && st.hunger < 85) && !(id === 'painkillers' && need === 'fracture' && (m.inv.splint || 0) > 0));
   }
   /* can it be spared? (keep one for yourself unless you have plenty) */
-  function spare(m, id, giver) {
+  function spare(m, id, giver, need) {
     const n = m.inv[id] || 0; if (!n) return 0;
+    if ((need === 'bleed' || need === 'hurt') && NEED.bleed.ids.includes(id)) return giver.cz.m.st.bleed > 0 && n < 2 ? 0 : 1;
     if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo') { const keep = giver.w.some(w => CZ.calOf(w.id) === id) ? ((giver.w[0] && giver.w[0].def.mag) || 20) * 2 : 0; return Math.max(0, Math.min(n - keep, 60)); }
     return n > 1 || !needsOf(giver).length ? 1 : 0;
   }
 
   /* treat someone else: the giver's item, its effect on them */
   CZ.treat = function (giver, t, id) {
-    const it = CZ.ITEMS[id]; if (!it || !it.use || !CZ.take(giver.cz.m, id, 1)) return false;
-    const u = it.use, st = t.cz.m.st;
+    const it = CZ.ITEMS[id]; if (!it || !it.use || t.czTendT > G.time || !CZ.take(giver.cz.m, id, 1)) return false;
+    const u = it.use, st = t.cz.m.st; t.czTendT = G.time + 2.5;
     giver.busy = 2.2; giver.busyLabel = 'TREATING';
     setTimeout(() => {
       if (t.state === 'dead') return;
@@ -79,6 +80,31 @@
     }, 2000);
     return true;
   };
+  /* the last resort for a wound with nothing to dress it: a strip torn from your clothes and pressed
+     on it. It stops up to two levels of bleeding, takes longer than a bandage, and can't be done again
+     by the same hands for a minute */
+  CZ.IMPROV_CD = 60;
+  CZ.canImprovise = giver => G.time > (giver.czImprovT || 0);
+  CZ.improvise = function (giver, t) {
+    t = t || giver;
+    if (!t.cz || !t.cz.m || !(t.cz.m.st.bleed > 0) || giver.busy > 0 || !CZ.canImprovise(giver) || t.czTendT > G.time) return false;
+    giver.czImprovT = G.time + CZ.IMPROV_CD; giver.busy = 3; giver.busyLabel = 'IMPROVISING A DRESSING'; t.czTendT = G.time + 3.5;
+    setTimeout(() => {
+      if (t.state === 'dead' || giver.state === 'dead') return;
+      const st = t.cz.m.st; st.bleed = Math.max(0, st.bleed - 2);
+      CZ.tell(t, t === giver ? 'You tore a strip from your clothes and stopped the bleeding' : giver.op.name + ' pressed a torn strip on your wound', 'info');
+    }, 2700);
+    return true;
+  };
+  /* a dressing from the safehouse stash, when the stash is right here */
+  function fromStash(a, need) {
+    const z = CZ.Z && CZ.Z.id; if (!z || !CZ.isSafe(z) || !CZ.atSafe || !CZ.atSafe(a)) return null;
+    const st = CZ.S.stash[z] || {}, id = NEED[need].ids.find(x => (st[x] || 0) > 0);
+    if (!id) return null;
+    st[id]--; if (st[id] <= 0) delete st[id];
+    a.cz.m.inv[id] = (a.cz.m.inv[id] || 0) + 1;
+    return id;
+  }
   /* craft something from one's own pack (a bot making a dressing or a splint) */
   function craftOwn(a, rid) {
     const r = CZ.RECIPES.find(x => x.id === rid); if (!r || (r.bench || 0) > 0) return false;
@@ -100,13 +126,20 @@
     if (a.w[a.cur] && a.w[a.cur].mag <= 0 && a.w[a.cur].reserve <= 0) { const o = a.w.findIndex((w, i) => i !== a.cur && (w.mag > 0 || w.reserve > 0)); if (o >= 0) WPN.swap(a, o); }
     a.czNeed = null;
     for (const need of needs) {
-      if (hot && !(need === 'bleed' && m.st.bleed >= 2) && !(need === 'hurt' && a.hp < 25)) continue;   // in a fight only what can't wait
-      const id = itemIn(m, need, a);
+      if (hot && need !== 'bleed' && !(need === 'hurt' && a.hp < 25)) continue;   // in a fight only what can't wait (a wound can't)
+      const id = itemIn(m, need, a) || (need !== 'ammo' && fromStash(a, need));
       if (id && need !== 'ammo') { CZ.use(a, id, true); if (Math.random() < 0.3) say(a, 'self', need === 'bleed' ? ['Patching myself up.', 'Bandaging.'] : need === 'thirst' ? ['Drinking.'] : need === 'hunger' ? ['Eating something quick.'] : ['Treating it.']); return; }
       if (need === 'ammo' && id) continue;
       if (NEED[need].craft && NEED[need].craft.some(rid => craftOwn(a, rid))) return;
+      if (need === 'bleed') {
+        // nothing to dress it with: a teammate has a few seconds to bring something; then the last resort
+        a.czBleedSince = a.czBleedSince || G.time;
+        const bad = m.st.bleed >= 2 || a.hp < 55, waited = G.time - a.czBleedSince > (bad ? 4 : 10);
+        if ((waited || hot) && CZ.improvise(a)) { a.czBleedSince = 0; say(a, 'self', ['Tearing my sleeve for this.', 'Pressing on it. Hold on.'], 3); return; }
+      }
       a.czNeed = a.czNeed || need;
     }
+    if (!m.st.bleed) a.czBleedSince = 0;
     // ask for what it can't sort out itself
     if (a.czNeed && G.time > (a.czAskT || 0)) {
       a.czAskT = G.time + 45;
@@ -117,11 +150,17 @@
     // and help: the nearest teammate (you too) with a need this one can answer
     if (hot || a.czGiveT > G.time) return;
     for (const t of squad()) {
-      if (t === a || U.dist3(t.pos, a.pos) > 16) continue;
+      if (t === a || U.dist3(t.pos, a.pos) > 16 || t.czTendT > G.time || (t.busy > 0 && /IMPROVISING|TREATING/.test(t.busyLabel || ''))) continue;
       for (const need of needsOf(t)) {
-        const id = need === 'ammo' ? calOf(t) : itemIn(m, need, t);
+        let id = need === 'ammo' ? calOf(t) : itemIn(m, need, t);
+        if (!id && need === 'bleed' && craftOwn(a, 'rag')) id = 'rag';
+        if (!id && need === 'bleed' && (t.cz.m.st.bleed >= 2 || t.hp < 55) && CZ.canImprovise(a) && !(t.bot && CZ.canImprovise(t))) {
+          a.czGiveT = G.time + 6;
+          a.bot.tasks.unshift({ at: t.pos.clone(), time: 0.4, run: x => { if (t.state !== 'dead' && U.dist3(t.pos, x.pos) < 4 && CZ.improvise(x, t)) say(x, 'give', ['Hold still, pressing on it.', "I've got you."], 3); } });
+          return;
+        }
         if (!id) continue;
-        const n = need === 'ammo' ? spare(m, id, a) : spare(m, id, a);
+        const n = spare(m, id, a, need);
         if (!n) continue;
         a.czGiveT = G.time + 8;
         a.bot.tasks.unshift({ at: t.pos.clone(), time: 0.6, run: x => {
