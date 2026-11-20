@@ -44,8 +44,10 @@
     if (st.infection > 45) out.push('infection');
     if (st.thirst > 60) out.push('thirst');
     if (st.hunger > 65) out.push('hunger');
+    // rounds for the main gun (in the pack and in the magazines): short at under two magazines' worth,
+    // so it is sorted out before the gun runs dry
     const mag = (a.w[0] && a.w[0].def.mag) || 20;
-    if (rounds(m, a) < mag) out.push('ammo');
+    if (calRounds(a, calOf(a)) < mag * 2) out.push('ammo');
     return out;
   }
   CZ.needsOf = needsOf;
@@ -56,6 +58,9 @@
     return NEED[need].ids.find(id => (m.inv[id] || 0) > 0 && !(id === 'dirtywater' && st.thirst < 88) && !(id === 'dogfood' && st.hunger < 85) && !(id === 'painkillers' && need === 'fracture' && (m.inv.splint || 0) > 0));
   }
   /* can it be spared? (keep one for yourself unless you have plenty) */
+  /* everything someone has of one calibre: the pack, and the magazines of the guns that take it */
+  function calRounds(a, c) { let n = a.cz.m.inv[c] || 0; for (const w of a.w) if (CZ.calOf(w.id) === c) n += w.mag || 0; return n; }
+  CZ.calRounds = calRounds;
   function spare(m, id, giver, need, t) {
     const n = m.inv[id] || 0; if (!n) return 0;
     // food and water: one to spare goes freely; the last one goes to someone clearly worse off, or to
@@ -66,7 +71,13 @@
       return (ts >= 80 && gs < 85) || ts - gs >= 20 ? 1 : 0;
     }
     if ((need === 'bleed' || need === 'hurt') && NEED.bleed.ids.includes(id)) return giver.cz.m.st.bleed > 0 && n < 2 ? 0 : 1;
-    if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo') { const keep = giver.w.some(w => CZ.calOf(w.id) === id) ? ((giver.w[0] && giver.w[0].def.mag) || 20) * 2 : 0; return Math.max(0, Math.min(n - keep, 60)); }
+    if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo') {
+      const uses = giver.w.some(w => CZ.calOf(w.id) === id);
+      if (!uses) return Math.min(n, 150);
+      const gm = (giver.w.find(w => CZ.calOf(w.id) === id) || {}).def, keep = (gm && gm.mag) || 20;
+      const give = Math.floor((calRounds(giver, id) - (t ? calRounds(t, id) : 0)) / 2);
+      return give >= 5 ? Math.max(0, Math.min(give, n - keep)) : 0;
+    }
     return n > 1 || !needsOf(giver).length ? 1 : 0;
   }
 
@@ -136,7 +147,8 @@
       if (hot && need !== 'bleed' && !(need === 'hurt' && a.hp < 25)) continue;   // in a fight only what can't wait (a wound can't)
       const id = itemIn(m, need, a) || (need !== 'ammo' && fromStash(a, need));
       if (id && need !== 'ammo') { CZ.use(a, id, true); if (Math.random() < 0.3) say(a, 'self', need === 'bleed' ? ['Patching myself up.', 'Bandaging.'] : need === 'thirst' ? ['Drinking.'] : need === 'hunger' ? ['Eating something quick.'] : ['Treating it.']); return; }
-      if (need === 'ammo' && id) continue;
+      // rounds still in the pack: fine for now, unless it's down to the last magazine's worth (then say so)
+      if (need === 'ammo' && id && calRounds(a, calOf(a)) >= ((a.w[0] && a.w[0].def.mag) || 20)) continue;
       if (NEED[need].craft && NEED[need].craft.some(rid => craftOwn(a, rid))) return;
       if (need === 'bleed') {
         // nothing to dress it with: a teammate has a few seconds to bring something; then the last resort
@@ -155,7 +167,17 @@
       const p = G.player; if (p && !p.ghost && p.cz) CZ.tell(p, a.op.name + ' needs ' + w + (p.state === 'alive' ? ' · give it from your pack (' + KEYS.name('czInv') + ')' : ''), 'warn');
     }
     // and help: the nearest teammate (you too) with a need this one can answer
-    if (hot || a.czGiveT > G.time) return;
+    if (a.czGiveT > G.time) return;
+    if (hot) {
+      // in a fight nobody walks over, but rounds get tossed to someone right beside you
+      for (const t of squad()) {
+        if (t === a || U.dist3(t.pos, a.pos) > 5 || !needsOf(t).includes('ammo')) continue;
+        const c = calOf(t), n = spare(m, c, a, 'ammo', t); if (!n) continue;
+        const g = CZ.add(t.cz.m, c, n); CZ.take(m, c, g);
+        if (g) { a.czGiveT = G.time + 6; CZ.tell(t, a.op.name + ' tossed you ' + g + ' × ' + CZ.itemName(c), 'info'); say(a, 'give', ['Mag! Catch!', 'Ammo, here!', 'Take these rounds!'], 3); return; }
+      }
+      return;
+    }
     for (const t of squad()) {
       // someone starving or bleeding badly is worth going further for
       const ts = t.cz.m.st, urgent = ts.hunger >= 80 || ts.thirst >= 80 || ts.bleed >= 2;
