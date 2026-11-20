@@ -19,11 +19,17 @@
     } catch (e) { SFX.ctx = null; }
   };
   SFX.setVolume = v => { if (SFX.master) SFX.master.gain.value = v; };
+  setInterval(() => { const c = SFX.ctx; if (c && c.state !== 'running' && c.state !== 'closed' && !document.hidden) { try { c.resume(); } catch (e) { } } }, 2000);
+  for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => { const c = SFX.ctx; if (c && c.state !== 'running' && c.state !== 'closed') { try { c.resume(); } catch (e) { } } }, true);
   SFX.setListener = (p, yaw) => { SFX.lp.x = p.x; SFX.lp.y = p.y; SFX.lp.z = p.z; SFX.lp.yaw = yaw; };
 
   /* output chain for a sound at pos (null = 2D). returns the input node or null if inaudible */
+  SFX.live = 0;           // one-shot sounds playing right now
+  SFX.MAX_LIVE = 56;      // beyond this, new effects are skipped until some finish
+  const track = s => { SFX.live++; s.onended = () => { SFX.live = Math.max(0, SFX.live - 1); }; };
   function chain(pos, range, gain, occl) {
     const c = SFX.ctx; if (!c) return null;
+    if (SFX.live >= SFX.MAX_LIVE) return null;
     let g = gain, pan = 0, cut = 20000;
     if (pos) {
       const dx = pos.x - SFX.lp.x, dy = pos.y - SFX.lp.y, dz = pos.z - SFX.lp.z;
@@ -53,14 +59,14 @@
     const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q || 0.7;
     const g = c.createGain(); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(a, t0 + 0.003); g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur * (decay || 1));
     s.connect(f); f.connect(g); g.connect(dest);
-    s.start(t0, Math.random() * 1.5); s.stop(t0 + dur + 0.05);
+    track(s); s.start(t0, Math.random() * 1.5); s.stop(t0 + dur + 0.05);
     return f;
   }
   function tone(dest, t0, dur, f0, f1, a, type) {
     const c = SFX.ctx, o = c.createOscillator(); o.type = type || 'sine';
     o.frequency.setValueAtTime(f0, t0); if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
     const g = c.createGain(); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(a, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
-    o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.05);
+    o.connect(g); g.connect(dest); track(o); o.start(t0); o.stop(t0 + dur + 0.05);
     return o;
   }
   const now = () => SFX.ctx.currentTime;

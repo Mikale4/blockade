@@ -65,6 +65,11 @@
   function schedule() {
     const c = A(); if (!c || !MU.synth) return;
     const d = out(), name = MU.synth, spb = 60 / TEMPO[name] / 4;
+    // behind (the page stalled, or the tab was in the background, where the browser runs this timer
+    // once a second or once a minute): skip the missed notes rather than play them all at once, which
+    // piled hundreds of oscillators onto the audio thread until it stuttered and went silent
+    if (MU.nextT < c.currentTime - 0.05) { const miss = Math.ceil((c.currentTime - MU.nextT) / spb); MU.step += miss; MU.nextT += miss * spb; }
+    if (document.hidden) return;
     while (MU.nextT < c.currentTime + 0.15) { tick(name, MU.step, MU.nextT, d); MU.step++; MU.nextT += spb; }
   }
   /* ------------------------------------------------------------ file playlists

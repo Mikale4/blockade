@@ -225,14 +225,14 @@
     const go = buf => {
       const t = SFX.ctx.currentTime; if (t < recUntil && (pr || 1) <= recPri) return;
       if (recSrc) { try { recSrc.stop(); } catch (e) { } }
-      const d = SFX.synth.chain(null, 1, (G.settings.voiceVol == null ? 0.85 : G.settings.voiceVol) * vol); if (!d) return;
-      const src = SFX.ctx.createBufferSource(); src.buffer = buf; src.connect(d); src.start();
+      const d = SFX.ctx.createGain(); d.gain.value = (G.settings.voiceVol == null ? 0.85 : G.settings.voiceVol) * vol; d.connect(SFX.master);
+      const src = SFX.ctx.createBufferSource(); src.buffer = buf; src.connect(d); src.onended = () => { try { d.disconnect(); } catch (e) { } }; src.start();
       recSrc = src; recUntil = t + buf.duration; recPri = pr || 1;
     };
-    const b = recBuf.get(key); if (b) { go(b); return true; }
+    const b = recBuf.get(key); if (b) { recBuf.delete(key); recBuf.set(key, b); go(b); return true; }   // (most recent last)
     if (!recLoading.has(key)) {
       recLoading.add(key);
-      fetch('voices/' + key + '.mp3').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(x => SFX.ctx.decodeAudioData(x)).then(buf => { recBuf.set(key, buf); recLoading.delete(key); go(buf); }).catch(() => recLoading.delete(key));
+      fetch('voices/' + key + '.mp3').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(x => SFX.ctx.decodeAudioData(x)).then(buf => { recBuf.set(key, buf); while (recBuf.size > 120) recBuf.delete(recBuf.keys().next().value); recLoading.delete(key); go(buf); }).catch(() => recLoading.delete(key));
     }
     return true;
   }
