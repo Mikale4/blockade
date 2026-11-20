@@ -370,14 +370,46 @@
   CZ.listen('enter', zid => { const S = CZ.S; if (!CZ.Z || !S) return; const e = Object.entries(CZ.exitsOf(zid) || {}).find(([, sd]) => sd === S.side); CZ.Z.from = e ? e[0] : null; });
   /* the squad and melee: up close to the infected, who swings instead of shooting is theirs to decide
      (short of rounds, short of temper, bold enough to get that close; never at a brute) */
+  /* Melee in City Z is the last resort. With rounds, they shoot. Out of rounds for every gun they carry,
+     they go and find some (or a gun): the nearest container in the whole place known to hold rounds of
+     their calibre or a gun, else one of a kind that could, a teammate's spare meanwhile (sharing does
+     that). Only when there's nowhere left in the place that could have any do they take the infected
+     on by hand (and anything already on top of them gets a swing to break free, ai.js) */
+  const hasRounds = a => a.w.some(w => (w.mag || 0) > 0 || (w.reserve || 0) > 0 || (a.cz.m.inv[CZ.calOf(w.id)] || 0) > 0);
+  CZ.hasRounds = hasRounds;
+  const AMMO_TABLES = Object.keys(CZ.LOOT).filter(t => CZ.LOOT[t].some(r => /^a\d|^bolt$|^gun:/.test(r[0])));
+  function ammoSource(a) {
+    if (a.czAmmoSrc && a.czAmmoSrc.until > G.time && (!a.czAmmoSrc.e || a.czAmmoSrc.e.alive)) return a.czAmmoSrc.e;
+    const cals = new Set(a.w.map(w => CZ.calOf(w.id))), kg = CZ.weight(a.cz.m);
+    let best = null, bd = 1e9;
+    for (const e of G.ents) {
+      if (!e.alive || e.type !== 'czloot') continue;
+      if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
+      if (skipped('loot:' + e.cid) || G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
+      const good = e.items ? Object.keys(e.items).some(k => cals.has(k) || k.startsWith('gun:')) : AMMO_TABLES.includes(e.table);
+      if (!good) continue;
+      const d = U.dist3(e.pos, a.pos) + (e.items ? 0 : 10) + Math.abs(e.pos.y - a.pos.y) * 2;   // a known find before a maybe
+      if (d < bd) { bd = d; best = e; }
+    }
+    a.czAmmoSrc = { e: best, until: G.time + 1 };
+    return best;
+  }
+  CZ.ammoSource = ammoSource;
+  AI.dryRush = function (a, t, dist) {
+    if (!CZ.on() || !a.cz || !a.cz.m) return dist < 9;
+    return !ammoSource(a) && dist < 9;   // nowhere left to look: then, and only then, hand to hand
+  };
   AI.meleeWanted = function (a, t) {
     if (!CZ.on() || !a.cz || !a.cz.m || !t.cz || !t.cz.inf) return false;
     if (t.cz.def && t.cz.def.armour) return false;
-    if (a.czMelee && a.czMelee.until > G.time) return a.czMelee.v;
-    const p = P(a), mag = (a.wpn && a.wpn.def.mag) || 20, low = calRounds(a, CZ.calOf(a.wpn ? a.wpn.id : 'p10')) < mag * 1.5;
-    const c = (low ? 0.55 : 0.1) + (p ? p.t.temper * 0.3 + p.t.nerve * 0.2 - 0.2 : 0);
-    a.czMelee = { v: Math.random() < c, until: G.time + 3 };
-    return a.czMelee.v;
+    return !hasRounds(a) && !ammoSource(a);
+  };
+  /* the goal for someone with no rounds: the ammo, before anything else they'd do */
+  CZ.dryGoal = function (a) {
+    if (!CZ.on() || !a.cz || !a.cz.m || !a.bot || hasRounds(a)) { a.czDry = false; return null; }
+    const e = ammoSource(a); if (!e) return null;
+    if (!a.czDry) { a.czDry = true; say(a, 'dry', ["I'm out. Finding ammo.", 'Dry! Going to look for rounds.', 'No rounds left. Searching.'], 3); }
+    return lootGoal(a, e);
   };
 
   /* ================================================================ warmth */
@@ -523,6 +555,7 @@
   // squad goals: scavenging comes before falling in behind the leader
   const oGoal = CZ.squadGoal;
   CZ.squadGoal = function (a) {
+    const dry = CZ.dryGoal(a); if (dry) return dry;
     const lead = CZ.leader();
     const o = CZ.S && orderOf(a);
     if (a !== lead && CZ.S && (o === 'follow' || o === 'hold')) { const w = CZ.warmGoal(a); if (w) return w; const r = CZ.restGoal(a); if (r) return r; }

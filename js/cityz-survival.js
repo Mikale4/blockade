@@ -329,10 +329,15 @@
     const n = NAV.nearest(pos, 3), p = n >= 0 ? NAV.nodePos(n) : pos.clone();
     return makeContainer(p, 'd' + Math.floor(Math.random() * 1e9), label || 'Dropped', 'czbag', items);
   };
+  /* someone in the squad gone: everything they had where they fell, the guns in their hands (not the
+     last saved list) and every round, the ones in the magazines too, for whoever comes past */
   CZ.dropPack = function (a) {
-    const m = a.cz.m, list = Object.entries(m.inv);
-    for (const g of m.guns || []) if (g) list.push(['gun:' + g.id, 1]);
+    const m = a.cz.m, inv = Object.assign({}, m.inv);
+    const guns = a.w && a.w.length ? a.w.map(w => ({ id: w.id, mag: w.mag })) : (m.guns || []);
+    for (const g of guns) { if (!g || !DATA.WEAPONS[g.id]) continue; inv['gun:' + g.id] = (inv['gun:' + g.id] || 0) + 1; if (g.mag > 0) { const c = CZ.calOf(g.id); inv[c] = (inv[c] || 0) + g.mag; } }
+    const list = Object.entries(inv).filter(([, n]) => n > 0);
     m.inv = {}; m.guns = [];
+    if (a.w) for (const w of a.w) { w.mag = 0; w.reserve = 0; }
     if (list.length) CZ.dropLoot(a.pos, list, m.name + "'s pack" + (list.some(([id]) => CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'quest') ? ' (something important)' : ''));
   };
   // what's left in a container, as words

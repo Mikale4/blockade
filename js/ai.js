@@ -512,8 +512,9 @@
     }
     // up close with an empty or reloading gun (or when the mode wants it, AI.meleeWanted): a blow
     const dryAll = a.w.every(x => x.mag <= 0 && x.reserve <= 0 && !x.def.heat);
+    const rush = dryAll && t.isActor && (AI.dryRush ? AI.dryRush(a, t, dist) : dist < 9);
     if (t.isActor && t.state !== 'dead' && dist < 1.75 && off < 0.6 && G.time > (a.meleeT || 0) && !a.shieldUp &&
-        (dryAll || w.reload > 0 || w.mag <= 0 || (AI.meleeWanted && AI.meleeWanted(a, t, dist)))) { WPN.melee(a); fire = false; b.stats && (b.stats.melee = (b.stats.melee || 0) + 1); }
+        ((dryAll && (rush || dist < 1.2)) || (!dryAll && (w.reload > 0 || w.mag <= 0)) || (AI.meleeWanted && AI.meleeWanted(a, t, dist)))) { WPN.melee(a); fire = false; b.stats && (b.stats.melee = (b.stats.melee || 0) + 1); }
     a.trigger = fire && !(a.ability && a.ability.on);
     if (!w.def.auto && a.trigger && Math.random() < 0.35) a.trigger = false; // tap fire
     // is this fight going anywhere? Track the target's health while we shoot at it: several
@@ -538,7 +539,7 @@
     // empty guns standing and staring helps nobody), so its other plans (finding rounds) take over
     if (dryAll && t.isActor) {
       a.trigger = false; a.adsWant = false;
-      if (dist < 9 || (AI.meleeWanted && AI.meleeWanted(a, t, dist))) { steer(a, t.pos.x - a.pos.x, t.pos.z - a.pos.z, 1); a.sprint = dist > 2.5; if (a.stance !== 0) a.setStance(0); }
+      if (rush) { steer(a, t.pos.x - a.pos.x, t.pos.z - a.pos.z, 1); a.sprint = dist > 2.5; if (a.stance !== 0) a.setStance(0); }
       else { (b.futile || (b.futile = new Map())).set(t, G.time + 6); b.target = null; b.engTgt = null; }
     }
   }
