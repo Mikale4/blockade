@@ -334,7 +334,9 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     medicine once an infection passes 30, antibiotics while it's mild and the scarce antiviral kept for
     anyone at 50 or more, the worst off first and never two helpers to one person),
     rests when it's tired and things are quiet (crouched, until it's back under 45%), naps on a
-    safehouse bed when there is one, and says when it needs to sleep, calls out what it
+    safehouse bed when there is one, and says when it needs to sleep,
+    keeps warm (shelter under a real roof near the squad, a campfire from firewood or two planks on a
+    cold or wet night, a hot meal; spare jackets go to whoever has none) well before hypothermia, calls out what it
     needs when nobody has it (shown on the squad list), scavenges nearby rooms of the right kind for
     it, and throws molotovs and pipe bombs into packs of infected. A wound is never left: its own
     dressing, one made from cloth, one from a teammate (who makes a rag if that's all they have), the
@@ -348,6 +350,9 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     travel; time passes on the way. The save keeps everything: every room searched, every wall broken
     and board nailed up, how many infected are left in each place, stashes, safehouses, survivors,
     cars, the clock and the story. One real second is one minute; days and nights, rain and fog.
+  - **Warmth:** firewood (found in sheds and farms, or made from two planks) lights a campfire that
+    warms anyone within 4 m for three minutes; the HUD warns COLD from 36.2 degrees, well before
+    hypothermia at 35.5.
   - **Rest:** standing still (crouched or lying is quicker, indoors quicker still) with no infected
     within 15 m brings tiredness down to 40%; only sleep, or a nap on a safehouse bed, goes lower.
   - **Staying alive:** hunger, thirst, tiredness, stamina, bleeding, broken bones, body heat,

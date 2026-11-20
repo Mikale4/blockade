@@ -66,8 +66,21 @@
   /* ================================================================ needs */
   const RATE = { hunger: 0.075, thirst: 0.11, fatigue: 0.055 };
   function outdoors(a) { return !G.map.inside(a.pos) || G.world.outdoor(a.pos.clone().setY(a.pos.y + 1)); }
+  CZ.sheltered = a => !outdoors(a);   // under a roof, out of the rain (a doorway in a building's outline doesn't count)
   function warmth(m) { let w = 0; if (m.inv.jacket) w += 2; if (m.inv.raincoat) w += CZ.S.weather === 'rain' ? 1.5 : 0.5; return w; }
   function nearFire(a) { return G.ents.some(e => e.alive && e.type === 'fire' && U.dist3(e.pos, a.pos) < 4); }
+  CZ.nearFire = nearFire;
+  /* a campfire from firewood, a step ahead on the floor: three minutes of warmth for anyone within 4 m.
+     It's the lighter's fire, so it doesn't burn the squad (no friendly fire); the infected it does */
+  CZ.lightFire = function (a) {
+    const m = a.cz && a.cz.m; if (!m || !(m.inv.firewood > 0) || a.busy > 0) return false;
+    const f = a.fwd(V()).setY(0).normalize(), p = a.pos.clone().addScaledVector(f, 1.3);
+    const n = NAV.nearest(p, 3), q = n >= 0 ? NAV.nodePos(n) : a.pos.clone();
+    if (U.dist3(q, a.pos) < 0.9) q.addScaledVector(f, 0.8);
+    CZ.take(m, 'firewood', 1); a.busy = 2; a.busyLabel = 'LIGHTING A FIRE';
+    setTimeout(() => { if (!CZ.on() || a.state === 'dead') return; const fire = new GAD.Fire(a, V().set(q.x, Math.round(q.y * 4) / 4 + 0.02, q.z), 0.7, 180); fire.campfire = true; SFX.wood(q); CZ.tell(a, 'Campfire lit: stay close to warm up', 'info'); }, 1800);
+    return true;
+  };
   CZ.survivalTick = function (dt) {
     const diff = CZ.diff(), S = CZ.S;
     for (const a of squadActors()) {

@@ -30,6 +30,7 @@
     hunger: { ids: FOOD, word: 'food', tables: ['kitchen', 'shop', 'store', 'farm'] },
     ammo: { word: 'ammunition', tables: ['police', 'military', 'home', 'office'] },
     fatigue: { ids: ['coffee'], word: 'sleep', tables: ['kitchen', 'office'] },
+    cold: { ids: ['jacket', 'raincoat', 'firewood', 'stew'], word: 'something warm', tables: ['home', 'shop', 'store', 'farm'] },
   };
   const squad = () => G.actors.filter(a => a.cz && a.cz.m && a.state !== 'dead');
   const fighting = a => a.bot && a.bot.target && a.bot.target.state === 'alive' && G.time - (a.bot.seenT || -99) < 4;
@@ -50,6 +51,7 @@
     const mag = (a.w[0] && a.w[0].def.mag) || 20;
     if (calRounds(a, calOf(a)) < mag * 2) out.push('ammo');
     if (st.fatigue > 70) out.push('fatigue');   // tired: rest (or coffee, or a bed) before it's exhaustion
+    if (st.temp < (exposed(a) ? 36.5 : 36.2)) out.push('cold');   // getting cold: warm up long before hypothermia (35.5); sooner out in a cold, wet night
     return out;
   }
   CZ.needsOf = needsOf;
@@ -66,6 +68,13 @@
   CZ.calRounds = calRounds;
   function spare(m, id, giver, need, t) {
     const n = m.inv[id] || 0; if (!n) return 0;
+    // warm things: a jacket or raincoat only to someone with neither; firewood and a hot meal like food
+    if (need === 'cold') {
+      if ((id === 'jacket' || id === 'raincoat') && t && t.cz && ((t.cz.m.inv.jacket || 0) > 0 || (t.cz.m.inv.raincoat || 0) > 0)) return 0;
+      if (n > 1) return 1;
+      const gt = giver.cz.m.st.temp, tt = t && t.cz ? t.cz.m.st.temp : 37;
+      return tt < 35.9 && gt > 36.3 && id !== 'jacket' && id !== 'raincoat' ? 1 : 0;
+    }
     // medicine against the infection: a spare dose goes freely; the last one goes to someone 15 or
     // more ahead of the giver, or to anyone at 50 or more (unless the giver is as far gone)
     if (need === 'infection') {
@@ -154,7 +163,9 @@
     if (a.w[a.cur] && a.w[a.cur].mag <= 0 && a.w[a.cur].reserve <= 0) { const o = a.w.findIndex((w, i) => i !== a.cur && (w.mag > 0 || w.reserve > 0)); if (o >= 0) WPN.swap(a, o); }
     a.czNeed = null;
     restTick(a, hot);
+    if (warmTick(a, hot)) return;
     for (const need of needs) {
+      if (need === 'cold') continue;
       if (need === 'fatigue') { const c = (m.inv.coffee || 0) > 0 && m.st.fatigue > 80 && !hot; if (c) { CZ.use(a, 'coffee', true); return; } continue; }
       if (hot && need !== 'bleed' && !(need === 'hurt' && a.hp < 25)) continue;   // in a fight only what can't wait (a wound can't)
       const id = itemIn(m, need, a) || (need !== 'ammo' && fromStash(a, need));
@@ -225,6 +236,51 @@
         return;
       }
     }
+  };
+
+  /* ================================================================ warmth */
+  /* Cold (body heat under 36.2, well before hypothermia at 35.5): a hot meal if it has one; a
+     campfire if it has firewood (or two planks to make some) and the night or the rain is the cause;
+     shelter indoors near the squad when it's quiet; and over the worst, it says so */
+  /* out in a cold or wet night with nothing to keep it off: body heat drops fast, so act sooner */
+  function exposed(a) { const m = a.cz.m; if (CZ.sheltered(a)) return false; const wet = CZ.S.weather === 'rain', dark = CZ.dark() > 0.5; return (dark || wet) && !(m.inv.jacket > 0) && !(wet && m.inv.raincoat > 0); }
+  const fireNear = (p, r) => G.ents.find(e => e.alive && e.type === 'fire' && e.campfire && U.dist3(e.pos, p) < r);
+  function warmTick(a, hot) {
+    const m = a.cz.m, st = m.st;
+    if (st.temp >= 36.6) { a.czColdWant = false; return false; }
+    if (st.temp >= (exposed(a) ? 36.5 : 36.2)) return false;
+    a.czColdWant = !hot;
+    if (hot || a.busy > 0) return false;
+    if ((m.inv.stew || 0) > 0 && st.temp < 35.9) { CZ.use(a, 'stew', true); return true; }
+    const calm = !G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 18);
+    if (calm && !fireNear(a.pos, 12) && G.time > (CZ.Z.fireT || 0) && (CZ.night() || CZ.S.weather === 'rain' || st.temp < 35.9)) {
+      if (!(m.inv.firewood > 0) && (m.inv.planks || 0) >= 2) { CZ.take(m, 'planks', 2); m.inv.firewood = (m.inv.firewood || 0) + 1; }
+      if (m.inv.firewood > 0 && CZ.lightFire(a)) { CZ.Z.fireT = G.time + 150; say(a, 'fire', ['Getting a fire going.', "Freezing. I'm lighting a fire."], 3); return true; }
+    }
+    if (st.temp < 35.8 && G.time > (a.czColdAskT || 0)) {
+      a.czColdAskT = G.time + 60;
+      say(a, 'cold', ["I'm freezing. We need to get inside.", "Can't feel my hands. Need a fire or a coat."], 3);
+      const p = G.player; if (p && !p.ghost && p.cz) CZ.tell(p, a.op.name + ' is freezing · get them inside, by a fire, or give them a jacket', 'warn');
+    }
+    return false;
+  }
+  /* where to warm up: a campfire close by, or indoors near the squad */
+  CZ.warmGoal = function (a) {
+    if (!a.czColdWant || fighting(a)) return null;
+    const lead = CZ.leader(), near = lead && lead !== a ? lead.pos : a.pos;
+    const f = fireNear(a.pos, 25);
+    if (f) { const n = NAV.nearest(f.pos.clone().add(V().set(1.6, 0, 0)), 4); return { pos: n >= 0 ? NAV.nodePos(n) : f.pos.clone(), kind: 'warm', r: 2.2, look: f.pos.clone(), crouch: true }; }
+    // already under a roof: stay there (crouched, warming up) while the squad is within reach, rather
+    // than following someone back out into the cold
+    if (CZ.sheltered(a)) return U.dist3(a.pos, near) < 35 ? { pos: a.pos.clone(), kind: 'shelter', r: 3, crouch: true } : null;
+    if (!a.czShelter || G.time > a.czShelterT || U.dist3(a.czShelter, near) > 30) {
+      a.czShelterT = G.time + 20; a.czShelter = null;
+      let best = null, bd = 1e9;
+      for (const r of G.map.rooms) { if (/Stairs/.test(r.name)) continue; const c = V().set((r.x0 + r.x1 + 1) / 8, r.y * 0.25, (r.z0 + r.z1 + 1) / 8); if (Math.abs(c.y - near.y) > 2) continue; const d = U.dist3(c, near); if (d < bd && d < 30) { bd = d; best = r; } }
+      // a spot in that room that really is under the roof (not by a door or under an open atrium)
+      if (best) for (let k = 0; k < 8 && !a.czShelter; k++) { const q = NAV.randomIn(best); if (q && !G.world.outdoor(q.clone().setY(q.y + 1))) a.czShelter = q; }
+    }
+    return a.czShelter ? { pos: a.czShelter.clone(), kind: 'shelter', r: 1.5, crouch: true } : null;
   };
 
   /* ================================================================ rest and sleep */
@@ -299,7 +355,7 @@
   const oGoal = CZ.squadGoal;
   CZ.squadGoal = function (a) {
     const lead = CZ.leader();
-    if (a !== lead && CZ.S && (CZ.S.order === 'follow' || CZ.S.order === 'hold')) { const r = CZ.restGoal(a); if (r) return r; }
+    if (a !== lead && CZ.S && (CZ.S.order === 'follow' || CZ.S.order === 'hold')) { const w = CZ.warmGoal(a); if (w) return w; const r = CZ.restGoal(a); if (r) return r; }
     if (a !== lead && CZ.S && CZ.S.order === 'follow') { const g = CZ.forageGoal(a); if (g) return g; }
     return oGoal.apply(this, arguments);
   };
@@ -348,6 +404,8 @@
     if (a.czNeed && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a))) { const e = pickContainer(a, a.czNeed, 40); if (e) return lootGoal(a, e); }
     // a safehouse: restore it, build what the story wants, sleep when the squad is worn out
     if (CZ.ZONES[here].safe && !CZ.isSafe(here) && CZ.haveAll(CZ.SAFE_UP[0].needs, CZ.sources(a))) { const g = fixGoal(a, 'czbench', x => CZ.restore(here, x)); if (g) return g; }
+    // a cold squad: inside, or to a fire (the cold ones handle the fire themselves)
+    if (squad().some(x => x.cz.m.st.temp < 36.0)) { a.czColdWant = true; const w = CZ.warmGoal(a); if (w) return w; }
     // worn out and away from home: back to the nearest safehouse to sleep (or, with none, a rest here)
     const tiredAll = squad().reduce((t, x) => t + x.cz.m.st.fatigue, 0) / Math.max(1, squad().length), worst = Math.max(...squad().map(x => x.cz.m.st.fatigue));
     if (!CZ.isSafe(here) && (tiredAll > 70 || worst > 85)) {

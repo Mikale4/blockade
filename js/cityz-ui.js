@@ -63,6 +63,8 @@
     if (p.czResting) tags.push('<i>RESTING</i>');
     else if (st.fatigue >= 80) tags.push('<i class="' + (st.fatigue >= 95 ? 'bad' : 'warn') + '">' + (st.fatigue >= 95 ? 'EXHAUSTED' : 'TIRED') + ' · REST OR SLEEP</i>');
     if (st.temp < 35.5) tags.push('<i class="bad">HYPOTHERMIA</i>');
+    else if (st.temp < 36.2) tags.push('<i class="warn">COLD · GET INSIDE, BY A FIRE OR INTO A JACKET</i>');
+    if (CZ.nearFire && CZ.nearFire(p)) tags.push('<i>BY THE FIRE</i>');
     const kg = CZ.weight(m), cap = CZ.capacity(m);
     tags.push('<i class="' + (kg > cap ? 'warn' : '') + '">PACK ' + kg + ' / ' + cap + ' KG</i>');
     H.status.innerHTML = tags.join('');
@@ -137,6 +139,7 @@
       if (it.use) acts.push(btn('USE', () => { CZ.use(p, id); UI.close(); }));
       if (id.startsWith('gun:')) for (const slot of [0, 1]) acts.push(btn(slot ? 'EQUIP SECONDARY' : 'EQUIP PRIMARY', () => { if (G2) { CZ.ask('equip', { id: id.slice(4), slot }); UI.close(); } else { equip(p, id.slice(4), slot); UI.inventory('pack'); } }));
       if (id === 'barricade' && !G2) acts.push(btn('BOARD UP', () => { UI.close(); setTimeout(() => CZ.boardUp(p), 50); }));
+      if (id === 'firewood' && !G2) acts.push(btn('LIGHT A CAMPFIRE', () => { UI.close(); setTimeout(() => CZ.lightFire(p), 50); }));
       for (const a of near) acts.push(btn('GIVE ' + a.op.name, () => { const n = CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo' ? Math.min(m.inv[id], 30) : 1; if (G2) { CZ.ask('give', { id, to: a.id, n }); UI.close(); return; } const t = CZ.add(a.cz.m, id, Math.min(n, m.inv[id])); CZ.take(m, id, t); if (!t) HUD.toast(a.op.name + ' can\'t carry it', 'warn'); UI.inventory('pack'); }, 'ghost'));
       acts.push(btn('DROP', () => { if (G2) { CZ.ask('drop', { id }); UI.close(); return; } const n = m.inv[id]; CZ.take(m, id, n); CZ.dropLoot(p.pos, [[id, n]], 'Dropped'); UI.inventory('pack'); }, 'ghost'));
       return acts;
