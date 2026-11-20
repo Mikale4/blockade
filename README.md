@@ -195,6 +195,13 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   (bullpup), HUSKY (50-round SMG), TALON (machine pistol), WARRANT .45, BREAKER 12 (magazine-fed
   semi-auto shotgun), RAZOR (light DMR), HERON (semi-auto sniper), BRUNT (box-fed LMG) and NAILER
   (a silent nail gun).
+- **Phones and tablets:** on a touch screen a match has on-screen controls (js/touch.js): a stick
+  wherever the left thumb lands (pushed all the way to sprint), drag on the right to look (the fire
+  button too), and buttons for fire, aim, reload, vault, crouch, use, gadget, ability, swap, melee,
+  lean, the drone and the scoreboard, plus pause; City Z adds pack, map, orders (the five orders as
+  buttons), treat and throw, and spectating has previous / next player and the free camera. Matches
+  want the phone sideways (held upright it says so); the HUD shrinks on a small screen and the menus
+  fit it. A mouse and keyboard never see any of it.
 - **Operator voice lines:** operators talk on the radio as things happen (the round starting, using
   their kit, a kill, a contact, reloading, being hit or downed, losing a teammate, winning or losing),
   shown as subtitles and spoken by the browser with a voice and pace per operator. The seasons 15-18

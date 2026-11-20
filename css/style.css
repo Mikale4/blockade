@@ -422,3 +422,62 @@ p.warn { color: var(--gold); }
 .cz-who span, .cz-who small { font: 500 13px/1.35 'Rajdhani', 'Segoe UI', sans-serif; letter-spacing: 0.03em; text-transform: none; }
 .cz-who span { color: #e8eaed !important; font-weight: 700; }
 .cz-bar.nerves i { background: #c88ac8; }
+
+/* ======================================================= phones and tablets
+   menus that fit a small screen, and touch controls in a match (js/touch.js) */
+@media (max-width: 700px), (max-height: 500px) {
+  .panel { padding: 16px 14px; width: 96vw; max-height: 96vh; max-height: 96dvh; }
+  .panel h2 { font-size: 26px; letter-spacing: 0.1em; }
+  .actions { flex-wrap: wrap; }
+  .actions > button, .actions > .btn { flex: 1 1 auto; }
+  .settings .set-row { grid-template-columns: 1fr 58px; gap: 4px 10px; }
+  .settings .set-row > label { grid-column: 1 / -1; }
+  .btn { min-height: 40px; }
+}
+/* the operator picker: on a narrow screen its three parts stack in a column (as grid rows they
+   collapsed, and the 3D preview sat over the operator cards, taking the taps meant for them) */
+@media (max-width: 900px) { .os-body { display: flex; flex-direction: column; gap: 12px; } .os-body > * { flex: none; } }
+@media (max-height: 500px) { .os-prev { min-height: 150px; } .os-top { padding-bottom: 6px; } .os-side { font-size: 24px; } .os-score { font-size: 24px; } }
+#touchUI { display: none; }
+html.touch #touchUI.show { display: block; position: fixed; inset: 0; z-index: 30; pointer-events: none; -webkit-user-select: none; user-select: none; }
+html.touch #touchUI.show > * { pointer-events: auto; }
+html.touch canvas { touch-action: none; }
+.tc-look-zone { position: absolute; left: 42%; right: 0; top: 0; bottom: 0; touch-action: none; }
+.tc-stick-zone { position: absolute; left: 0; width: 42%; top: 22%; bottom: 0; touch-action: none; }
+.tc-stick { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.06); display: none; pointer-events: none !important; }
+.tc-stick.show { display: block; }
+.tc-knob { position: absolute; left: 34px; top: 34px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.45); }
+.tc-btn { position: absolute; touch-action: none; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); background: rgba(20,22,28,0.45); color: #eee; font: 700 11px var(--f); letter-spacing: 0.05em; width: 54px; height: 54px; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tc-btn.on { background: rgba(232,120,40,0.7); color: #111; }
+.b-fire { right: 22px; bottom: 66px; width: 80px; height: 80px; font-size: 14px; background: rgba(200,60,40,0.45); }
+.b-reload { right: 24px; bottom: 160px; width: 48px; height: 48px; font-size: 10px; }
+.b-aim { right: 112px; bottom: 128px; width: 52px; height: 52px; }
+.b-jump { right: 112px; bottom: 60px; width: 52px; height: 52px; font-size: 10px; }
+.b-ability { right: 172px; bottom: 156px; width: 48px; height: 48px; font-size: 9px; }
+.b-melee { right: 172px; bottom: 96px; width: 48px; height: 48px; font-size: 10px; }
+.b-crouch { right: 172px; bottom: 36px; width: 48px; height: 48px; font-size: 9px; }
+.b-gadget { right: 232px; bottom: 126px; width: 48px; height: 48px; font-size: 9px; }
+.b-use { right: 232px; bottom: 66px; width: 48px; height: 48px; }
+.b-device { right: 292px; bottom: 126px; width: 46px; height: 46px; font-size: 9px; }
+.b-swap { right: 292px; bottom: 66px; width: 46px; height: 46px; font-size: 9px; }
+.b-leanl, .b-leanr { top: 30%; width: 56px; height: 38px; border-radius: 10px; font-size: 10px; }
+.b-leanl { left: 14px; } .b-leanr { left: 76px; }
+.b-score { right: 62px; top: 10px; width: 52px; height: 34px; border-radius: 8px; font-size: 9px; }
+.tc-pause { right: 10px; top: 10px; width: 44px; height: 34px; border-radius: 8px; font-size: 14px; z-index: 2; }
+.tc-small { position: static; border-radius: 8px; width: auto; height: 36px; padding: 0 12px; font-size: 11px; }
+.tc-cz { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); display: none; gap: 6px; }
+#touchUI.cz .tc-cz { display: flex; }
+.tc-orders { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); display: none; flex-direction: column; gap: 6px; }
+.tc-orders.show { display: flex; }
+.tc-spec { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: none; gap: 10px; }
+#touchUI.spec .tc-spec { display: flex; }
+#touchUI.spec .tc-btn:not(.tc-small):not(.tc-pause) { display: none !important; }
+#touchUI.spec .tc-cz .tc-btn:not([data-key=czInv]):not([data-key=czMap]) { display: none; }
+.tc-rotate { display: none; position: absolute; inset: 0; background: rgba(10,12,16,0.94); color: #fff; font: 700 20px var(--f); letter-spacing: 0.1em; align-items: center; justify-content: center; text-align: center; padding: 30px; }
+#touchUI.upright .tc-rotate { display: flex; }
+/* the gun and its ammo up top, out from under the fire button; the key list is the buttons now */
+html.touch .h-wpn { bottom: auto !important; top: 80px; right: auto; left: 50%; transform: translateX(-50%); text-align: center; }
+html.touch .cz-obj { top: 80px; right: 16px; max-width: 300px; }
+html.touch .w-slots { display: none; }
+/* a phone held sideways: a smaller HUD so the thumbs have room */
+@media (max-height: 500px) { html.touch #hud { zoom: 0.62; } html.touch #vo { zoom: 0.75; } }

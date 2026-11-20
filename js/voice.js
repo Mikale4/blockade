@@ -186,7 +186,12 @@
     const me = G.player; if (!me) return;
     const spect = !!(GAME && GAME.spectator) || me.ghost;
     const mine = a === me, team = !spect && a.team === me.team, near = U.dist3(a.pos, me.pos) < 14;
-    if (!mine && !team && !near && !spect) return;
+    if (window.GAME && GAME.mode !== 'cityz') {
+      // a match: only your own team's radio (no enemy's lines, however close); spectating, only the team
+      // of whoever you're watching (none while flying free)
+      const watched = spect ? (window.PLAYER && PLAYER.spec) : me;
+      if (!watched || a.team !== watched.team) return;
+    } else if (!mine && !team && !near && !spect) return;
     if (G.settings.voiceLines !== false) show(a, text, !mine && !team && !spect);
     if (G.settings.voiceSpeech === false) return;
     const vol = mine || team || spect ? 1 : 0.55;

@@ -445,7 +445,15 @@
     if (!a.czColdWant || fighting(a)) return null;
     const lead = CZ.leader(), near = lead && lead !== a ? lead.pos : a.pos;
     const f = fireNear(a.pos, 25);
-    if (f) { const n = NAV.nearest(f.pos.clone().add(V().set(1.6, 0, 0)), 4); return { pos: n >= 0 ? NAV.nodePos(n) : f.pos.clone(), kind: 'warm', r: 2.2, look: f.pos.clone(), crouch: true }; }
+    if (f) {
+      // a place round the fire (each their own side of it), never in a doorway
+      if (!a.czFireSpot || a.czFireSpot.f !== f) {
+        let spot = null;
+        for (let k = 0; k < 8 && !spot; k++) { const ang = (a.id * 1.3 + k * 0.8) % 6.283, n = NAV.nearest(f.pos.clone().add(V().set(Math.cos(ang) * 1.6, 0, Math.sin(ang) * 1.6)), 3); if (n >= 0) { const q = NAV.nodePos(n); if (!(CZ.doorAt && CZ.doorAt(q))) spot = q; } }
+        a.czFireSpot = { f, p: spot || f.pos.clone() };
+      }
+      return { pos: a.czFireSpot.p.clone(), kind: 'warm', r: 1.2, look: f.pos.clone(), crouch: true };
+    }
     // already under a roof: stay there (crouched, warming up) while the squad is within reach, rather
     // than following someone back out into the cold
     if (CZ.sheltered(a)) { if (U.dist3(a.pos, near) >= 35) return null; const off = CZ.offDoor && CZ.offDoor(a, near); return off ? { pos: off, kind: 'shelter', r: 0.5, crouch: true } : { pos: a.pos.clone(), kind: 'shelter', r: 3, crouch: true }; }
@@ -454,7 +462,9 @@
       let best = null, bd = 1e9;
       for (const r of G.map.rooms) { if (/Stairs/.test(r.name)) continue; const c = V().set((r.x0 + r.x1 + 1) / 8, r.y * 0.25, (r.z0 + r.z1 + 1) / 8); if (Math.abs(c.y - near.y) > 2) continue; const d = U.dist3(c, near); if (d < bd && d < 30) { bd = d; best = r; } }
       // a spot in that room that really is under the roof (not by a door or under an open atrium)
-      if (best) for (let k = 0; k < 8 && !a.czShelter; k++) { const q = NAV.randomIn(best); if (q && !G.world.outdoor(q.clone().setY(q.y + 1))) a.czShelter = q; }
+      // (a spot under the roof proper: not out in the open, and not in or beside a doorway, where a
+      // crouched, shivering teammate blocked the way in for everyone else)
+      if (best) for (let k = 0; k < 12 && !a.czShelter; k++) { const q = NAV.randomIn(best); if (q && !G.world.outdoor(q.clone().setY(q.y + 1)) && !(CZ.doorAt && CZ.doorAt(q))) a.czShelter = q; }
     }
     return a.czShelter ? { pos: a.czShelter.clone(), kind: 'shelter', r: 1.5, crouch: true } : null;
   };

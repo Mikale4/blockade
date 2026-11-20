@@ -289,11 +289,10 @@
      it on whichever side they'd rather be (toward), so nobody stops, rests or shelters in a door and
      blocks the rest of the squad behind them */
   CZ.doorAt = function (pos) {
-    const L = Math.round(pos.y / 3.25 * 4) / 4;
     for (const o of G.map.openings || []) {
       if (o.kind !== 'door' || Math.abs(o.y0 / 4 - pos.y) > 0.6) continue;
       const along = o.axis === 'x' ? pos.x * 4 : pos.z * 4, across = o.axis === 'x' ? pos.z * 4 : pos.x * 4;
-      if (along < o.a0 - 1 || along > o.a1 + 2 || Math.abs(across - (o.line + 0.5)) > 3) continue;
+      if (along < o.a0 - 2 || along > o.a1 + 3 || Math.abs(across - (o.line + 0.5)) > 4) continue;   // in it, or a step from it
       return o;
     }
     return null;

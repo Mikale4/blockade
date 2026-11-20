@@ -315,3 +315,11 @@ em.bot { font: 700 10px var(--f); font-style: normal; letter-spacing: 0.14em; co
   .page.home .pbanner.home { padding: 10px 14px; margin-bottom: 8px; }
   .page.home .xpbar { margin-top: 12px; }
 }
+
+/* phones: the banner and the profile header wrap instead of running off the screen */
+@media (max-width: 700px) {
+  .pbanner, .pchead { flex-wrap: wrap; min-width: 0; }
+  .pbanner.home { width: 100%; }
+  .pchead .row { flex-wrap: wrap; }
+  .pchead > div { min-width: 0; flex: 1 1 200px; }
+}
