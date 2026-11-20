@@ -244,12 +244,22 @@
       if (o === a || o.team !== a.team || o.state !== 'alive' || o.hostage) continue;
       const ox = o.pos.x - a.pos.x, oz = o.pos.z - a.pos.z, d = Math.hypot(ox, oz);
       if (d > 2.4 || d < 0.01 || Math.abs(o.pos.y - a.pos.y) > 1.5) continue;
-      if ((ox * dx + oz * dz) / (d * ml) > 0.55) speed = Math.min(speed, U.clamp((d - 0.9) / 1.5, 0.2, 1));
+      // (not for one coming the other way: two who each waited for the other jammed a doorway for good)
+      const head = o.vel && (o.vel.x * dx + o.vel.z * dz) / ml < -0.3;
+      if (!head && !(a.passT > G.time) && (ox * dx + oz * dz) / (d * ml) > 0.55) speed = Math.min(speed, U.clamp((d - 0.9) / 1.5, 0.2, 1));
     }
     steer(a, dx, dz, speed);
     // stuck? break what is in front (barricades, soft walls, wire)
     b.stuckT = U.dist2(a.pos, b.lastPos) < 0.3 * dt * 10 ? b.stuckT + dt : 0;
     if (Math.random() < 0.1) b.lastPos.copy(a.pos);
+    // stuck against teammates (a doorway, a stair, a corridor, a crowd going into one room): no nearer
+    // the end of the path for a second and a half with a teammate at arm's length (shoving jiggles a
+    // crowd about, so standing still isn't the test) and they can pass through each other for a moment
+    const end = b.path[b.path.length - 1], toEnd = Math.hypot(end.x - a.pos.x, end.z - a.pos.z);
+    if (b.progEnd !== end || toEnd < (b.progD || 1e9) - 0.4) { b.progEnd = end; b.progD = toEnd; b.progT = G.time; }
+    if (b.stuckT > 0.5 || G.time - b.progT > 1.5) {
+      for (const o of G.actors) if (o !== a && o.team === a.team && o.state === 'alive' && !o.hostage && U.dist2(o.pos, a.pos) < 1.3 && Math.abs(o.pos.y - a.pos.y) < 1.4) { a.passT = G.time + 2; o.passT = G.time + 2; }
+    }
     if (b.stuckT > 0.6) {
       const f = V().set(dx, 0, dz).normalize();
       if (breakThrough(a, f)) b.stuckT = 0.1;

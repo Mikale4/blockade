@@ -285,6 +285,27 @@
     HUD.toast('Squad: ' + CZ.ORDERS[kind].name, 'info');
     if (window.VOICE) { const m = G.actors.find(a => a.bot && a.team === CZ.TEAM && a.state === 'alive'); if (m) VOICE.say(m, 'ack', ['Copy that.', 'On it.', 'Understood.', 'Moving.'], 2); }
   };
+  /* a doorway (one of the map's door openings) someone is standing in, if any: the spot a step clear of
+     it on whichever side they'd rather be (toward), so nobody stops, rests or shelters in a door and
+     blocks the rest of the squad behind them */
+  CZ.doorAt = function (pos) {
+    const L = Math.round(pos.y / 3.25 * 4) / 4;
+    for (const o of G.map.openings || []) {
+      if (o.kind !== 'door' || Math.abs(o.y0 / 4 - pos.y) > 0.6) continue;
+      const along = o.axis === 'x' ? pos.x * 4 : pos.z * 4, across = o.axis === 'x' ? pos.z * 4 : pos.x * 4;
+      if (along < o.a0 - 1 || along > o.a1 + 2 || Math.abs(across - (o.line + 0.5)) > 3) continue;
+      return o;
+    }
+    return null;
+  };
+  CZ.offDoor = function (a, toward) {
+    const o = CZ.doorAt(a.pos); if (!o) return null;
+    const mid = o.axis === 'x' ? V().set((o.a0 + o.a1 + 1) / 8, a.pos.y, (o.line + 0.5) / 4) : V().set((o.line + 0.5) / 4, a.pos.y, (o.a0 + o.a1 + 1) / 8);
+    const nrm = o.axis === 'x' ? V().set(0, 0, 1) : V().set(1, 0, 0);
+    const t = toward || a.pos, k = ((t.x - mid.x) * nrm.x + (t.z - mid.z) * nrm.z) >= 0 ? 1 : -1;
+    const n = NAV.nearest(mid.clone().addScaledVector(nrm, 1.6 * k).add(V().set((Math.random() - 0.5) * 0.8, 0, (Math.random() - 0.5) * 0.8)), 3);
+    return n >= 0 ? NAV.nodePos(n) : null;
+  };
   /* a squad bot's goal: by the current order */
   CZ.squadGoal = function (a) {
     const S = CZ.S, p = CZ.leader(); if (!p || !S) return null;
@@ -304,7 +325,7 @@
     const d = U.dist3(a.pos, p.pos), back = p.fwd(V()).setY(0).normalize().multiplyScalar(-1);
     const side = V().set(-back.z, 0, back.x), off = back.multiplyScalar(1.8 + Math.floor(i / 2) * 1.6).addScaledVector(side, (i % 2 ? 1 : -1) * 1.3);
     const want = p.pos.clone().add(off);
-    if (d < 3.5 && Math.abs(a.pos.y - p.pos.y) < 1.5) return { pos: a.pos.clone(), kind: 'follow', r: 9, look };
+    if (d < 3.5 && Math.abs(a.pos.y - p.pos.y) < 1.5) { const off = CZ.offDoor(a, p.pos); return off ? { pos: off, kind: 'follow', r: 0.5, look } : { pos: a.pos.clone(), kind: 'follow', r: 9, look }; }
     const n = NAV.nearest(want, 4);
     return { pos: n >= 0 ? NAV.nodePos(n) : p.pos.clone(), kind: 'follow', r: 1.6, look, sprint: d > 12 };
   };

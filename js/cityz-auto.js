@@ -291,9 +291,14 @@
     // the first name on the list while someone else goes without
     const worst = t => { const st = t.cz.m.st; return st.bleed * 30 + Math.max(0, st.infection - 30) * 1.5 + Math.max(0, st.hunger - 60) + Math.max(0, st.thirst - 60) + (t.hp < 45 ? 40 : 0); };
     const pri = t => worst(t) + (CZ.relOf ? CZ.relOf(a, t) * 0.25 : 0);   // a friend in need comes a little sooner
+    // watching, the leader has the squad's job to do: it only stops for someone in a bad way close by
+    // (with ten in the squad someone always needs something, and the leader used to spend the whole
+    // time walking supplies over instead of talking to the person the story wanted)
+    const leading = CZ.watching && CZ.leader() === a;
     for (const t of squad().sort((p2, q) => pri(q) - pri(p2))) {
       // someone starving or bleeding badly is worth going further for
       const ts = t.cz.m.st, urgent = ts.hunger >= 80 || ts.thirst >= 80 || ts.bleed >= 2 || ts.infection >= 60;
+      if (leading && (!(ts.bleed >= 2 || ts.hunger >= 92 || ts.thirst >= 92 || t.hp < 30) || U.dist3(t.pos, a.pos) > 8)) continue;
       if (t === a || U.dist3(t.pos, a.pos) > (urgent ? 40 : 16) || t.czTendT > G.time || (t.busy > 0 && /IMPROVISING|TREATING/.test(t.busyLabel || ''))) continue;
       for (const need of needsOf(t)) {
         if (t.czClaim && t.czClaim[need] && t.czClaim[need].t > G.time && t.czClaim[need].by !== a) continue;   // someone's already bringing it
@@ -411,7 +416,7 @@
     if (f) { const n = NAV.nearest(f.pos.clone().add(V().set(1.6, 0, 0)), 4); return { pos: n >= 0 ? NAV.nodePos(n) : f.pos.clone(), kind: 'warm', r: 2.2, look: f.pos.clone(), crouch: true }; }
     // already under a roof: stay there (crouched, warming up) while the squad is within reach, rather
     // than following someone back out into the cold
-    if (CZ.sheltered(a)) return U.dist3(a.pos, near) < 35 ? { pos: a.pos.clone(), kind: 'shelter', r: 3, crouch: true } : null;
+    if (CZ.sheltered(a)) { if (U.dist3(a.pos, near) >= 35) return null; const off = CZ.offDoor && CZ.offDoor(a, near); return off ? { pos: off, kind: 'shelter', r: 0.5, crouch: true } : { pos: a.pos.clone(), kind: 'shelter', r: 3, crouch: true }; }
     if (!a.czShelter || G.time > a.czShelterT || U.dist3(a.czShelter, near) > 30) {
       a.czShelterT = G.time + 20; a.czShelter = null;
       let best = null, bd = 1e9;
@@ -453,6 +458,8 @@
     // otherwise a rest where it stands, crouched, as long as the squad isn't leaving it behind
     if (lead && lead !== a && U.dist3(lead.pos, a.pos) > 22) return null;
     if (G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 15)) return null;
+    const off = CZ.offDoor && CZ.offDoor(a, lead ? lead.pos : null);   // (not in a doorway)
+    if (off) return { pos: off, kind: 'rest', r: 0.5, crouch: true };
     return { pos: a.pos.clone(), kind: 'rest', r: 3, crouch: true, act: x => { if (x.stance === 0) x.setStance(1); } };
   };
 

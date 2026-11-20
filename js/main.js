@@ -107,6 +107,7 @@
     for (let i = 0; i < A.length; i++) for (let j = i + 1; j < A.length; j++) {
       const a = A[i], b = A[j];
       if (a.state === 'dead' || b.state === 'dead' || a.dummy || b.dummy || a.remote || b.remote) continue;
+      if (a.team === b.team && (a.passT > G.time || b.passT > G.time)) continue;   // teammates squeezing past each other (ai.js)
       const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz);
       if (d > 0.5 || d < 1e-4 || Math.abs(a.pos.y - b.pos.y) > 1.4) continue;
       const push = (0.5 - d) * 0.5, nx = dx / d * push, nz = dz / d * push;
