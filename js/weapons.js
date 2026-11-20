@@ -294,7 +294,7 @@
       if (h.shieldOf) { FX.sparks(p, -dir.x, -dir.y, -dir.z); SFX.impact(p, false); return true; }
       if (h.e) {
         const dmg = d.dmg * mul;
-        h.e.shot && h.e.shot(dmg, shooter, p, d);
+        h.e.shot && h.e.shot(dmg, shooter, p, d, dir, range - h.t, bounced);   // (dir, range left: Carom's plate turns the round)
         if (h.e.stopBullets !== false) { FX.sparks(p, -dir.x, -dir.y, -dir.z, 0xa0d8ff); return true; }
         return false;
       }

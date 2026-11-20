@@ -85,9 +85,9 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   end-to-end encrypted and wait for friends who are offline. You can invite a friend to a
   match or a room, join their room, or block someone.
 
-- **70 operators** (35 attack, 35 defense) in twenty-three units. The launch roster is 20 operators
+- **82 operators** (41 attack, 41 defense) in twenty-three units. The launch roster is 20 operators
   across five units, plus nine two-operator season squads, the twenty of seasons 10-14 and the
-  seasons 15-18 expansion (being built in batches; see [tools/EXPANSION.md](tools/EXPANSION.md)):
+  twenty-four of seasons 15-18 (see [tools/EXPANSION.md](tools/EXPANSION.md)):
   - **Season 1 · Ironveil:** Pike (smoke launcher) and Lark (decoy emitter)
   - **Season 2 · Driftline:** Brace (Barrier Foam: a waist-high bulletproof foam wall) and Seam
     (Patch Spray: refills a breached wall, floor or hatch with foam)
@@ -144,6 +144,19 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     Tape: any scope, drone or camera that looks at it glints), Chaff (Chaff Canister: a cloud people see
     through and cameras, drones and scopes do not; marks fail inside it) and Bluff (Decoy Kit: fake
     C4, cameras, alarms and sensors; whoever shoots one is marked)
+  - **Season 17 · Cairn** (support and logistics): Sutler (Supply Crate: four pulls, each a gadget
+    charge back and full magazines), Caster (Rolling Mantlet: a wheeled steel plate he pushes ahead
+    and plants as cover), Hound (K-9 unit Patch: a robot dog that follows or is sent, and points at
+    defenders it smells through walls), Tether (Lifeline Link: damage split with a teammate, and once a
+    round he takes the blow that would drop them), Drag (Countermeasure Coil: the defuser, the secure
+    meter and a carried hostage go 35% slower near it) and Magpie (Salvage Kit: defuses an attacker's
+    charge, claymore, flank cam or feint and uses it herself)
+  - **Season 18 · Wireframe** (physics as a weapon): Archive (Afterimage Scanner: where defenders
+    were 8-15 s ago), Lodestone (Magnet Charge: every small metal gadget nearby pulled into a dead
+    clump), Earshot (Parabolic Mic: three times the hearing straight ahead, sounds shown as bearings),
+    Gust (Turbine Fan: blows away smoke and gas, throws grenades back, pushes drones, covers
+    footsteps), Canary (Equipment Sniffer: reports every attacker gadget that turns up near it) and
+    Carom (Ricochet Plate: rounds that hit it turn through 90 degrees, for bank shots round corners)
 
   Each operator has an armor/speed rating, two primaries, two secondaries, two gadget choices
   and a unique ability.
@@ -462,7 +475,7 @@ attacker spawns and their cover) · `maps-kit` (floor-plan layout kit: doors, wi
 hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `maps-millrace` (the 18 maps) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·
-`ops3-a`, `ops3-b` (seasons 15-18 batches A and B, on the same registry) · `voice` (operator voice lines) ·
+`ops3-a`, `ops3-b`, `ops3-c`, `ops3-d` (the seasons 15-18 operators, on the same registry) · `voice` (operator voice lines) ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
 `range` (range and training) · `killcam` (replays) · `names` (bot names) · `arcade` (Deathmatch and
 Team Deathmatch) · `shop` (cosmetics, credits) · `ranked` (ranks, matchmaking) · `main` · online: `ui` (toasts, modals, top bar) · `auth`

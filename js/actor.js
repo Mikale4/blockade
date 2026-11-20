@@ -322,6 +322,7 @@
       if (this.slow > 0 && !od) v *= 0.38;
       if (this.stun > 0 && !od) v *= 0.6;
       if (this.carry && this.carry.hostage) v *= 0.85;
+      if (this.speedMul) v *= this.speedMul;                    // (seasons 15-18: pushing a mantlet, a coil on the hostage)
       if (slick) v *= 0.85;                                     // no footing on Skid's slick
       if (this.rooted > 0 && !od) v = 0;
       if (this.state === 'dbno') v = 0.45;

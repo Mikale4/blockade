@@ -145,8 +145,11 @@ dynamic events, day and night and weather, and a story campaign in chapters with
 | New weapons (9) | built (data, attachments; the 3D models use their class's shape) |
 | Batch A: Pivot, Bound, Plummet, Perch, Winch, Strain | built · every ability tested offline · bot rounds on 5 maps, no errors: bots cut and open doors, launch off plates, punch through floors and drop in, build and hold scaffolds, ride hoists, gauge walls and get alerts |
 | Batch B: Stain, Glance, Feint, Glint, Chaff, Bluff | built · each ability tested offline · bot rounds (see notes) |
-| Batch C: Sutler, Caster, Hound, Tether, Drag, Magpie | planned |
-| Batch D: Archive, Lodestone, Earshot, Gust, Canary, Carom | planned |
+| Batch C: Sutler, Caster, Hound, Tether, Drag, Magpie | built · every ability tested offline · bot rounds on 3 maps, no errors |
+| Batch D: Archive, Lodestone, Earshot, Gust, Canary, Carom | built · every ability tested offline · bot rounds (see notes) |
+| HUD readings for guests (gauge alerts, glints, bearings, afterimages, mic bearings, sniffer alerts) | built: sent host to guest as they are made |
+| Victory poses and selection-screen artwork beyond the live busts | planned (polish phase) |
+| Unique first-person hands per operator | partial: arms take each operator's colours; no per-operator hand models yet |
 | Maps 1-6 | planned |
 | Maps 7-12 | planned |
 | City Z: everything | planned |
@@ -166,3 +169,19 @@ dynamic events, day and night and weather, and a story campaign in chapters with
   glint. Chaff: a mark on someone inside fails, outside works; a device can't see through the cloud but
   can past it; water settles it. Bluff: decoys place and scan as the real kind; shooting one marks the
   shooter. (Bluff's ability was first called `decoy`, which is Lark's: renamed `bluffkit`.)
+- Batch C. Sutler: a pull gives back a gadget charge and fills the reserve (5 -> 150). Caster: 60%
+  speed pushing, a frontal round stopped by the plate, planted it blocks bodies, his team can push it
+  again. Hound: the dog follows, and points straight at a defender 3 m away through a wall (the
+  bearing's direction matches exactly). Tether: a 40-damage hit split 20/20; a lethal blow on the partner
+  taken by him instead. Drag: a defuser beside a coil lost 1.3 s of its countdown in 2 s; the secure meter
+  runs at 0.65. Magpie: an attacker's claymore salvaged and placed as hers ignores her team and hit an
+  attacker for 72.
+- Batch D. Archive: a defender who stood 6 m ahead 12 s ago shows as a ghost at exactly that spot,
+  aged 12 s. Lodestone: a sensor and a decoy within 5 m pulled into the clump and dead, a C4 destroyed,
+  one 8 m away untouched. Earshot: a footstep 20 m straight ahead shows as a bearing, one to the side
+  doesn't; half speed; the sound cone is on. Gust: a 12 s smoke cut to 1.3 s; a grenade thrown into the
+  fan's stream goes back out; a footstep beside the fan isn't heard, one 15 m off is. Canary: a claymore
+  set near the sniffer is reported, one 25 m away isn't. Carom: a level round at the plate turns 90
+  degrees and hits a man round the corner for 70% (26 of 37); a round from behind is just stopped.
+  (Fixes on the way: the turned round started inside the plate's own box; it now leaves from the plate
+  itself, and the plate is full height so rounds meet it level.)

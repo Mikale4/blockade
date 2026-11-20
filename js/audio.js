@@ -28,9 +28,11 @@
     if (pos) {
       const dx = pos.x - SFX.lp.x, dy = pos.y - SFX.lp.y, dz = pos.z - SFX.lp.z;
       const d = Math.hypot(dx, dy, dz);
+      const ang = Math.atan2(-dx, -dz) - SFX.lp.yaw;   // 0 = straight ahead
+      // (Earshot's parabolic mic: three times the reach straight ahead, muffled everywhere else)
+      if (SFX.cone) { if (Math.cos(ang) > 0.978) { range *= 3; g *= 1.5; } else g *= 0.25; }
       if (d > range) return null;
       g *= Math.pow(1 - d / range, 1.6) * Math.min(1, 3 / Math.max(1, d * 0.6) + 0.35);
-      const ang = Math.atan2(-dx, -dz) - SFX.lp.yaw;   // 0 = straight ahead
       pan = -Math.sin(ang) * Math.min(1, d / 2);
       if (occl === undefined && G.world && d > 1.5) occl = !G.world.los(SFX.lp, pos);
       if (occl) { g *= 0.55; cut = 900 + 3000 * (1 - d / range); }

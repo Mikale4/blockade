@@ -468,7 +468,8 @@
   if (VWp) {
     const oHit = VWp.hitVoxel, oSet = VWp.set;
     // (who did it is kept with each change: the shooter is only known at that moment)
-    VWp.hitVoxel = function (x, y, z, amount) { if (OPS3.watching) { OPS3.touched.push(x, y, z, 1); OPS3.touchedBy.push(OPS3.cause); } return oHit.call(this, x, y, z, amount); };
+    const room = () => { if (OPS3.touched.length > 8000) { OPS3.touched.length = 0; OPS3.touchedBy.length = 0; } };   // (never unbounded)
+    VWp.hitVoxel = function (x, y, z, amount) { if (OPS3.watching) { room(); OPS3.touched.push(x, y, z, 1); OPS3.touchedBy.push(OPS3.cause); } return oHit.call(this, x, y, z, amount); };
     VWp.set = function (x, y, z, m) { if (OPS3.watching && this === G.world) { OPS3.touched.push(x, y, z, m === DATA.M.WEAK ? 3 : 2); OPS3.touchedBy.push(OPS3.cause); } return oSet.call(this, x, y, z, m); };
   }
   // who did it: the shooter, the swinger or the bomb's owner of the moment

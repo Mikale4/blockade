@@ -310,7 +310,7 @@
       const inRoom = t => G.actors.filter(a => a.team === t && a.alive && G.map.roomAt(a.pos) === r).length;
       const ai = inRoom(atk), di = inRoom(def);
       o.contested = ai > 0 && di > 0;
-      if (ai && !di) o.prog += dt; else if (di && !ai) o.prog = Math.max(0, o.prog - dt * 2);
+      if (ai && !di) o.prog += dt * (window.OPS2 ? OPS2.objRate('secure') : 1); else if (di && !ai) o.prog = Math.max(0, o.prog - dt * 2);
       if (o.prog >= SECURE) return GAME.endRound(atk, 'Area secured');
       if (GAME.timer <= 0) {
         if (ai > 0 && (o.overtime += dt) < 15) return;
