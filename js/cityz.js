@@ -355,7 +355,7 @@
     if (CZ.ui) CZ.ui.frame(dt);
     // the player down or dead: carry on as someone else in the squad
     const p = G.player;
-    if (CZ.watching) { if (!Z.switching && !G.actors.some(a => a.cz && a.cz.m && a.state !== 'dead')) { Z.switching = true; setTimeout(() => { Z.switching = false; if (CZ.on() && CZ.wiped) CZ.wiped(); }, 3500); } }
+    if (CZ.watching) { if (!Z.switching && !Z.wipedOut && !G.actors.some(a => a.cz && a.cz.m && a.state !== 'dead')) { Z.switching = true; setTimeout(() => { Z.switching = false; if (CZ.on() && CZ.wiped && !Z.wipedOut) { Z.wipedOut = true; CZ.wiped(); } }, 3500); } }
     else if (p && p.state === 'dead' && !Z.switching) {
       Z.switching = true;
       setTimeout(() => {

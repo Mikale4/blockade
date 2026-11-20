@@ -17,7 +17,10 @@
   const V = () => new THREE.Vector3();
   const CAP = 18;
   const live = () => G.actors.filter(a => a.cz && (a.cz.inf || a.cz.opx) && a.state !== 'dead');
-  const preyOf = () => G.actors.filter(a => a.state !== 'dead' && (a.team === CZ.TEAM || (a.cz && a.cz.person)) && !a.ghost && !a.czCar && !a.czDriving);
+  // people holed up somewhere (the pharmacist, survivors waiting) are hidden: the infected only find
+  // them once the squad is close (and making noise), or once they're out and following someone
+  const hidden = a => a.cz && a.cz.person && !a.cz.person.follow && !G.actors.some(x => x.cz && x.cz.m && x.state === 'alive' && U.dist3(x.pos, a.pos) < 15);
+  const preyOf = () => G.actors.filter(a => a.state !== 'dead' && (a.team === CZ.TEAM || (a.cz && a.cz.person)) && !a.ghost && !a.czCar && !a.czDriving && !hidden(a));
 
   /* ------------------------------------------------------------------ bodies */
   const OPS_INF = {};
@@ -44,7 +47,10 @@
     const a = new Actor({ name: 'Infected ' + op.name, team: CZ.INF, side: 'def', op, loadout: { primary: op.primaries[0], secondary: op.secondaries[0], gadget: op.gadgets[0] } });
     a.cz = { opx: true, def: { name: 'Infected operator', infect: 4 } };
     a.maxHp = a.hp = 120; a.drones = 0;
-    a.persona = PERSONA.make([]); PERSONA.tune && PERSONA.tune(a.persona, 1.4, 0.4); AI.attach(a); a.bot.role = 'roam'; a.bot.extraSpread = 0.05;
+    a.persona = PERSONA.make([]); PERSONA.tune && PERSONA.tune(a.persona, 1.4, 0.4); AI.attach(a); a.bot.role = 'roam';
+    // the infected can still pull a trigger, but not aim: a wide, wild spread on every shot (weapons.js
+    // adds czShake; the bot's own extraSpread is reset every frame, so it never held)
+    a.czShake = 2.6 * Math.min(1.3, CZ.diff().inf);
     a.pos.copy(pos); a.yaw = Math.random() * 6.28;
     a.addTo(G.scene); G.actors.push(a);
     if (AI.teams && AI.teams[CZ.INF]) AI.teams[CZ.INF].bots.push(a);
@@ -282,13 +288,24 @@
     // the dead are cleared away after a while (keeps the place light)
     for (const a of [...G.actors]) if (a.cz && (a.cz.inf || a.cz.opx) && a.state === 'dead' && (a.deathT || 0) > 25) { a.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(a), 1); }
   };
+  const GADGET_ITEM = { frag: 'pipebomb', impact: 'pipebomb', c4: 'pipebomb', claymore: 'pipebomb', breach: 'pipebomb', smoke: 'flare', stun: 'noisemaker', flash: 'noisemaker', stim: 'painkillers', alarm: 'battery', flankcam: 'parts', dshield: 'scrap', wire: 'scrap' };
+  function gearOf(v) {
+    const out = [];
+    for (const w of v.w) { if (!w || !DATA.WEAPONS[w.id]) continue; out.push(['gun:' + w.id, 1]); out.push([CZ.calOf(w.id), Math.max(0, w.mag || 0) + 8 + Math.floor(Math.random() * 18)]); }
+    const g = v.gadget && GADGET_ITEM[v.gadget.id]; if (g && (v.gadget.count == null || v.gadget.count > 0)) out.push([g, 1]);
+    if (Math.random() < 0.25) out.push(['pack_s', 1]);
+    if (Math.random() < 0.18) out.push(['jacket', 1]);
+    if (Math.random() < 0.4) out.push(['bandage', 1]);
+    if (Math.random() < 0.15) out.push(['torch', 1]);
+    return out;
+  }
   CZ.onKillInf = function (v) {
     if (!CZ.Z) return;
     const st = CZ.zoneState(CZ.Z.id); st.pop = Math.max(0, st.pop - 1);
     if (st.pop === 0 && !st.cleared) { st.cleared = true; HUD.banner('CLEARED', CZ.Z.def.name + ' is quiet, for now', 3, 'win'); }
     // what they carried
     if (CZ.dropLoot) {
-      if (v.cz.opx) CZ.dropLoot(v.pos, [['gun:' + v.w[0].id, 1], [CZ.calOf(v.w[0].id), 10 + Math.floor(Math.random() * 20)]], 'Gear of ' + v.name);
+      if (v.cz.opx && !v.czTurnedM) CZ.dropLoot(v.pos, gearOf(v), 'Gear of ' + v.name);
       else if (Math.random() < 0.18) CZ.dropLoot(v.pos, [[['cloth', 'bandage', 'a9', 'water', 'bar', 'battery'][Math.floor(Math.random() * 6)], 1 + Math.floor(Math.random() * 2)]], 'Pockets');
     }
   };

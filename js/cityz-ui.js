@@ -163,8 +163,7 @@
     a.w.forEach((w, i) => { w.mag = i === slot ? 0 : (keep[i] && keep[i].id === w.id ? keep[i].mag : 0); w.reserve = 0; });
     a.cz.res = []; a.cz.m.guns = a.w.map(w => ({ id: w.id, mag: w.mag }));
     if (a.rig) MD.setRigGun(a.rig, a.w[a.cur].id);
-    PLAYER.vmKey = '';
-    HUD.toast('Equipped ' + DATA.WEAPONS[gid].name, 'info');
+    if (a.isPlayer) { PLAYER.vmKey = ''; HUD.toast('Equipped ' + DATA.WEAPONS[gid].name, 'info'); }
   }
   function craftTab(body, p) {
     const lvl = CZ.benchLevel();
@@ -487,15 +486,21 @@
   CZ.wiped = function () {
     const S = CZ.S, home = Object.keys(S.safe).find(z => CZ.isSafe(z)) || CZ.START;
     PLAYER.release(); G.paused = true;
-    overlay($('div', { class: 'panel cz-panel cz-small' }, $('h2', {}, 'THE SQUAD IS GONE'), $('p', {}, 'Day ' + S.day + '. Nobody is left of the five who went into Varrow.'),
-      $('p', { class: 'sub' }, 'BLOCKADE can send another squad. The city stays as you left it: the safehouses, the stashes, the people you helped.'),
+    const watching = CZ.isWatching && CZ.isWatching();
+    let sent = false;
+    const box = $('div', { class: 'panel cz-panel cz-small' }, $('h2', {}, 'THE SQUAD IS GONE'), $('p', {}, 'Day ' + S.day + '. Nobody is left of the five who went into Varrow.'),
+      $('p', { class: 'sub' }, 'BLOCKADE can send another squad. The city stays as you left it: the safehouses, the stashes, the people you helped.' + (watching ? ' Watching: a new squad goes in by itself in a few seconds.' : '')),
       $('div', { class: 'actions' }, btn('SEND A NEW SQUAD', () => {
+        if (sent) return; sent = true;
         const ops = DATA.OPS.filter(o => !S.squad.some(m => m.op === o.id)).sort(() => Math.random() - 0.5).slice(0, 5).map(o => o.id);
         const fresh = CZ.newGame.bind(null);
         const keep = JSON.parse(JSON.stringify(S));
         fresh(ops, S.diff);
         Object.assign(CZ.S, { zones: keep.zones, known: keep.known, visited: keep.visited, stash: keep.stash, safe: keep.safe, survivors: keep.survivors, vehicles: keep.vehicles, story: keep.story, day: keep.day + 1, min: 7 * 60, stats: keep.stats });
         UI.close(true); open = null; G.paused = false; CZ.enter(home, 'S');
-      }, 'big'), btn('MAIN MENU', () => { UI.close(true); open = null; G.paused = false; GAME.quit(); MENU.home(); }, 'ghost'))));
+      }, 'big'), btn('MAIN MENU', () => { sent = true; UI.close(true); open = null; G.paused = false; GAME.quit(); MENU.home(); }, 'ghost')));
+    overlay(box);
+    // watching: the campaign carries on with a new squad on its own
+    if (watching) setTimeout(() => { if (!sent && box.isConnected) { const b2 = box.querySelector('.actions button'); if (b2) b2.click(); } }, 6000);
   };
 })();

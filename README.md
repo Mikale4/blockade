@@ -327,6 +327,18 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   - **Watching:** WATCH THE SQUAD (or SEND THEM IN AND WATCH for a new city, or a spectator seat in
     an online room) lets all five play on their own while you spectate any of them: the leader
     follows the objectives, restores and builds at safehouses, sleeps there, loots and travels on.
+    The whole campaign can be finished this way: the leader searches for the materials a step needs
+    (place by place), talks to people waiting for help, takes supply drops, unloads materials into the
+    safehouse stash, holds together at the road in before going into the most dangerous places, and
+    takes a short look round rather than emptying every container. If the squad is wiped out, a new
+    one goes in by itself. Nobody's death stops the story (the pharmacist's, Mina's, Mara's), a pack
+    with the story's things in it is marked to be picked up, and people holed up stay hidden from the
+    infected until the squad gets close.
+  - **Melee and guns:** every bot (in every mode) melees up close when its gun is empty or reloading;
+    with every gun dry it rushes someone close and lets a far one go to find rounds. In City Z who
+    swings at the infected rather than shooting is down to their temper, nerve and rounds left (never
+    at a brute). Infected operators drop both guns, rounds, what their gadgets come to and sometimes a
+    pack or a jacket; teammates swap to a better gun when they have rounds for it.
   - **The squad looks after itself** (playing or watching): each AI teammate treats its own wounds,
     eats, drinks and re-arms, makes a dressing or splint when it has the cloth or planks, hands
     spares (dressings, food, water, rounds) to whoever needs them, you included (its last food or water

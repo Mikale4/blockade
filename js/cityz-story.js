@@ -102,10 +102,10 @@
       done: () => CZ.isSafe('firehouse'),
       after: () => { log('The firehouse is ours: Engine 9 is the squad\'s first safehouse.'); say([{ who: CALDER, t: 'Good. A roof and a door. Now listen: Mara\'s broadcast came from St Brigid\'s, but nobody\'s answered from there since. A pharmacist on Main Street was still on the emergency band two days ago. Start there.' }]); } },
     { id: 'pharmacy', zone: 'mainst', title: 'MAIN STREET', text: 'Find the pharmacist holed up in the pharmacy on Ashford Main Street.', targets: () => person('Teo Baines', 'PHARMACIST'),
-      people: z => z === 'mainst' && !S().story.flags.teo ? [{ name: 'Teo Baines', room: 'Pharmacy', head: 'cap', talk: teo }] : [],
+      people: z => z === 'mainst' && !S().story.flags.teo ? [{ name: 'Teo Baines', room: 'Pharmacy', head: 'cap', talk: teo, onDeath: () => { if (S().story.flags.teo) return; S().story.flags.teo = 'dead'; log('Teo Baines was dead when we got to him. A note on the counter said Lincoln High: the refugees there saw the doctor.'); advance(); } }] : [],
       done: () => !!S().story.flags.teo },
     { id: 'school', zone: 'school', title: 'LINCOLN HIGH', text: 'Teo says the refugees at Lincoln High saw Mara. Find them: the gym.', targets: () => person('Mina Hale', 'MINA HALE'),
-      people: z => z === 'school' && !S().story.flags.school ? [{ name: 'Mina Hale', room: 'Gymnasium', head: 'bandana', talk: mina, onDeath: () => { S().story.flags.minaDead = true; } }] : [],
+      people: z => z === 'school' && !S().story.flags.school ? [{ name: 'Mina Hale', room: 'Gymnasium', head: 'bandana', talk: mina, onDeath: () => { const f = S().story.flags; f.minaDead = true; if (f.gymHold === 'on' || f.school) return; f.school = 'lost'; CZ.add(me().cz.m, 'radiopart', 1); log('Mina Hale died before we could help. The refugees scattered. We found a radio valve set in her things.'); advance(); } }] : [],
       done: () => !!S().story.flags.school },
     { id: 'radio', zone: 'firehouse', anySafe: true, title: 'THE RADIO', text: 'Build a radio at a safehouse workbench (2 electronic parts, 2 batteries and the valve set from the school) so Command can reach you.', targets: () => fixes('czbench', 'WORKBENCH · BUILD THE RADIO'),
       done: () => Object.values(S().safe).some(sf => (sf.up || []).includes('radio')),
@@ -115,7 +115,7 @@
       done: () => has('notes') && has('samples'),
       after: () => { log("We have Mara's notes and the samples. The notes end mid-sentence: he went down into Line 4."); say([{ who: 'MARA\'S NOTES', t: '"...the antiviral slows it. It does not stop it. What stops it is the culture from patient one, grown on. I am taking the culture to Delta through the Line 4 tunnels. If the army has the uplink working the formula can go out to everyone, and then they cannot burn us..."' }]); } },
     { id: 'subway', zone: 'subway', title: 'LINE 4', text: 'Find Dr Mara at Kessler Square station. The notes say the signal room.', targets: () => person('Dr Halvard Mara', 'DR MARA').concat(finds()),
-      people: z => z === 'subway' && !S().story.flags.mara ? [{ name: 'Dr Halvard Mara', room: 'Signal Room', head: 'scarf', crouch: true, hp: 60, talk: mara, onDeath: v => { if (!S().story.flags.mara) { S().story.flags.mara = 'dead'; CZ.dropLoot(v.pos.clone(), [['culture', 1]], "Mara's case"); log('Mara is dead. His case is on the floor of the signal room.'); } } }] : [],
+      people: z => z === 'subway' && !S().story.flags.mara ? [{ name: 'Dr Halvard Mara', room: 'Signal Room', head: 'scarf', crouch: true, hp: 60, talk: mara, onDeath: v => { if (!S().story.flags.mara) { S().story.flags.mara = 'dead'; CZ.dropLoot(v.pos.clone(), [['culture', 1]], "Mara's case (something important)"); log('Mara is dead. His case is on the floor of the signal room.'); } } }] : [],
       done: () => has('culture') },
     { id: 'checkpoint', zone: 'checkpoint', title: 'CHECKPOINT DELTA', text: "Take the command keycard from the Commander's Office, then use the uplink in the Comms Room.",
       loot: z => z === 'checkpoint' ? [["Commander's Office", 'keycard']] : [], targets: () => has('keycard') ? fixes('uplink', 'THE UPLINK') : finds(),
@@ -145,8 +145,11 @@
       const nx = CZ.routeTo(here, st.zone), side = nx && CZ.exitsOf(here)[nx], e = side && CZ.Z.exits.find(x => x.side === side);
       return e ? [{ p: V().set(e.x, e.y, e.z), label: 'ROAD TO ' + CZ.ZONES[nx].name, road: nx }] : [];
     }
-    return st.targets ? st.targets() : [];
+    const out = st.targets ? st.targets() : [];
+    for (const f of finds()) if (!out.some(o => o.p === f.p)) out.push(f);
+    return out;
   };
+  CZ.survivorTalk = t => survivorTalk(t);
   const step = () => STEPS[S().story.step];
   CZ.objective = function () {
     if (CZ.isGuest && CZ.isGuest()) return CZ.guestObj || null;
@@ -216,12 +219,15 @@
   function holdGym(t) {
     const s = S(); s.story.flags.gymHold = 'on';
     HUD.banner('HOLD THE GYM', 'Keep them off the refugees for 90 seconds', 3, 'lose');
-    CZ.horde(16, t.pos.clone());
+    // as many as the difficulty and the squad's size make fair: eleven and two waves of four for a squad
+    // of five on Survivor (it was sixteen and two sixes, which a squad of bots rarely lived through)
+    const k = CZ.diff().inf * (0.6 + 0.08 * Math.max(1, CZ.squadCount ? CZ.squadCount() : 5));
+    CZ.horde(Math.round(11 * k), t.pos.clone());
     let left = 90; const Z = CZ.Z;
     const iv = setInterval(() => {
       if (!CZ.on() || CZ.Z !== Z) { clearInterval(iv); if (s.story.flags.gymHold === 'on') s.story.flags.gymHold = null; return; }
       if (G.paused) return;
-      left--; if (left % 30 === 0 && left > 0) { CZ.horde(6, t.pos.clone()); HUD.toast(left + ' seconds', 'warn'); }
+      left--; if (left % 30 === 0 && left > 0) { CZ.horde(Math.round(4 * k), t.pos.clone()); HUD.toast(left + ' seconds', 'warn'); }
       if (left <= 0) { clearInterval(iv); s.story.flags.gymHold = 'won'; HUD.banner('THE GYM HELD', t.state === 'alive' ? 'Mina wants a word' : 'Mina didn\'t make it', 3, 'win'); if (t.state !== 'alive') { s.story.flags.school = 'lost'; CZ.add(me().cz.m, 'radiopart', 1); log('We held the gym, but Mina Hale died. We found a radio valve set in her things.'); advance(); } }
     }, 1000);
   }

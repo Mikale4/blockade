@@ -18,3 +18,8 @@ sound effects/*.m4a
 
 # test harnesses (local only)
 /_*.js
+
+# ElevenLabs API key (local only, never committed)
+tools/elevenlabs.key
+*.key
+tools/elevenlabs*

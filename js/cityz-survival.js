@@ -27,6 +27,7 @@
   };
   CZ.count = (m, id) => m.inv[id] || 0;
   CZ.add = function (m, id, n) {
+    if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'quest') { m.inv[id] = (m.inv[id] || 0) + n; return n; }   // the story's things always go in
     const kg = id.startsWith('gun:') ? CZ.itemKg(id.slice(4)) : CZ.itemKg(id);
     const room = CZ.capacity(m) * 1.3 - CZ.weight(m);            // over the limit you are slow; 30% over, no more
     const fit = kg > 0 ? Math.max(0, Math.min(n, Math.floor(room / kg + 1e-6))) : n;
@@ -332,7 +333,7 @@
     const m = a.cz.m, list = Object.entries(m.inv);
     for (const g of m.guns || []) if (g) list.push(['gun:' + g.id, 1]);
     m.inv = {}; m.guns = [];
-    if (list.length) CZ.dropLoot(a.pos, list, m.name + "'s pack");
+    if (list.length) CZ.dropLoot(a.pos, list, m.name + "'s pack" + (list.some(([id]) => CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'quest') ? ' (something important)' : ''));
   };
   // what's left in a container, as words
   CZ.itemsText = items => Object.entries(items).map(([id, n]) => (n > 1 ? n + ' × ' : '') + CZ.itemName(id.startsWith('gun:') ? id.slice(4) : id)).join(', ');

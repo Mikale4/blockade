@@ -226,6 +226,7 @@
     // a dry gun: the other one
     if (a.w[a.cur] && a.w[a.cur].mag <= 0 && a.w[a.cur].reserve <= 0) { const o = a.w.findIndex((w, i) => i !== a.cur && (w.mag > 0 || w.reserve > 0)); if (o >= 0) WPN.swap(a, o); }
     a.czNeed = null;
+    if (!hot && G.time > (a.czGunT || 0)) { a.czGunT = G.time + 6; if (betterGun(a)) return; }
     restTick(a, hot);
     if (warmTick(a, hot)) return;
     // dirty water and a fire (or the safehouse stove): the ones who know better boil it first
@@ -325,6 +326,55 @@
     }
   };
 
+  /* ================================================================ guns */
+  /* how good a gun is to this person: its damage over time, its reach, who they are (a sharpshooter
+     likes a long gun, a hothead a loud one), and whether they have rounds for it */
+  function gunScore(a, id, inHand) {
+    const d = DATA.WEAPONS[id]; if (!d) return 0;
+    const dps = d.dmg * (d.pellets ? Math.min(d.pellets, 8) * 0.55 : 1) * Math.min(d.rpm || 300, 900) / 60;
+    const reach = d.type === 'SG' ? 0.75 : d.type === 'PISTOL' || d.type === 'MP' ? 0.8 : d.type === 'SR' || d.type === 'DMR' ? 1.05 : 1;
+    const p = P(a); let like = 1;
+    if (p && p.perks.includes('sharpshooter') && (d.type === 'DMR' || d.type === 'SR')) like = 1.25;
+    if (p && p.t.temper > 0.7 && (d.type === 'SG' || d.type === 'LMG')) like = 1.2;
+    const c = CZ.calOf(id), n = inHand ? calRounds(a, c) : (a.cz.m.inv[c] || 0), mag = d.mag || 20;
+    const ammo = n >= mag * 2 ? 1 : n >= mag ? 0.7 : n > 0 ? 0.4 : 0.05;
+    return dps * reach * like * ammo;
+  }
+  const isSide = id => { const d = DATA.WEAPONS[id]; return !!d && (d.sec || d.type === 'PISTOL' || d.type === 'MP'); };
+  /* a gun in the pack that beats the one in that hand: swap (the clever and the bold sooner); one they
+     can't use and can't carry gets left behind */
+  function betterGun(a) {
+    const m = a.cz.m, p = P(a);
+    for (const k of Object.keys(m.inv)) {
+      if (!k.startsWith('gun:')) continue;
+      const id = k.slice(4), slot = isSide(id) ? 1 : 0, cur = a.w[slot];
+      if (cur && cur.id === id) continue;
+      const mine = cur ? gunScore(a, cur.id, true) : 0, theirs = gunScore(a, id, false);
+      if (theirs > mine * 1.2 && (!p || Math.random() < 0.4 + p.t.smarts * 0.4)) {
+        CZ.equip(a, id, slot);
+        say(a, 'gun', ['Swapping to the ' + DATA.WEAPONS[id].name + '.', "I'll take this one.", 'Better than what I had.'], 2);
+        return true;
+      }
+    }
+    // spare guns slowing them down: left where they stand
+    if (CZ.weight(m) > CZ.capacity(m)) for (const k of Object.keys(m.inv)) if (k.startsWith('gun:')) { const n = m.inv[k]; CZ.take(m, k, n); CZ.dropLoot(a.pos, [[k, n]], 'Dropped'); return true; }
+    return false;
+  }
+  CZ.betterGun = betterGun;
+  // where the squad came in from (so a search for materials doesn't go straight back)
+  CZ.listen('enter', zid => { const S = CZ.S; if (!CZ.Z || !S) return; const e = Object.entries(CZ.exitsOf(zid) || {}).find(([, sd]) => sd === S.side); CZ.Z.from = e ? e[0] : null; });
+  /* the squad and melee: up close to the infected, who swings instead of shooting is theirs to decide
+     (short of rounds, short of temper, bold enough to get that close; never at a brute) */
+  AI.meleeWanted = function (a, t) {
+    if (!CZ.on() || !a.cz || !a.cz.m || !t.cz || !t.cz.inf) return false;
+    if (t.cz.def && t.cz.def.armour) return false;
+    if (a.czMelee && a.czMelee.until > G.time) return a.czMelee.v;
+    const p = P(a), mag = (a.wpn && a.wpn.def.mag) || 20, low = calRounds(a, CZ.calOf(a.wpn ? a.wpn.id : 'p10')) < mag * 1.5;
+    const c = (low ? 0.55 : 0.1) + (p ? p.t.temper * 0.3 + p.t.nerve * 0.2 - 0.2 : 0);
+    a.czMelee = { v: Math.random() < c, until: G.time + 3 };
+    return a.czMelee.v;
+  };
+
   /* ================================================================ warmth */
   /* Cold (body heat under 36.2, well before hypothermia at 35.5): a hot meal if it has one; a
      campfire if it has firewood (or two planks to make some) and the night or the rain is the cause;
@@ -408,14 +458,26 @@
 
   /* ================================================================ scavenging */
   /* a container to go through: near the leader, not someone else's, of a kind that has what is needed */
-  function pickContainer(a, need, range) {
-    const lead = CZ.leader() || a, want = need && NEED[need] ? NEED[need].tables : null;
+  /* what's in a container that someone wants: a need (its table, or what's known to be inside), a list
+     of materials. strict: only containers that might have it */
+  const wantedIds = (a, need) => need === 'ammo' ? [calOf(a)] : need && NEED[need] && NEED[need].ids ? NEED[need].ids : [];
+  function pickContainer(a, need, range, strict, mats) {
+    const lead = CZ.leader() || a, want = need && NEED[need] ? NEED[need].tables : null, ids = wantedIds(a, need);
+    const matTables = mats ? Object.keys(CZ.LOOT).filter(t => CZ.LOOT[t].some(r => mats.includes(r[0]))) : null;
+    const kg = CZ.weight(a.cz.m);
     let best = null, bs = 1e9;
     for (const e of G.ents) {
       if (!e.alive || e.type !== 'czloot' || U.dist3(e.pos, lead.pos) > range || Math.abs(e.pos.y - lead.pos.y) > 7) continue;
       if (G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
-      let s = U.dist3(e.pos, a.pos);
-      if (want && !want.includes(e.table)) s += 25;
+      // searched already and what's left didn't fit: not again until there's room
+      if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
+      const known = e.items ? Object.keys(e.items) : null;
+      const has = x => known && known.some(k => x.includes(k) || (need === 'ammo' && k.startsWith('gun:')));
+      let s = U.dist3(e.pos, a.pos), fits = !want && !mats;
+      if (want) { if (want.includes(e.table) || has(ids)) fits = true; else s += 25; if (has(ids)) s -= 20; }
+      if (mats) { if (matTables.includes(e.table) || has(mats)) fits = true; else s += 25; if (has(mats)) s -= 20; }
+      if (/^d_drop_/.test(String(e.cid)) || /important/.test(String(e.label))) s -= 40;   // a supply drop, or the story's
+      if (strict && !fits) continue;
       if (s < bs) { bs = s; best = e; }
     }
     return best;
@@ -425,7 +487,10 @@
     return { pos: e.pos.clone(), kind: 'loot', r: 1.1, look: e.pos.clone().setY(e.pos.y + 0.5), act: x => {
       if (x.busy > 0 || !e.alive) { if (!e.alive) x.bot.loot = null; return; }
       x.busy = 1.3; x.busyLabel = 'SEARCHING';
-      setTimeout(() => { if (x.state === 'alive' && e.alive && CZ.on()) CZ.loot(x, e); if (x.bot) x.bot.loot = null; x.czCareT = 0; if (then) then(x); }, 1200);
+      setTimeout(() => {
+        if (x.state === 'alive' && e.alive && CZ.on()) { CZ.loot(x, e); if (e.alive) (e.czFullFor || (e.czFullFor = {}))[x.id] = CZ.weight(x.cz.m); }
+        if (x.bot) x.bot.loot = null; x.czCareT = 0; x.czGunT = 0; if (then) then(x);
+      }, 1200);
     } };
   }
   /* in the follow order: go and find what is missing, or pick over what is close when it is quiet */
@@ -438,7 +503,7 @@
     if (!calm) return null;
     if (a.czNeed && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a)) && G.time > (a.czHuntT || 0)) {
       a.czHuntT = G.time + 6 + Math.random() * 6;
-      if (decide(a, 'forage', sevOf(a, a.czNeed))) { const e = pickContainer(a, a.czNeed, 30); if (e) return lootGoal(a, e); }
+      if (decide(a, 'forage', sevOf(a, a.czNeed))) { const e = pickContainer(a, a.czNeed, 30, true); if (e) return lootGoal(a, e); }
     }
     if (G.time > (a.czPickT || 0) && CZ.weight(a.cz.m) < CZ.capacity(a.cz.m) * 0.75) {
       a.czPickT = G.time + 20 + Math.random() * 20;
@@ -492,13 +557,61 @@
     const n = NAV.nearest(e.pos, 4);
     return { pos: n >= 0 ? NAV.nodePos(n) : e.pos.clone(), kind: 'fix', r: 1.4, look: e.pos.clone(), act: x => { if (x.busy > 0 || G.time < (x.czActT || 0)) return; x.czActT = G.time + 3; act(x); } };
   }
+  /* what the objective still wants in materials (the squad's packs and every stash counted), for the
+     steps that are built: restoring the first safehouse, the radio */
+  function missingMats() {
+    const S = CZ.S, st = CZ.STORY && CZ.STORY[S.story.step]; if (!st || S.story.ending) return null;
+    let needs = null;
+    if (st.id === 'restore' && !CZ.isSafe('firehouse')) needs = CZ.SAFE_UP[0].needs;
+    if (st.id === 'radio') needs = Object.assign({}, CZ.SAFE_UP.find(u => u.id === 'radio').needs);
+    if (!needs) return null;
+    const out = {};
+    for (const [k, n] of Object.entries(needs)) {
+      let h = 0; for (const m of S.squad) if (m.alive) h += m.inv[k] || 0; for (const st2 of Object.values(S.stash)) h += st2[k] || 0;
+      if (h < n) out[k] = n - h;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+  CZ.missingMats = missingMats;
+  /* at a safehouse: materials, spare guns and rounds nobody uses go into the stash (they still count
+     for building there), so nobody walks out slowed by them */
+  function unload() {
+    const z = CZ.Z.id, S = CZ.S; if (!CZ.isSafe(z)) return;
+    const stash = S.stash[z] || (S.stash[z] = {});
+    for (const x of squad()) {
+      if (!CZ.atSafe(x)) continue;
+      const m = x.cz.m, uses = new Set(x.w.map(w => CZ.calOf(w.id)));
+      for (const [id, n] of Object.entries(m.inv)) {
+        const it = CZ.ITEMS[id], spareGun = id.startsWith('gun:'), spareAmmo = it && it.cat === 'ammo' && !uses.has(id);
+        if (!(it && it.cat === 'mat') && !spareGun && !spareAmmo) continue;
+        stash[id] = (stash[id] || 0) + n; delete m.inv[id];
+      }
+    }
+  }
   CZ.autoGoal = function (a) {
-    if (!CZ.watching) return null;
+    if (!CZ.watching || !CZ.Z || !CZ.S) return null;   // (between places, while the next one loads)
     const S = CZ.S, here = CZ.Z.id, Z = CZ.Z;
     Z.autoT = (Z.autoT || 0);
     if (fighting(a)) return null;   // the bot's own fighting first
-    // its own needs first: scavenge for them
-    if (a.czNeed && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a))) { const e = pickContainer(a, a.czNeed, 40); if (e) return lootGoal(a, e); }
+    if (CZ.isSafe(here) && G.time > (Z.unloadT || 0)) { Z.unloadT = G.time + 5; unload(); }
+    // its own needs first: a few searches for them where they might be (not the whole place)
+    if (a.czNeed && (Z.needN || 0) < 5 && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a))) { const e = pickContainer(a, a.czNeed, 40, true); if (e) return lootGoal(a, e, () => { Z.needN = (Z.needN || 0) + 1; }); }
+    // a dangerous place (the hospital, the checkpoint, the overpass): first hold together in the open by
+    // the road in and let what's there come to the squad, until it's been quiet for a while (two minutes
+    // at most); then go in. A squad that walks straight into the buildings gets surrounded in them
+    if (CZ.ZONES[here].danger >= 4) {
+      if (squad().some(x => fighting(x))) Z.contactT = G.time;
+      if (!Z.inT) Z.inT = G.time;
+      const quiet = G.time - (Z.contactT || Z.inT) > 25;
+      if (!Z.entryDone && !quiet && G.time - Z.inT < 120) {
+        if (!Z.holdP) { const e = Z.exits.find(x => x.side === S.side) || Z.exits[0], p0 = V().set(e.x, e.y, e.z), c = V().set(45, e.y, 45), q = p0.clone().lerp(c, 0.12), n = NAV.nearest(q, 8); Z.holdP = n >= 0 ? NAV.nodePos(n) : a.pos.clone(); }
+        return { pos: Z.holdP.clone(), kind: 'hold', r: 3, crouch: false };
+      }
+      Z.entryDone = true;
+    }
+    // someone here waiting for help (a distress call, a stranger): go and talk to them
+    const sv = G.actors.find(x => x.cz && x.cz.person && x.cz.person.sid && !x.cz.person.talked && !x.cz.person.leaving && x.state === 'alive' && U.dist3(x.pos, a.pos) < 60);
+    if (sv) return { pos: sv.pos.clone(), kind: 'talk', r: 1.8, look: sv.eye(V()), act: () => { if (G.time < (Z.talkT || 0) || (CZ.ui && CZ.ui.isOpen())) return; Z.talkT = G.time + 8; sv.cz.person.talked = true; const o = sv.cz.person; if (o.talk) o.talk(sv); else if (CZ.survivorTalk) CZ.survivorTalk(sv); } };
     // a safehouse: restore it, build what the story wants, sleep when the squad is worn out
     if (CZ.ZONES[here].safe && !CZ.isSafe(here) && CZ.haveAll(CZ.SAFE_UP[0].needs, CZ.sources(a))) { const g = fixGoal(a, 'czbench', x => CZ.restore(here, x)); if (g) return g; }
     // a cold squad: inside, or to a fire (the cold ones handle the fire themselves)
@@ -529,13 +642,27 @@
       if (fx && fx.czFix === 'uplink') return fixGoal(a, 'uplink', () => { if (!(CZ.ui && CZ.ui.isOpen()) && CZ.finale) CZ.finale(); });
       if (fx && fx.czFix === 'czbench' && CZ.isSafe(here) && CZ.haveAll(CZ.SAFE_UP.find(u => u.id === 'radio').needs, CZ.sources(a))) return fixGoal(a, 'czbench', x => CZ.upgrade(here, 'radio', x));
     }
-    // otherwise: go through the place, then move on
+    // materials the objective still needs: search for them here (where they might be), then elsewhere
+    const miss = missingMats(), mats = miss ? Object.keys(miss) : null;
+    if (mats) {
+      const e = pickContainer(a, null, 70, true, mats);
+      if (e && CZ.weight(a.cz.m) < CZ.capacity(a.cz.m) * 1.1) return lootGoal(a, e);
+    }
+    // otherwise: a short look round (a supply drop first), then move on
     Z.autoT += 1;
-    const box = pickContainer(a, null, 70);
-    if (box && Z.t < 420) return lootGoal(a, box);
-    // on toward the objective's place, or somewhere not seen yet
-    const st = CZ.objective && CZ.objective(), goal = st && st.zone;
-    let next = goal && goal !== here ? CZ.routeTo(here, goal) : null;
+    const box = pickContainer(a, null, 45);
+    if (box && (Z.t < 150 || /^d_drop_/.test(String(box.cid))) && CZ.weight(a.cz.m) < CZ.capacity(a.cz.m) * 0.85) return lootGoal(a, box);
+    // on toward the objective's place (a safehouse for a building step, the nearest), or, while
+    // materials are missing, somewhere new to look: places not yet searched first, not back where it came from
+    const st = CZ.objective && CZ.objective(), cur = CZ.STORY && CZ.STORY[S.story.step];
+    let goal = st && st.zone;
+    if (cur && cur.anySafe) { const homes = Object.keys(S.safe).filter(z => CZ.isSafe(z)); if (homes.includes(here)) goal = here; else if (homes.length) goal = homes.sort((p2, q) => (CZ.routeTo(here, p2) ? 0 : 1) - (CZ.routeTo(here, q) ? 0 : 1))[0]; }
+    let next = null;
+    if (mats) {
+      const ns = Object.keys(CZ.ZONES[here].links).filter(z => z !== Z.from);
+      const score = z => (S.visited.includes(z) ? 0 : 3) + ((CZ.zoneState(z).looted || []).length < 12 ? 1 : 0) + Math.random();
+      next = ns.sort((p2, q) => score(q) - score(p2))[0] || Object.keys(CZ.ZONES[here].links)[0];
+    } else if (goal && goal !== here) next = CZ.routeTo(here, goal);
     if (!next) { const ns = Object.keys(CZ.ZONES[here].links); next = ns.find(z => !S.visited.includes(z)) || ns[Math.floor(Math.random() * ns.length)]; }
     return roadGoal(a, next);
   };
