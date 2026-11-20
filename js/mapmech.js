@@ -319,12 +319,27 @@
   /* ================================================================ PROPS */
   /* timber props under a ceiling: when most of their wood is gone (shot, blown, cut), the ceiling they
      held comes down: its voxels fall in, and anyone under it is hit for 45 and stunned */
+  /* who brought a ceiling down: the last one whose shot, swing or blast hit its wood (ops3-a.js keeps
+     OPS3.cause for whatever is hitting voxels), so it crushes their enemies and never their own team
+     (actor.js turns away any damage from your own side) */
+  const VWp = window.VW && VW.World && VW.World.prototype;
+  if (VWp) for (const k of ['hitVoxel', 'set']) {
+    const o = VWp[k];
+    VWp[k] = function (x, y, z) {
+      if (Props.live.size && window.OPS3 && OPS3.cause && OPS3.cause.isActor && this === G.world)
+        for (const P of Props.live) { if (!P.alive) { Props.live.delete(P); continue; } for (const b of P.def.boxes) if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1 && z >= b.z0 && z <= b.z1) { P.lastBy = OPS3.cause; break; } }
+      return o.apply(this, arguments);
+    };
+  }
   class Props extends Ent {
+    static live = new Set();
     constructor(def) {
       super('props', null, V().set((def.x0 + def.x1 + 1) / 2 * VS, def.y0 * VS, (def.z0 + def.z1 + 1) / 2 * VS), { team: -1, model: false, hp: 999, hitR: 0, melee: false });
       this.def = def; this.blastproof = true; this.meleeable = false; this.fallen = false;
       this.wood = this.count(); this.chk = 0;
+      Props.live.add(this);
     }
+    destroy(w) { Props.live.delete(this); return super.destroy(w); }
     count() { const W = G.world; let n = 0; for (const b of this.def.boxes) for (let y = b.y0; y <= b.y1; y++) for (let z = b.z0; z <= b.z1; z++) for (let x = b.x0; x <= b.x1; x++) if (W.get(x, y, z)) n++; return n; }
     update(dt) {
       this.t += dt; if (this.fallen || (this.chk -= dt) > 0) return; this.chk = 0.4;
@@ -332,7 +347,7 @@
       this.fallen = true; const d = this.def, W = G.world;
       const n = W.carve(d.x0, d.y0, d.z0, d.x1, d.y1, d.z1, () => true, 60);
       const c = this.pos.clone(); SFX.crumble(c, n); SFX.explosion(c, true); FX.puff(c, 3, 1.5, 0x8a7a64); GAME.noise(c, 70, null, 'explosion'); G.emit && G.emit('breach');
-      for (const a of G.actors) if (a.state === 'alive' && a.pos.x > d.x0 * VS && a.pos.x < (d.x1 + 1) * VS && a.pos.z > d.z0 * VS && a.pos.z < (d.z1 + 1) * VS && a.pos.y < d.y0 * VS && a.pos.y > d.y0 * VS - 4) { a.hurt(45, { kind: 'explosion' }); a.stun = Math.max(a.stun, 1.5); }
+      for (const a of G.actors) if (a.state === 'alive' && a.pos.x > d.x0 * VS && a.pos.x < (d.x1 + 1) * VS && a.pos.z > d.z0 * VS && a.pos.z < (d.z1 + 1) * VS && a.pos.y < d.y0 * VS && a.pos.y > d.y0 * VS - 4) { a.hurt(45, { kind: 'explosion', src: this.lastBy || null }); a.stun = Math.max(a.stun, 1.5); }
       GAD.tellTeam(0, 'A ceiling came down'); GAD.tellTeam(1, 'A ceiling came down');
     }
   }
