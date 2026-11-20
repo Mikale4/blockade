@@ -119,8 +119,15 @@
   PLAYER.camera = function (dt) {
     oCam.call(this, dt);
     const a = G.player, car = a && a.czDriving; if (!car) return;
-    const f = car.fwd(), cam = G.camera, want = car.pos.clone().addScaledVector(f, -7).setY(car.pos.y + 3.2);
-    cam.position.lerp(want, Math.min(1, dt * 6) || 1); cam.lookAt(car.pos.clone().addScaledVector(f, 5).setY(car.pos.y + 1.1));
+    // third person: a chase camera behind and above the car, smoothed on its own (the first-person
+    // camera has already been put at the driver's eye this frame, so it can't be the starting point)
+    const f = car.fwd(), cam = G.camera, want = car.pos.clone().addScaledVector(f, -7.5).setY(car.pos.y + 3.4);
+    if (!car.camPos || car.camPos.distanceTo(want) > 25) car.camPos = want.clone();
+    car.camPos.lerp(want, Math.min(1, (dt || 0.016) * 5));
+    // not through a wall: pull in toward the car if something is in between
+    const from = car.pos.clone().setY(car.pos.y + 1.6), d = car.camPos.clone().sub(from), L = d.length(), h = L > 0.1 ? G.world.raycast(from, d.clone().normalize(), L, true) : null;
+    cam.position.copy(h ? from.addScaledVector(d.normalize(), Math.max(1.5, h.dist - 0.3)) : car.camPos);
+    cam.lookAt(car.pos.clone().addScaledVector(f, 5).setY(car.pos.y + 1.1));
     if (PLAYER.vm) PLAYER.vm.root.visible = false;
   };
 

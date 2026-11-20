@@ -181,6 +181,7 @@
     return CZ.use(a, id);
   };
   function botCare(a, dt) {
+    if (CZ.botCare) return CZ.botCare(a, dt);   // cityz-auto.js: the fuller version
     if ((a.czCareT = (a.czCareT || 0) - dt) > 0 || a.busy > 0 || (a.bot && a.bot.target && G.time - a.bot.seenT < 3)) return;
     a.czCareT = 2;
     const m = a.cz.m, st = m.st, has = id => m.inv[id] > 0, pick = ids => ids.find(has);
@@ -360,10 +361,11 @@
     fixtures(zid);
   };
   /* restore: boards over the main building's windows, a bed, a stash, a bench */
-  CZ.restore = function (zid) {
+  CZ.restore = function (zid, who) {
+    const src = CZ.sources(who);
     const need = CZ.SAFE_UP[0].needs;
-    if (!CZ.haveAll(need)) { HUD.toast('Needs ' + Object.entries(need).map(([k, n]) => n + ' ' + CZ.itemName(k)).join(', '), 'warn'); return false; }
-    CZ.spend(need);
+    if (!CZ.haveAll(need, src)) { HUD.toast('Needs ' + Object.entries(need).map(([k, n]) => n + ' ' + CZ.itemName(k)).join(', '), 'warn'); return false; }
+    CZ.spend(need, src);
     CZ.S.safe[zid] = { up: ['restore'], since: CZ.S.day };
     CZ.S.stash[zid] = CZ.S.stash[zid] || {};
     // board the windows of the safehouse building
@@ -379,19 +381,20 @@
     fixtures(zid); CZ.save(true);
     return true;
   };
-  CZ.upgrade = function (zid, uid) {
+  CZ.upgrade = function (zid, uid, who) {
+    const src = CZ.sources(who);
     const u = CZ.SAFE_UP.find(x => x.id === uid), sf = CZ.S.safe[zid]; if (!u || !sf || sf.up.includes(uid)) return false;
     if (u.after && !sf.up.includes(u.after)) return false;
-    if (!CZ.haveAll(u.needs)) { HUD.toast('Not enough materials', 'warn'); return false; }
-    CZ.spend(u.needs); sf.up.push(uid);
-    HUD.toast(u.name + ' built', 'info'); SFX.wood(G.player.pos);
+    if (!CZ.haveAll(u.needs, src)) { HUD.toast('Not enough materials', 'warn'); return false; }
+    CZ.spend(u.needs, src); sf.up.push(uid);
+    HUD.toast(u.name + ' built', 'info'); SFX.wood((who || CZ.leader() || G.player).pos);
     if (uid === 'walls') { const st = CZ.zoneState(zid); st.pop = Math.min(st.pop, 2); }
     fixtures(zid); CZ.save(true);
     return true;
   };
   /* sleep: until morning (or so many hours). Not with infected close */
   CZ.sleep = function (hours) {
-    const p = G.player, near = G.actors.filter(a => a.cz && (a.cz.inf || a.cz.opx) && a.state === 'alive' && U.dist3(a.pos, p.pos) < 28);
+    const p = CZ.leader() || G.player, near = G.actors.filter(a => a.cz && (a.cz.inf || a.cz.opx) && a.state === 'alive' && U.dist3(a.pos, p.pos) < 28);
     if (near.length) { HUD.toast("You can't sleep with them this close", 'warn'); return false; }
     const S = CZ.S, now = S.min;
     let mins = hours ? hours * 60 : ((6.5 * 60 - now + 1440) % 1440 || 480);

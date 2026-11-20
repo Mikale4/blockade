@@ -17,6 +17,14 @@
   const VS = 0.25;
   CZ.TEAM = 0; CZ.INF = 2;
   CZ.on = () => GAME.mode === 'cityz' && GAME.active;
+  /* watching: all five are AI and play on their own; you spectate (the City Z menu, or an online
+     room's spectator seat on the host) */
+  CZ.watching = false;
+  CZ.isWatching = () => CZ.watching && CZ.on();
+  /* who the squad follows: the player's member, or (watching) the first one alive */
+  CZ.leader = () => { const p = G.player; if (p && p.cz && p.cz.m && !p.ghost && p.state !== 'dead') return p; return G.actors.find(a => a.cz && a.cz.m && a.state === 'alive') || null; };
+  /* whose needs and pack the HUD shows: yours, or (spectating) the member you watch */
+  CZ.viewed = () => { const p = G.player; if (p && p.ghost) { const s = PLAYER.spec; return s && s.cz && s.cz.m ? s : CZ.leader(); } return p; };
   /* a small event bus the other City Z files listen on: 'kill' (victim, killer, head), 'enter' (zone),
      'leave' (zone), 'loot' (actor, container), 'restore' (zone), 'day' (day) */
   const EV = {};
@@ -208,12 +216,13 @@
       const p = V().set(ex.x + inward[0] * fw + (inward[0] ? 0 : lat), ex.y, ex.z + inward[1] * fw + (inward[1] ? 0 : lat));
       const n = NAV.nearest(p, 8); a.pos.copy(n >= 0 ? NAV.nodePos(n) : p);
       a.yaw = Math.atan2(-inward[0], -inward[1]);
-      if (!m.player) { a.persona = PERSONA.make([]); AI.attach(a); a.bot.role = 'squad'; }
+      if (!m.player || CZ.watching) { a.isPlayer = false; a.isBot = true; a.persona = PERSONA.make([]); AI.attach(a); a.bot.role = 'squad'; }
       else G.player = a;
       a.addTo(G.scene); G.actors.push(a);
       a.match = { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: 0, human: !!m.player, me: !!m.player, op: op.id };
       k++;
     }
+    if (CZ.watching) { G.player = PLAYER.ghost(); return; }
     if (!G.player) { const a = G.actors.find(x => x.team === CZ.TEAM); if (a) CZ.takeControl(a, true); }
   }
   /* the squad as it is now, into the save */
@@ -254,7 +263,7 @@
     loot: { name: 'SCAVENGE NEARBY', key: 4 }, quiet: { name: 'STAY QUIET', key: 5 },
   };
   CZ.orders = function (kind) {
-    const S = CZ.S, p = G.player; if (!p) return;
+    const S = CZ.S, p = G.player; if (!p || p.ghost) return;
     S.order = kind;
     CZ.holdAt = kind === 'hold' ? p.pos.clone() : null;
     CZ.holdLook = kind === 'hold' ? p.eye(V()).addScaledVector(p.fwd(V()), 12) : null;
@@ -271,7 +280,8 @@
   };
   /* a squad bot's goal: by the current order */
   CZ.squadGoal = function (a) {
-    const S = CZ.S, p = G.player; if (!p) return null;
+    const S = CZ.S, p = CZ.leader(); if (!p) return null;
+    if (a === p) return CZ.autoGoal ? CZ.autoGoal(a) : null;   // watching: the leader plays on its own
     const mates = G.actors.filter(x => x.bot && x.team === CZ.TEAM && x.state === 'alive');
     const i = Math.max(0, mates.indexOf(a));
     const look = p.eye(V()).addScaledVector(p.fwd(V()), 10);
@@ -308,8 +318,7 @@
   CZ.travel = function (to, byCar) {
     const S = CZ.S, from = CZ.Z.id, mins = Math.round(CZ.ZONES[from].links[to] * (byCar ? 0.34 : 1));
     // who comes: everyone alive and within 40 m (the rest are left where they are... and lost)
-    const p = G.player;
-    for (const a of G.actors) if (a.cz && a.cz.m && a.state !== 'dead' && a !== p && U.dist3(a.pos, p.pos) > 40 && !byCar) { a.cz.m.alive = true; }
+    const p = CZ.leader() || G.player;
     CZ.snapSquad(); CZ.snapZone();
     CZ.advance(mins, byCar ? 'drive' : 'walk');
     S.stats.travelled += mins;
@@ -338,7 +347,8 @@
     if (CZ.ui) CZ.ui.frame(dt);
     // the player down or dead: carry on as someone else in the squad
     const p = G.player;
-    if (p && p.state === 'dead' && !Z.switching) {
+    if (CZ.watching) { if (!Z.switching && !G.actors.some(a => a.cz && a.cz.m && a.state !== 'dead')) { Z.switching = true; setTimeout(() => { Z.switching = false; if (CZ.on() && CZ.wiped) CZ.wiped(); }, 3500); } }
+    else if (p && p.state === 'dead' && !Z.switching) {
       Z.switching = true;
       setTimeout(() => {
         Z.switching = false;

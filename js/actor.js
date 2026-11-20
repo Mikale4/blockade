@@ -729,8 +729,8 @@
       // attackers are not deployed yet during preparation: nothing can hurt them
       if (G.mode === 'match' && GAME.phase === 'prep' && this.side === 'atk') return;
       if (this.spawnProt > G.time) return;   // just respawned
-      if (src && src !== this && src.team === this.team && !this.hostage && info.kind === 'bullet') return; // no friendly bullets
-      if (src && src.team === this.team && info.kind !== 'bullet' && src !== this) dmg *= 0.5;
+      // no friendly fire of any kind: a teammate's rounds, blasts, fire, gadgets and car can't hurt you
+      if (src && src !== this && src.team === this.team && src.team >= 0 && !this.hostage) return;
       if (src && src !== this) { this.dmgBy.set(src, (this.dmgBy.get(src) || 0) + dmg); if (src.isActor !== false && src.pos) this.hurtBy = src; }
       this.lastHurt = G.time;
       if (info.dir) this.hurtDir = Math.atan2(-info.dir.x, -info.dir.z);

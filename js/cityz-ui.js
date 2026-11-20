@@ -39,10 +39,11 @@
     hud.append(H.box, H.squad, H.obj, H.orders);
     H.orders.style.display = 'none';
   };
-  UI.leave = function () { const n = U.$('czNight'); if (n) n.style.display = 'none'; if (H) for (const e of [H.box, H.squad, H.obj, H.orders]) e.remove(); UI.close(); };
+  UI.leave = function () { if (UI.wpHide) UI.wpHide(); const n = U.$('czNight'); if (n) n.style.display = 'none'; if (H) for (const e of [H.box, H.squad, H.obj, H.orders]) e.remove(); UI.close(); };
   UI.frame = function (dt) {
+    if (H) wpFrame();
     if ((hT -= dt) > 0 || !H) return; hT = 0.2;
-    const S = CZ.S, p = G.player; if (!p || !p.cz) return;
+    const S = CZ.S, p = CZ.viewed ? CZ.viewed() : G.player; if (!p || !p.cz) return;
     const m = p.cz.m, st = m.st;
     H.place.innerHTML = '<b>' + CZ.ZONES[CZ.Z.id].name + '</b><span>DAY ' + S.day + ' · ' + CZ.clock() + ' · ' + String(S.weather || '').toUpperCase() + (CZ.isSafe(CZ.Z.id) ? ' · SAFEHOUSE' : '') + '</span>';
     if (!m || !m.st || st.stamina == null) return;
@@ -65,7 +66,7 @@
     H.status.innerHTML = tags.join('');
     // the squad: names, health, order
     const sq = CZ.isGuest && CZ.isGuest() ? G.actors.filter(a => a.team === CZ.TEAM && a.op && !/^_/.test(a.op.id)).map(a => (a.cz || (a.cz = { m: { st: {} } }), a)) : G.actors.filter(a => a.cz && a.cz.m);
-    H.squad.innerHTML = '<div class="cz-ord">ORDERS · ' + CZ.ORDERS[S.order || 'follow'].name + ' <kbd>Y</kbd></div>' + sq.map(a => '<div class="cz-mate' + (a === p ? ' me' : '') + (a.state !== 'alive' ? ' ' + a.state : '') + '"><b>' + a.op.name + '</b><i style="width:' + pct(a.state === 'dead' ? 0 : a.hp / a.maxHp * 100) + '"></i>' + (a.cz.m.st.infection > 40 ? '<em>INFECTED</em>' : '') + '</div>').join('');
+    H.squad.innerHTML = (CZ.isWatching && CZ.isWatching() ? '<div class="cz-ord">WATCHING · THE SQUAD PLAYS ON ITS OWN</div>' : '<div class="cz-ord">ORDERS · ' + CZ.ORDERS[S.order || 'follow'].name + ' <kbd>Y</kbd></div>') + sq.map(a => '<div class="cz-mate' + (a === p ? ' me' : '') + (a.state !== 'alive' ? ' ' + a.state : '') + '"><b>' + a.op.name + '</b><i style="width:' + pct(a.state === 'dead' ? 0 : a.hp / a.maxHp * 100) + '"></i>' + (a.cz.m.st.infection > 40 ? '<em>INFECTED</em>' : '') + (a.czNeed ? '<em class="need">NEEDS ' + (a.czNeed === 'ammo' ? 'AMMO' : a.czNeed === 'bleed' ? 'A DRESSING' : a.czNeed === 'thirst' ? 'WATER' : a.czNeed === 'hunger' ? 'FOOD' : a.czNeed === 'infection' ? 'MEDS' : a.czNeed === 'fracture' ? 'A SPLINT' : 'MEDICAL') + '</em>' : '') + '</div>').join('');
     // the story's current objective
     const o = CZ.objective ? CZ.objective() : null;
     H.obj.innerHTML = o ? '<b>' + o.title + '</b><span>' + o.text + '</span>' : '';
@@ -78,7 +79,7 @@
   function overlay(node, cls) {
     UI.close(true);
     const r = root(); r.innerHTML = ''; r.className = 'on ' + (cls || ''); r.append(node);
-    open = node; PLAYER.release(); G.paused = !GAME.net;
+    open = node; PLAYER.release(); G.paused = !GAME.net && !(CZ.isWatching && CZ.isWatching());
     r.onclick = e => { if (e.target === r) UI.close(); };
   }
   UI.close = function (keep) {
@@ -92,10 +93,10 @@
 
   /* ---- the pack screen: tabs for the pack, crafting, the squad, the stash and the safehouse */
   UI.inventory = function (tab) {
-    const p = G.player; if (!p || !p.cz) return;
+    const p = CZ.viewed ? CZ.viewed() : G.player; if (!p || !p.cz) return;
     tab = tab || UI.lastTab || 'pack'; UI.lastTab = tab;
     const S = CZ.S, z = CZ.Z.id, safe = CZ.isSafe(z) && CZ.atSafe && CZ.atSafe(p);
-    const gst = CZ.isGuest && CZ.isGuest();
+    const gst = (CZ.isGuest && CZ.isGuest()) || (CZ.isWatching && CZ.isWatching());
     const tabs = [['pack', 'PACK'], ['craft', 'CRAFT'], ...(gst ? [] : [['squad', 'SQUAD']]), ...(safe && !gst ? [['stash', 'STASH'], ['safe', 'SAFEHOUSE']] : []), ['log', 'JOURNAL']];
     if (!tabs.some(t => t[0] === tab)) tab = 'pack';
     const body = $('div', { class: 'cz-tabbody' });
@@ -103,6 +104,7 @@
       $('div', { class: 'cz-tabs' }, ...tabs.map(([k, n]) => $('button', { class: 'cz-tab' + (k === tab ? ' on' : ''), onclick: () => UI.inventory(k) }, n)), $('button', { class: 'cz-tab x', onclick: () => UI.close() }, 'CLOSE ✕')),
       body);
     ({ pack: packTab, craft: craftTab, squad: squadTab, stash: stashTab, safe: safeTab, log: logTab })[tab](body, p);
+    if (CZ.isWatching && CZ.isWatching()) for (const b of panel.querySelectorAll('.cz-acts')) b.remove();   // watching: look, don't touch
     overlay(panel);
   };
   const CATS = [['weapon', 'GUNS'], ['ammo', 'AMMUNITION'], ['med', 'MEDICAL'], ['food', 'FOOD'], ['drink', 'DRINK'], ['throw', 'THROWN'], ['gear', 'GEAR'], ['mat', 'MATERIALS'], ['quest', 'STORY']];
@@ -277,7 +279,49 @@
     };
     draw();
     overlay(box, 'dim');
+    if (CZ.isWatching && CZ.isWatching()) {
+      G.paused = false;
+      const iv = setInterval(() => {
+        if (!box.isConnected) return clearInterval(iv);
+        if (i < lines.length - 1) { i++; draw(); return; }
+        clearInterval(iv); const c = choices.find(x => x.fn) || choices[0]; UI.close(true); open = null; G.paused = false; if (c.fn) setTimeout(c.fn, 30);
+      }, 3500);
+    }
   };
+
+  /* ================================================================ spectating */
+  const oCycle = PLAYER.cycleSpec;
+  PLAYER.cycleSpec = function (d) {
+    if (GAME.mode !== 'cityz') return oCycle.apply(this, arguments);
+    const list = G.actors.filter(t => t.cz && t.cz.m && t.state !== 'dead');
+    if (!list.length) { PLAYER.spec = null; return; }
+    PLAYER.specIdx = ((PLAYER.specIdx || 0) + d + list.length) % list.length; PLAYER.spec = list[PLAYER.specIdx];
+  };
+
+  /* ================================================================ objective markers */
+  /* where to go: a diamond on screen over each thing the current objective points at (or the road
+     toward its place), with the distance; at the screen's edge when it is off to the side or behind */
+  const WP = [];
+  function wpFrame() {
+    const ts = CZ.targets ? CZ.targets() : [], hud = U.$('hud'), cam = G.camera, me = CZ.viewed && CZ.viewed();
+    while (WP.length < ts.length) { const e = $('div', { class: 'cz-wp' }, $('i'), $('b'), $('span')); hud.append(e); WP.push(e); }
+    const W = innerWidth, Hh = innerHeight;
+    for (let i = 0; i < WP.length; i++) {
+      const e = WP[i], t = ts[i];
+      if (!t || !CZ.on()) { e.style.display = 'none'; continue; }
+      const p = t.p.clone(); p.y += t.up || 1.2;
+      const v = p.clone().project(cam), behind = v.z > 1;
+      let x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * Hh;
+      if (behind) { x = W - x; y = Hh - 40; }
+      const off = behind || x < 30 || x > W - 30 || y < 30 || y > Hh - 30;
+      x = Math.max(30, Math.min(W - 30, x)); y = Math.max(30, Math.min(Hh - 30, y));
+      e.style.display = ''; e.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+      e.classList.toggle('edge', off);
+      e.children[1].textContent = t.label;
+      e.children[2].textContent = me ? Math.round(U.dist3(me.pos, t.p)) + ' m' : '';
+    }
+  }
+  UI.wpHide = () => { for (const e of WP) e.style.display = 'none'; };
 
   /* ================================================================ throwing */
   CZ.throwables = ['molotov', 'pipebomb', 'noisemaker', 'flare'];
@@ -337,8 +381,10 @@
   window.addEventListener('keydown', e => {
     if (!CZ.on() || MENU.capturing) return;
     if (open) { if (e.code === 'Escape' || e.code === KEYS.map.czInv || e.code === KEYS.map.czMap) { e.preventDefault(); UI.close(); } return; }
-    if (!PLAYER.locked || !G.player || G.player.state !== 'alive') return;
+    const watch = CZ.isWatching && CZ.isWatching();
+    if (!PLAYER.locked || !G.player || (G.player.state !== 'alive' && !watch)) return;
     const a = G.player;
+    if (watch) { if (e.code === KEYS.map.czInv) { e.preventDefault(); UI.inventory('pack'); } else if (e.code === KEYS.map.czMap) { e.preventDefault(); UI.map(); } return; }
     if (e.code === KEYS.map.czInv) { e.preventDefault(); UI.inventory('pack'); }
     else if (e.code === KEYS.map.czMap) { e.preventDefault(); UI.map(); }
     else if (e.code === KEYS.map.czOrders && !(CZ.isGuest && CZ.isGuest())) { orderT = G.time + 3; if (H) { H.orders.style.display = ''; H.orders.innerHTML = Object.entries(CZ.ORDERS).map(([k, o]) => '<div><kbd>' + o.key + '</kbd> ' + o.name + '</div>').join(''); } }
@@ -361,7 +407,8 @@
       $('h2', {}, 'CITY Z'), $('p', { class: 'sub' }, 'Varrow, eleven weeks after the Grey Fever. Five of BLOCKADE go into the quarantine zone: find out what happened, find what can be saved, and get out. One persistent city: what you do to it stays done.'),
       has ? $('div', { class: 'cz-sum' }, $('b', {}, 'DAY ' + S.day + ' · ' + CZ.ZONES[S.zone].name), $('span', {}, CZ.DIFF[S.diff].name + ' · ' + S.squad.filter(m => m.alive).map(m => DATA.OPMAP[m.op].name).join(', ') + (S.story && S.story.ending ? ' · campaign finished' : ''))) : null,
       $('div', { class: 'actions' },
-        has ? btn('CONTINUE', () => { CZ.load(); CZ.enter(CZ.S.zone, CZ.S.side); }, 'big') : null,
+        has ? btn('CONTINUE', () => { CZ.watching = false; CZ.load(); CZ.enter(CZ.S.zone, CZ.S.side); }, 'big') : null,
+        has ? btn('WATCH THE SQUAD (SPECTATE)', () => { CZ.watching = true; CZ.load(); CZ.enter(CZ.S.zone, CZ.S.side); }) : null,
         btn(has ? 'NEW CAMPAIGN' : 'START', () => { if (has) UI.confirm('Start again? Your City Z save will be lost.', () => newSquad()); else newSquad(); }, has ? '' : 'big'),
         btn('← BACK', () => MENU.home(), 'ghost')),
       $('h3', {}, 'HOW IT PLAYS'),
@@ -385,14 +432,15 @@
         grid.append($('div', { class: 'cz-op' + (i >= 0 ? ' on' : ''), style: { '--uc': (DATA.UNITS[o.unit] || {}).color || '#888' }, onclick: () => { if (i >= 0) pick.splice(i, 1); else if (pick.length < 5) pick.push(o.id); SFX.ui(); draw(); } },
           i >= 0 ? $('em', {}, i === 0 ? 'YOU' : String(i + 1)) : null, $('b', {}, o.name), $('span', {}, o.role || '')));
       }
-      status.textContent = pick.length < 5 ? 'Pick five operators. The first you pick is you; the others follow your orders (and you can take over any of them).' : 'Squad: ' + pick.map(id => DATA.OPMAP[id].name).join(', ');
-      go.disabled = pick.length < 5;
+      status.textContent = pick.length < 5 ? 'Pick five operators. The first you pick is you; the others follow your orders (and you can take over any of them). Or send all five in and watch them play.' : 'Squad: ' + pick.map(id => DATA.OPMAP[id].name).join(', ');
+      go.disabled = pick.length < 5; watchGo.disabled = pick.length < 5;
     };
-    const go = btn('GO INTO VARROW', () => { if (pick.length < 5) return; CZ.newGame(pick.slice(), diff.v); if (CZ.storyIntro) CZ.storyIntro(() => CZ.enter(CZ.START, 'S')); else CZ.enter(CZ.START, 'S'); }, 'big');
+    const go = btn('GO INTO VARROW', () => { if (pick.length < 5) return; CZ.watching = false; CZ.newGame(pick.slice(), diff.v); if (CZ.storyIntro) CZ.storyIntro(() => CZ.enter(CZ.START, 'S')); else CZ.enter(CZ.START, 'S'); }, 'big');
+    const watchGo = btn('SEND THEM IN AND WATCH', () => { if (pick.length < 5) return; CZ.watching = true; CZ.newGame(pick.slice(), diff.v); CZ.enter(CZ.START, 'S'); });
     const diffs = $('div', { class: 'seg' }, ...Object.entries(CZ.DIFF).map(([k, d]) => $('button', { class: diff.v === k ? 'on' : '', title: d.desc, onclick: ev => { diff.v = k; for (const b of diffs.children) b.className = ''; ev.target.className = 'on'; dd.textContent = d.desc; } }, d.name)));
     const dd = $('p', { class: 'muted' }, CZ.DIFF.survivor.desc);
     s.append($('div', { class: 'panel cz-menu wide' }, $('h2', {}, 'YOUR SQUAD'), status, grid, $('h3', {}, 'DIFFICULTY'), diffs, dd,
-      $('div', { class: 'actions' }, btn('← BACK', CZ.menu, 'ghost'), go)));
+      $('div', { class: 'actions' }, btn('← BACK', CZ.menu, 'ghost'), watchGo, go)));
     draw();
   }
   /* everyone dead: a new squad, the same city */

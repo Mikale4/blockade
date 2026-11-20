@@ -308,6 +308,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   [tools/MAPS.md](tools/MAPS.md). `node tools/mapcheck.js` builds every map headlessly and
   checks objectives, room reachability, spawn-to-objective routes, staircases and spawn
   sightlines.
+- **No friendly fire:** nothing a teammate does (rounds, blasts, fire, gas, gadgets, a car) can hurt you.
 - **Modes:** Bomb (plant the defuser and protect it, or disable it), Secure Area (hold the room
   with no defenders inside), Hostage (escort the hostage out; harming the hostage loses).
   Sides swap every round (optional), and the first team to N rounds wins.
@@ -321,6 +322,17 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   CITY Z (CO-OP) runs the host's city for up to five players: each guest takes over one of the
   squad (their own needs and pack, searching, eating, treating, throwing, crafting, swapping guns),
   and the room follows the host from place to place. The host leads: travel, safehouses, the story.
+  A City Z room shows one squad and only City Z's settings.
+  - **Watching:** WATCH THE SQUAD (or SEND THEM IN AND WATCH for a new city, or a spectator seat in
+    an online room) lets all five play on their own while you spectate any of them: the leader
+    follows the objectives, restores and builds at safehouses, sleeps there, loots and travels on.
+  - **The squad looks after itself** (playing or watching): each AI teammate treats its own wounds,
+    eats, drinks and re-arms, makes a dressing or splint when it has the cloth or planks, hands
+    spares (dressings, food, water, rounds) to whoever needs them, you included, calls out what it
+    needs when nobody has it (shown on the squad list), scavenges nearby rooms of the right kind for
+    it, and throws molotovs and pipe bombs into packs of infected.
+  - **Objective markers** show where to go: the things and people the current objective needs, or
+    the road toward the place it is in.
   - **The city:** ten places joined by roads (a firehouse street, Main Street, a refugee school, a
     hospital, a mall, a metro station, an industrial estate, a farm, the army checkpoint and a
     ring-road truck stop), each a 90 m block of named, furnished buildings. Walk to a road end to
@@ -340,8 +352,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     rescue go to live there and work by their skill (medic, mechanic, cook, scavenger, guard, farmer).
   - **The squad:** orders (follow, hold, attack my target, scavenge nearby, stay quiet); they fight,
     revive each other, treat and feed themselves from their own packs, and carry what they find.
-  - **Cars:** drivable, with fuel and damage; they carry the squad to the next place in a third of
-    the time, run down the infected, and are loud.
+  - **Cars:** drivable from a third-person chase camera, with fuel and damage; they carry the squad
+    to the next place in a third of the time, run down the infected, and are loud.
   - **The story, The Grey Fever:** seven objectives across the city with characters, choices that
     decide who lives and where, a day-20 deadline (not on Story difficulty) and three endings; the
     city stays playable afterwards. Days bring supply drops, hordes and calls for help.
@@ -540,7 +552,7 @@ hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `ma
 `maps-xp1`, `maps-xp2` (the twelve machinery maps) · `cityz-data` (City Z's places, items, loot, recipes, infected) ·
 `cityz-zones` (building its places) · `cityz` (the persistent world, travel, the squad) · `cityz-infected` ·
 `cityz-survival` (needs, packs, searching, crafting, safehouses) · `cityz-ui` · `cityz-story` (campaign,
-people, events) · `cityz-vehicles` · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
+people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, and watching) · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
 lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·

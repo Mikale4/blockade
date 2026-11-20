@@ -80,6 +80,7 @@
      the room, or in the host-a-room form); everyone else can open them to read. */
   let openSec = 'match';
   function sections(o, cfg) {
+    if (o.mode === 'cityz') return czSections(o, cfg);
     const M = DATA.MODES[o.mode] || {}, arc = !!M.arcade, ffa = !!M.ffa;
     const rounds = [[2, '2'], [3, '3'], [4, '4'], [5, '5']], sides = [['atk', 'Attack'], ['def', 'Defense'], ['random', 'Random']];
     const S = [
@@ -97,6 +98,20 @@
     if (cfg.form) S.push({ id: 'room', title: 'ROOM', rows: [['ROOM', '_room', [['pub', 'Public'], ['priv', 'Private (password)'], ['code', 'Code only']]]], extra: cfg.extraRoom, sum: [o.priv ? 'private' : o.listed ? 'public' : 'code only'] });
     else if (cfg.host) S.push({ id: 'room', title: 'ROOM', rows: [['ROOM', 'locked', [[false, 'Open'], [true, 'Locked']]], ['CHAT', 'chat', [['on', 'On'], ['off', 'Host only']]]], sum: [o.locked ? 'locked' : 'open', 'chat ' + (o.chat === 'on' ? 'on' : 'host only')] });
     for (const s of S) s.rows = s.rows.filter(Boolean);
+    return S;
+  }
+  /* City Z rooms: none of the match rules (map, rounds, round and drone time, bans, sides, CPU
+     personalities) apply. One squad of five in the host's city; empty places are AI teammates */
+  const CZ_DIFF = [['story', 'Story'], ['survivor', 'Survivor'], ['nightmare', 'Nightmare']];
+  function czSections(o, cfg) {
+    const S = [
+      { id: 'match', title: 'CITY Z', rows: [['MODE', 'mode', Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name]).concat([['cityz', 'CITY Z (CO-OP)']])], ['NEW CITY', 'czdiff', CZ_DIFF]],
+        note: "Everyone plays in one squad of five in the host's City Z save (a new city at this difficulty if the host has none). Places nobody takes are AI teammates. The host leads: travel, safehouses, the story. Spectators watch the squad.",
+        sum: ['CITY Z (CO-OP)', 'new city ' + optName(CZ_DIFF, o.czdiff || 'survivor').toLowerCase()] },
+      { id: 'teams', title: 'SQUAD', rows: [['PLAYERS', 'size', [1, 2, 3, 4, 5].map(n => [n, n === 1 ? '1 player' : 'up to ' + n])]], sum: [o.size === 1 ? '1 player' : 'up to ' + o.size + ' players'] },
+    ];
+    if (cfg.form) S.push({ id: 'room', title: 'ROOM', rows: [['ROOM', '_room', [['pub', 'Public'], ['priv', 'Private (password)'], ['code', 'Code only']]]], extra: cfg.extraRoom, sum: [o.priv ? 'private' : o.listed ? 'public' : 'code only'] });
+    else if (cfg.host) S.push({ id: 'room', title: 'ROOM', rows: [['ROOM', 'locked', [[false, 'Open'], [true, 'Locked']]], ['CHAT', 'chat', [['on', 'On'], ['off', 'Host only']]]], sum: [o.locked ? 'locked' : 'open', 'chat ' + (o.chat === 'on' ? 'on' : 'host only')] });
     return S;
   }
   function settingsPanel(o, cfg) {
@@ -166,8 +181,8 @@
     // team size: ranked and parties are always five a side
     const size = o.ranked || o.party ? TEAM_MAX : U.clamp((o.size | 0) || TEAM_MAX, 1, TEAM_MAX);
     return {
-      code, name: U.clean(o.name, 24) || Auth.name + '\'s room', priv: !!o.priv, listed: o.listed !== false, locked: false, max: size * 2, size,
-      map: o.map || 'roadhouse', mode: o.mode || 'bomb', rounds: o.rounds || 3, diff: o.diff == null ? 1 : o.diff, side: o.side || 'random', bots: o.bots !== false,
+      code, name: U.clean(o.name, 24) || Auth.name + '\'s room', priv: !!o.priv, listed: o.listed !== false, locked: false, max: o.mode === 'cityz' ? size : size * 2, size,
+      map: o.map || 'roadhouse', mode: o.mode || 'bomb', czdiff: o.czdiff || 'survivor', rounds: o.rounds || 3, diff: o.diff == null ? 1 : o.diff, side: o.side || 'random', bots: o.bots !== false,
       // how long the drone (preparation) phase and the action phase last, and a ban phase before round one
       prep: o.prep || 45, time: o.time || 180, bans: !!o.bans, cur: null, last: null,
       // CPU players: a personality for each team's bots ('random': each its own), aggression, tactics
@@ -288,11 +303,18 @@
       // fewer seats: everyone playing has to fit, and anyone over a team's new size moves across
       if (R.ranked || R.party) return;
       v = U.clamp(v | 0, 1, TEAM_MAX);
-      const ps = R.members.filter(m => !m.spec);
-      if (ps.length > v * 2) { toast(ps.length + ' players don\'t fit in ' + v + 'v' + v + ': move some to the spectators, or remove them, first.', 'bad'); return; }
-      R.size = v; R.max = v * 2;
+      const ps = R.members.filter(m => !m.spec), cz = R.mode === 'cityz';
+      if (ps.length > (cz ? v : v * 2)) { toast(ps.length + ' players don\'t fit in ' + (cz ? 'a squad of ' + v : v + 'v' + v) + ': move some to the spectators, or remove them, first.', 'bad'); return; }
+      R.size = v; R.max = cz ? v : v * 2;
+      if (cz) { pushRoom(); return; }
       for (const t of [0, 1]) for (const m of ps.filter(x => x.team === t).sort((a, b) => (b.host ? 1 : 0) - (a.host ? 1 : 0)).slice(v)) { m.team = 1 - t; m.ready = false; }
       pushRoom(); return;
+    }
+    if (k === 'mode') {
+      // City Z seats one squad; the match modes two teams
+      const ps = R.members.filter(m => !m.spec);
+      if (v === 'cityz' && ps.length > R.size) { toast(ps.length + ' players don\'t fit in a squad of ' + R.size + ': make the squad bigger or move some to the spectators first.', 'bad'); return; }
+      R.max = v === 'cityz' ? R.size : R.size * 2;
     }
     R[k] = v; if (k === 'priv' && v && !N.pass) N.pass = U.rid(4).toUpperCase(); pushRoom();
   };
@@ -563,7 +585,7 @@
         for (const r of rooms) {
           const go = spec => r.priv ? askPass(r.code, spec) : Online.join(r.code, '', spec);
           const row = el('button', { class: 'roomrow ' + r.state, onclick: () => go(false) },
-            el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name, r.ranked ? el('em', { class: 'pill ranked' }, 'RANKED') : null), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].ffa ? '' : ' · ' + (r.sz || 5) + 'v' + (r.sz || 5)) + ' · ' + mapName(r.map) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].arcade ? '' : ' · first to ' + r.rounds))),
+            el('div', {}, el('b', {}, (r.priv ? '🔒 ' : '') + r.name, r.ranked ? el('em', { class: 'pill ranked' }, 'RANKED') : null), el('small', {}, 'Host ' + r.host + ' · ' + modeName(r.mode) + (r.mode === 'cityz' ? ' · up to ' + (r.sz || 5) + ' players' : (DATA.MODES[r.mode] && DATA.MODES[r.mode].ffa ? '' : ' · ' + (r.sz || 5) + 'v' + (r.sz || 5)) + ' · ' + mapName(r.map) + (DATA.MODES[r.mode] && DATA.MODES[r.mode].arcade ? '' : ' · first to ' + r.rounds)))),
             el('div', { class: 'rr' }, el('b', {}, r.n + '/' + r.max), r.sp ? el('small', {}, r.sp + ' watching') : null, el('em', { class: 'pill ' + r.state }, r.state.toUpperCase())));
           // rooms that take spectators: a button to join and watch
           left.append(r.ranked || r.state === 'playing' || r.state === 'locked' ? row : el('div', { class: 'roomrow-w' }, row,
@@ -674,6 +696,21 @@
           m.host ? el('em', { class: 'pill host' }, 'HOST') : el('em', { class: 'pill watch' }, 'WATCHING'),
           host && !m.host ? el('span', { class: 'macts' }, free ? el('button', { class: 'linkbtn', onclick: () => Online.move(m.id) }, 'to a team') : null, el('button', { class: 'linkbtn', onclick: () => Online.kick(m.id) }, 'kick'), el('button', { class: 'linkbtn', onclick: () => Online.block(m.id) }, 'block')) : null)) :
           [el('p', { class: 'muted' }, 'Nobody is spectating.')])));
+      if (R.mode === 'cityz') {
+        // City Z: one squad of up to five in the host's city; empty places are AI teammates
+        const ms = R.members.filter(m => !m.spec);
+        const col = el('div', { class: 'panel teamcol t0' }, el('h3', {}, 'THE SQUAD', el('small', {}, " · the host's City Z · " + ms.length + '/' + R.size + ' players, the rest AI teammates')));
+        for (const m of ms) col.append(el('div', { class: 'mrow' + (m.id === N.myId ? ' me' : '') },
+          UI.avatar(m.uid, m.name), el('span', { class: 'mn' }, el('button', { class: 'linkbtn', onclick: () => Social.card(m.uid) }, m.name), el('small', {}, ' ' + UI.tagOf(m.uid) + ' · LV ' + m.lv)),
+          m.host ? el('em', { class: 'pill host' }, 'HOST') : el('em', { class: 'pill ' + (m.ready ? 'ready' : '') }, m.ready ? 'READY' : 'NOT READY'),
+          host && !m.host ? el('span', { class: 'macts' }, specN < SPEC_MAX ? el('button', { class: 'linkbtn', onclick: () => Online.toSpec(m.id) }, 'spectate') : null, el('button', { class: 'linkbtn', onclick: () => Online.kick(m.id) }, 'kick'), el('button', { class: 'linkbtn', onclick: () => Online.block(m.id) }, 'block')) : null));
+        for (let i = ms.length; i < 5; i++) col.append(el('div', { class: 'mrow empty' }, el('span', { class: 'mn' }, 'AI TEAMMATE')));
+        set.querySelector('h3').firstChild.textContent = 'CITY Z SETTINGS';
+        const sb = acts.querySelector('.btn.big'); if (sb && host && !R.playing) sb.textContent = !playersN ? 'WATCH THE SQUAD (ALL AI)' : waiting ? 'START ANYWAY (' + waiting + ' not ready)' : 'START CITY Z';
+        const sh = specPanel.querySelector('.spechead small'); if (sh) sh.textContent = ' · ' + specN + '/' + SPEC_MAX + ' · watch the squad, any member of it' + (!playersN ? ' · nobody is playing: the five AI teammates play on their own' : '');
+        const jb = [...specPanel.querySelectorAll('.btn')].find(b => /JOIN A TEAM/.test(b.textContent)); if (jb) jb.textContent = 'JOIN THE SQUAD';
+        body.append(el('div', { class: 'teams' }, col), specPanel, el('div', { class: 'roomlow' }, set, chat), acts);
+      } else
       body.append(el('div', { class: 'teams' }, teamCol(0), el('div', { class: 'vs' }, 'VS'), teamCol(1)), specPanel, el('div', { class: 'roomlow' }, set, chat), acts);
       drawChat();
     };

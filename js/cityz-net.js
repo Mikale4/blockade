@@ -27,10 +27,10 @@
     return oStartMatch.apply(this, arguments);
   };
   CZ.hostStart = function () {
-    GAME.mode = 'cityz';
+    GAME.mode = 'cityz'; CZ.watching = !!GAME.spectator;   // the host in a spectator seat watches the squad play
     if (!CZ.load()) {
       const ops = DATA.OPS.slice().sort(() => Math.random() - 0.5).slice(0, 5).map(o => o.id);
-      CZ.newGame(ops, 'survivor');
+      CZ.newGame(ops, (NP.room && NP.room.czdiff) || 'survivor');
     }
     CZ.enter(CZ.S.zone, CZ.S.side);
   };

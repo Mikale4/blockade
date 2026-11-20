@@ -17,6 +17,14 @@
   mat('CZ_BURNT', 0x2a2624, { pat: 'noise' });
   mat('CZ_ROT', 0x6a7a4a, { hp: 1, pen: 0.95, xp: true, hb: true, melee: true, pat: 'noise' });
   mat('CZ_SIGNAL', 0xd84a2a, { glow: true });
+  mat('CZ_FIREBRICK', 0xa8301f, { hp: 9, pen: 0.4, xp: true, hb: true, pat: 'brick', wall: true });
+  mat('CZ_SIGNLIT', 0xffe6a0, { glow: true });
+  /* lit letters on a wall: a 3 x 5 pixel font, reading left to right along +x (or +z), on the plane z (or x) */
+  const FONT = { E: ['111', '100', '110', '100', '111'], N: ['101', '111', '111', '111', '101'], G: ['111', '100', '101', '101', '111'], I: ['111', '010', '010', '010', '111'], '9': ['111', '101', '111', '001', '111'], ' ': ['000', '000', '000', '000', '000'] };
+  function voxText(B, x0, y0, z0, text, m) {
+    let x = x0;
+    for (const ch of text) { const g = FONT[ch] || FONT[' ']; for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (g[r][c] === '1') B.w.fill(x + c, y0 + 4 - r, z0, x + c, y0 + 4 - r, z0, m); x += 4; }
+  }
 
   /* ------------------------------------------------------------ templates */
   /* w x d voxels, levels lo..hi, a plan per level (K.plan text: {A} {B} {C} are the template's names),
@@ -28,10 +36,22 @@
     shops: { w: 97, d: 49, lo: 1, hi: 2, ext: M.BRICK, pal: [M.DRY_WHITE, M.DRY_BEIGE, M.DRY_GREY, M.PLASTER], names: ['Corner Shop', 'Hardware Store', 'Newsagent'],
       plan: { 1: '0-24: {A} 30 | Stock Room 42 | - 54 | {B} 96\n24-48: {C} 48 | Back Office 72 | Store Room 96', 2: '0-24: Flat Kitchen 30 | Flat Lounge 42 | - 54 | Bedroom 96\n24-48: Bathroom 30 | Landing 54 | Spare Bedroom 96' },
       wells: [['Back Stairs', 42, 0, 1, 2]] },
-    firehouse: { w: 73, d: 73, lo: 1, hi: 2, ext: M.BRICK, pal: [M.DRY_RED, M.DRY_WHITE, M.BRICK],
+    firehouse: { w: 73, d: 73, lo: 1, hi: 2, ext: M.CZ_FIREBRICK, pal: [M.DRY_RED, M.DRY_WHITE, M.BRICK],
       plan: { 1: '0-24: Watch Room 30 | - 42 | Gear Room 72\n24-72: Apparatus Bay~ 48 | Workshop 72', 2: "0-24: Captain's Office 30 | - 42 | Bunk Room 72\n24-48: Kitchen 36 | Day Room 72\n48-72: Locker Room 36 | Showers 72" },
       wells: [['Stairs', 30, 0, 1, 2]],
-      extra: (B, b) => { b.box(1, 8, 36, 20, 64, 0, 7, M.RED_PAINT); b.box(1, 9, 37, 19, 42, 4, 6, M.GLASS); b.box(1, 6, 38, 6, 40, 0, 1, M.TIRE); } },
+      extra: (B, b) => {
+        // the engine in its bay; two big bay doors onto the street; ENGINE 9 lit over them; a hose
+        // tower on the corner with a beacon; a painted apron out front
+        b.box(1, 8, 36, 20, 64, 0, 7, M.RED_PAINT); b.box(1, 9, 37, 19, 42, 4, 6, M.GLASS); b.box(1, 6, 38, 6, 40, 0, 1, M.TIRE);
+        b.open(1, 'z', 72, 4, 18, 0, 10, 'door'); b.open(1, 'z', 72, 26, 18, 0, 10, 'door');
+        B.w.fill(b.X(2), 13 + 11, b.Z(73), b.X(46), 13 + 11, b.Z(73), M.CZ_SIGNAL);
+        voxText(B, b.X(8), 13 + 13, b.Z(73), 'ENGINE 9', M.CZ_SIGNLIT);
+        B.w.fill(b.X(60), 37, b.Z(1), b.X(68), 54, b.Z(9), M.CZ_FIREBRICK);
+        B.w.fill(b.X(61), 50, b.Z(1), b.X(67), 52, b.Z(1), M.GLASS); B.w.fill(b.X(61), 50, b.Z(9), b.X(67), 52, b.Z(9), M.GLASS);
+        B.w.fill(b.X(63), 55, b.Z(4), b.X(65), 56, b.Z(6), M.CZ_SIGNAL);
+        B.w.fill(b.X(0), 12, b.Z(73), b.X(50), 12, b.Z(96), M.CONCRETE);
+        for (const x of [2, 24, 46]) B.w.fill(b.X(x), 12, b.Z(73), b.X(x + 1), 12, b.Z(96), M.LINE);
+      } },
     school: { w: 121, d: 97, lo: 1, hi: 2, ext: M.BRICK, pal: [M.DRY_BEIGE, M.DRY_WHITE, M.DRY_BLUE, M.DRY_SAGE],
       plan: { 1: "0-24: Classroom 1A 30 | Classroom 1B 54 | - 66 | Nurse's Office 96 | Principal's Office 120\n24-72: Main Hall 24 | Gymnasium~ 84 | Changing Rooms 120\n72-96: Cafeteria 30 | Kitchen 54 | - 66 | Library 96 | Staff Room 120",
         2: '0-24: Classroom 2A 30 | Classroom 2B 54 | - 66 | Science Lab 96 | Art Room 120\n24-72: Upper Hall 24 | Gym Gallery~ 84 | Music Room 120\n72-96: Classroom 2C 30 | Computer Room 54 | - 66 | Records Office 96 | Store Cupboard 120' },
@@ -122,9 +142,12 @@
     }
     // buildings
     const bs = [];
+    // the houses and shop rows are each faced differently (brick, siding, render), so a street isn't one wall repeated
+    const FACES = [M.BRICK, M.SIDING || M.WOOD, M.STUCCO || M.PLASTER, M.CZ_GRIME, M.MR_SIDING || M.WOOD, M.RDH_CINDER || M.CONCRETE].filter(Boolean);
     for (const [tid, x, z, names] of L[kind]) {
       const t = T[tid];
-      const b = B.building(x, z, t.w, t.d, { lo: t.lo, hi: t.hi, ext: t.ext, inner: t.pal[0], slab: M.CONCRETE, roof: M.ROOF, parapet: t.ext });
+      const ext = (tid === 'house' || tid === 'shops') ? FACES[Math.floor(U.hash3(x, 5, z) * FACES.length)] : t.ext;
+      const b = B.building(x, z, t.w, t.d, { lo: t.lo, hi: t.hi, ext, inner: t.pal[0], slab: M.CONCRETE, roof: M.ROOF, parapet: ext });
       b.pal = t.pal.filter(Boolean); b.pillar = M.CONCRETE; b.tid = tid; b.names = names || t.names || [];
       bs.push(b);
     }

@@ -18,6 +18,7 @@
   const log = t => { const s = S(); s.story.log.push({ d: s.day, t }); setTimeout(() => CZ.save(true), 0); };
   const say = (lines, choices, who) => CZ.ui.dialog({ lines, choices, who });
   const CALDER = 'OVERSEER CALDER (radio)';
+  const me = () => (CZ.leader && CZ.leader()) || G.player;
 
   /* ================================================================ people */
   const CIV = { id: '_civ', armor: 1, speed: 2, look: { head: 'beanie', helmet: 0x6a5a4a, vest: 0x5a6a7a, cloth: 0x4a4a52, accent: 0xd8c8a8, skin: 0xd8a888, hair: 0x3a2a1a }, primaries: ['p10'], secondaries: ['p10'], gadgets: [] };
@@ -78,7 +79,7 @@
     const choices = [];
     for (const z of homes) choices.push({ label: 'GO TO ' + CZ.ZONES[z].name, fn: () => { sv.home = z; sv.state = 'travelling'; sv.arrive = S().day + 1; t.cz.person.leaving = true; S().stats.rescued++; log(sv.name + ' (' + sk.name + ') is making their way to ' + CZ.ZONES[z].name + '.'); HUD.toast(sv.name + ' will meet you at ' + CZ.ZONES[z].name, 'info'); t.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(t), 1); } });
     if (!homes.length) choices.push({ label: 'FIND A SAFEHOUSE FIRST (WAIT HERE)', fn: () => { HUD.toast('Restore a safehouse, then come back for ' + sv.name, 'info'); } });
-    choices.push({ label: 'HERE, TAKE SOME FOOD', fn: () => { const m = G.player.cz.m, f = ['bar', 'beans', 'water', 'apple'].find(id => m.inv[id] > 0); if (f) { CZ.take(m, f, 1); sv.state = 'gone'; HUD.toast(sv.name + ' thanks you and slips away', 'info'); const gift = ['a9', 'bandage', 'cloth', 'battery'][Math.floor(Math.random() * 4)]; CZ.add(m, gift, gift === 'a9' ? 12 : 1); HUD.toast('+ ' + CZ.itemName(gift), 'info'); t.cz.person.leaving = true; } else HUD.toast('You have no food to give', 'warn'); } });
+    choices.push({ label: 'HERE, TAKE SOME FOOD', fn: () => { const m = me().cz.m, f = ['bar', 'beans', 'water', 'apple'].find(id => m.inv[id] > 0); if (f) { CZ.take(m, f, 1); sv.state = 'gone'; HUD.toast(sv.name + ' thanks you and slips away', 'info'); const gift = ['a9', 'bandage', 'cloth', 'battery'][Math.floor(Math.random() * 4)]; CZ.add(m, gift, gift === 'a9' ? 12 : 1); HUD.toast('+ ' + CZ.itemName(gift), 'info'); t.cz.person.leaving = true; } else HUD.toast('You have no food to give', 'warn'); } });
     choices.push({ label: "WE CAN'T HELP YOU", cls: 'ghost', fn: () => { sv.state = 'refused'; log('You left ' + sv.name + ' in ' + CZ.ZONES[sv.zone].name + '.'); } });
     say(lines, choices);
   }
@@ -88,30 +89,61 @@
   /* ================================================================ the story */
   const has = id => S().squad.some(m => m.alive && (m.inv[id] || 0) > 0) || Object.values(S().stash).some(st => (st[id] || 0) > 0);
   const STEPS = [
-    { id: 'restore', zone: 'firehouse', title: 'ENGINE 9', text: 'Make the firehouse a safehouse: find 4 planks, 2 nails and 2 cloth in the houses around it, then restore it at the workbench in the engine bay.',
+    { id: 'restore', zone: 'firehouse', title: 'ENGINE 9',
+      text: () => { const n = CZ.SAFE_UP[0].needs, h = haveCounts(n), ok = Object.keys(n).every(k => h[k] >= n[k]);
+        return 'Make the red-brick firehouse (ENGINE 9 over its bay doors) the squad\'s safehouse. ' + (ok ? 'You have the materials: restore it at the workbench in the engine bay.' : 'Collect ' + Object.entries(n).map(([k, v]) => CZ.itemName(k) + ' ' + Math.min(v, h[k]) + '/' + v).join(', ') + ': the lumber pile and the linen cupboard in the firehouse have them.'); },
+      targets: () => { const n = CZ.SAFE_UP[0].needs, h = haveCounts(n), ok = Object.keys(n).every(k => h[k] >= n[k]);
+        if (ok) return fixes('czbench', 'WORKBENCH · RESTORE');
+        const out = G.ents.filter(e => e.alive && e.type === 'czloot' && /^d_story_(lumber|linen)/.test(String(e.cid))).map(e => ({ p: e.pos, label: e.label.toUpperCase() }));
+        return out.length ? out : fixes('czbench', 'WORKBENCH'); },
       done: () => CZ.isSafe('firehouse'),
       after: () => { log('The firehouse is ours: Engine 9 is the squad\'s first safehouse.'); say([{ who: CALDER, t: 'Good. A roof and a door. Now listen: Mara\'s broadcast came from St Brigid\'s, but nobody\'s answered from there since. A pharmacist on Main Street was still on the emergency band two days ago. Start there.' }]); } },
-    { id: 'pharmacy', zone: 'mainst', title: 'MAIN STREET', text: 'Find the pharmacist holed up in the pharmacy on Ashford Main Street.',
+    { id: 'pharmacy', zone: 'mainst', title: 'MAIN STREET', text: 'Find the pharmacist holed up in the pharmacy on Ashford Main Street.', targets: () => person('Teo Baines', 'PHARMACIST'),
       people: z => z === 'mainst' && !S().story.flags.teo ? [{ name: 'Teo Baines', room: 'Pharmacy', head: 'cap', talk: teo }] : [],
       done: () => !!S().story.flags.teo },
-    { id: 'school', zone: 'school', title: 'LINCOLN HIGH', text: 'Teo says the refugees at Lincoln High saw Mara. Find them: the gym.',
+    { id: 'school', zone: 'school', title: 'LINCOLN HIGH', text: 'Teo says the refugees at Lincoln High saw Mara. Find them: the gym.', targets: () => person('Mina Hale', 'MINA HALE'),
       people: z => z === 'school' && !S().story.flags.school ? [{ name: 'Mina Hale', room: 'Gymnasium', head: 'bandana', talk: mina, onDeath: () => { S().story.flags.minaDead = true; } }] : [],
       done: () => !!S().story.flags.school },
-    { id: 'radio', zone: 'firehouse', title: 'THE RADIO', text: 'Build a radio at a safehouse (2 electronic parts, 2 batteries and the valve set from the school) so Command can reach you.',
+    { id: 'radio', zone: 'firehouse', anySafe: true, title: 'THE RADIO', text: 'Build a radio at a safehouse workbench (2 electronic parts, 2 batteries and the valve set from the school) so Command can reach you.', targets: () => fixes('czbench', 'WORKBENCH · BUILD THE RADIO'),
       done: () => Object.values(S().safe).some(sf => (sf.up || []).includes('radio')),
       after: () => { log('The radio works. Calder is on the line.'); say([{ who: CALDER, t: 'There you are. I\'ll be straight with you: Command has a date. Day ' + DEADLINE + ', they burn Varrow from the air. Everything in it.' }, { who: CALDER, t: 'Mara\'s notes have to be in St Brigid\'s. His research lab, top floor. And he took blood samples from the first cases: the isolation ward. Get both.' }]); } },
     { id: 'hospital', zone: 'hospital', title: "ST BRIGID'S", text: "Find Dr Mara's notes in the Research Lab (top floor) and the blood samples in the Isolation Ward.",
-      loot: z => z === 'hospital' ? [['Research Lab', 'notes'], ['Isolation Ward', 'samples']] : [],
+      loot: z => z === 'hospital' ? [['Research Lab', 'notes'], ['Isolation Ward', 'samples']] : [], targets: () => finds(),
       done: () => has('notes') && has('samples'),
       after: () => { log("We have Mara's notes and the samples. The notes end mid-sentence: he went down into Line 4."); say([{ who: 'MARA\'S NOTES', t: '"...the antiviral slows it. It does not stop it. What stops it is the culture from patient one, grown on. I am taking the culture to Delta through the Line 4 tunnels. If the army has the uplink working the formula can go out to everyone, and then they cannot burn us..."' }]); } },
-    { id: 'subway', zone: 'subway', title: 'LINE 4', text: 'Find Dr Mara at Kessler Square station. The notes say the signal room.',
+    { id: 'subway', zone: 'subway', title: 'LINE 4', text: 'Find Dr Mara at Kessler Square station. The notes say the signal room.', targets: () => person('Dr Halvard Mara', 'DR MARA').concat(finds()),
       people: z => z === 'subway' && !S().story.flags.mara ? [{ name: 'Dr Halvard Mara', room: 'Signal Room', head: 'scarf', crouch: true, hp: 60, talk: mara, onDeath: v => { if (!S().story.flags.mara) { S().story.flags.mara = 'dead'; CZ.dropLoot(v.pos.clone(), [['culture', 1]], "Mara's case"); log('Mara is dead. His case is on the floor of the signal room.'); } } }] : [],
       done: () => has('culture') },
     { id: 'checkpoint', zone: 'checkpoint', title: 'CHECKPOINT DELTA', text: "Take the command keycard from the Commander's Office, then use the uplink in the Comms Room.",
-      loot: z => z === 'checkpoint' ? [["Commander's Office", 'keycard']] : [],
+      loot: z => z === 'checkpoint' ? [["Commander's Office", 'keycard']] : [], targets: () => has('keycard') ? fixes('uplink', 'THE UPLINK') : finds(),
       done: () => !!S().story.ending },
   ];
   CZ.STORY = STEPS;
+  /* ---- what the current step points at, in this place: things, people, or the road toward its place */
+  function haveCounts(needs) { const h = {}, src = CZ.sources(CZ.leader ? CZ.leader() : G.player); for (const k of Object.keys(needs)) { h[k] = 0; for (const s of src) h[k] += s[k] || 0; } return h; }
+  const fixes = (kind, label) => G.ents.filter(e => e.alive && (e.czFix === kind)).map(e => ({ p: e.pos, label }));
+  const person = (name, label) => G.actors.filter(a => a.name === name && a.state === 'alive').map(a => ({ p: a.pos, label, up: 2 }));
+  const finds = () => G.ents.filter(e => e.alive && e.type === 'czloot' && /important/.test(String(e.label))).map(e => ({ p: e.pos, label: String(e.label).replace(' (something important)', '').toUpperCase() }));
+  /* the first road to take from one place toward another (fewest minutes) */
+  CZ.routeTo = function (from, to) {
+    if (from === to) return null;
+    const dist = { [from]: 0 }, first = {}, open = [from];
+    while (open.length) {
+      open.sort((a, b) => dist[a] - dist[b]); const z = open.shift();
+      for (const [n, m] of Object.entries(CZ.ZONES[z].links)) { const d = dist[z] + m; if (dist[n] == null || d < dist[n]) { dist[n] = d; first[n] = z === from ? n : first[z]; open.push(n); } }
+    }
+    return first[to] || null;
+  };
+  CZ.targets = function () {
+    const s = S(); if (!s || s.story.ending || !CZ.Z) return [];
+    const st = step(); if (!st) return [];
+    const here = CZ.Z.id, inPlace = st.zone === here || (st.anySafe && CZ.isSafe(here));
+    if (!inPlace) {
+      const nx = CZ.routeTo(here, st.zone), side = nx && CZ.exitsOf(here)[nx], e = side && CZ.Z.exits.find(x => x.side === side);
+      return e ? [{ p: V().set(e.x, e.y, e.z), label: 'ROAD TO ' + CZ.ZONES[nx].name, road: nx }] : [];
+    }
+    return st.targets ? st.targets() : [];
+  };
   const step = () => STEPS[S().story.step];
   CZ.objective = function () {
     if (CZ.isGuest && CZ.isGuest()) return CZ.guestObj || null;
@@ -119,7 +151,7 @@
     if (s.story.ending) return { title: 'VARROW', text: endingName(s.story.ending) + '. The city is yours to live in.', zone: null };
     const st = step(); if (!st) return null;
     const dl = s.diff === 'story' ? '' : ' (Day ' + s.day + ' of ' + DEADLINE + ')';
-    return { title: st.title + dl, text: st.text, zone: st.zone };
+    return { title: st.title + dl, text: typeof st.text === 'function' ? st.text() : st.text, zone: st.zone };
   };
   function advance() {
     const s = S();
@@ -143,6 +175,13 @@
     // the people and the special finds of the current step (and any earlier step's people still needed)
     for (const x of STEPS) { if (x.people) for (const o of x.people(zid)) CZ.spawnPerson(o); }
     if (st && st.loot) for (const [room, item] of st.loot(zid)) { if (has(item)) continue; const r = (G.map.roomByName[room] || [])[0]; if (!r) continue; const p = NAV.randomIn(r); if (p) { const e = CZ.dropLoot(p, [[item, 1]], room); e.label = room + ' (something important)'; e.cid = 'd_story_' + item; } }
+    // the first job's materials: a lumber pile and a linen cupboard in the firehouse
+    if (zid === 'firehouse' && st && st.id === 'restore' && !s.story.flags.supplies) {
+      s.story.flags.supplies = true;
+      const put = (room, items, label, cid) => { const r = (G.map.roomByName[room] || [])[0]; if (!r) return; const p = NAV.randomIn(r); if (!p) return; const e = CZ.dropLoot(p, items, label); e.cid = cid; };
+      put('Workshop', [['planks', 4], ['nails', 2], ['tape', 1]], 'Lumber pile', 'd_story_lumber');
+      put('Bunk Room', [['cloth', 3], ['bandage', 1]], 'Linen cupboard', 'd_story_linen');
+    }
     // survivors waiting here
     for (const sv of s.survivors) if (sv.zone === zid && sv.state === 'waiting') { const a = CZ.spawnPerson({ name: sv.name, sid: sv.id, crouch: sv.why === 'wounded' }); a.cz.person.sid = sv.id; }
     // the uplink at the checkpoint
@@ -161,7 +200,7 @@
       { who: 'Teo Baines', t: "Mara? Tall, grey, looked like he hadn't slept since the first week. He came through here for antivirals, the VX-7 stuff. Said he was going to the refugee school, Lincoln High. That was a fortnight ago." },
       { who: 'Teo Baines', t: "I'm a pharmacist. Was. I can't stay here, the back door won't hold another night." }],
     [{ label: homes.length ? 'COME WITH US: GO TO THE FIREHOUSE' : 'GO TO THE FIREHOUSE, WE\'LL MEET YOU', fn: () => { S().story.flags.teo = 'home'; const sv = CZ.newSurvivor('mainst'); Object.assign(sv, { name: 'Teo Baines', skill: 'medic', home: 'firehouse', state: 'travelling', arrive: S().day + 1 }); log('Teo Baines, a pharmacist, is going to the firehouse. He\'ll treat the squad there.'); t.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(t), 1); advance(); } },
-      { label: 'TAKE THESE AND GO YOUR OWN WAY', fn: () => { S().story.flags.teo = 'own'; const m = G.player.cz.m; if (m.inv.water) CZ.take(m, 'water', 1); CZ.add(m, 'antibiotics', 2); HUD.toast('Teo gives you 2 antibiotics', 'info'); log('Teo Baines went his own way. He gave us antibiotics.'); t.cz.person.leaving = true; advance(); } }]);
+      { label: 'TAKE THESE AND GO YOUR OWN WAY', fn: () => { S().story.flags.teo = 'own'; const m = me().cz.m; if (m.inv.water) CZ.take(m, 'water', 1); CZ.add(m, 'antibiotics', 2); HUD.toast('Teo gives you 2 antibiotics', 'info'); log('Teo Baines went his own way. He gave us antibiotics.'); t.cz.person.leaving = true; advance(); } }]);
   }
   function mina(t) {
     const s = S();
@@ -180,18 +219,18 @@
       if (!CZ.on() || CZ.Z !== Z) { clearInterval(iv); if (s.story.flags.gymHold === 'on') s.story.flags.gymHold = null; return; }
       if (G.paused) return;
       left--; if (left % 30 === 0 && left > 0) { CZ.horde(6, t.pos.clone()); HUD.toast(left + ' seconds', 'warn'); }
-      if (left <= 0) { clearInterval(iv); s.story.flags.gymHold = 'won'; HUD.banner('THE GYM HELD', t.state === 'alive' ? 'Mina wants a word' : 'Mina didn\'t make it', 3, 'win'); if (t.state !== 'alive') { s.story.flags.school = 'lost'; CZ.add(G.player.cz.m, 'radiopart', 1); log('We held the gym, but Mina Hale died. We found a radio valve set in her things.'); advance(); } }
+      if (left <= 0) { clearInterval(iv); s.story.flags.gymHold = 'won'; HUD.banner('THE GYM HELD', t.state === 'alive' ? 'Mina wants a word' : 'Mina didn\'t make it', 3, 'win'); if (t.state !== 'alive') { s.story.flags.school = 'lost'; CZ.add(me().cz.m, 'radiopart', 1); log('We held the gym, but Mina Hale died. We found a radio valve set in her things.'); advance(); } }
     }, 1000);
   }
   function minaAfter(t) {
     const homes = Object.keys(S().safe).filter(z => CZ.isSafe(z));
     say([{ who: 'Mina Hale', t: 'You held. ...Thank you. Here: a valve set from the school radio. If you can get a set working, you can reach whoever sent you.' },
       { who: 'Mina Hale', t: "We can't stay here much longer. The fence is gone. Do you have somewhere safer? Or we fortify here and you come and trade with us. Your call." }],
-    [{ label: homes.length ? 'COME TO ' + CZ.ZONES[homes[0]].name : 'COME TO THE FIREHOUSE', fn: () => { S().story.flags.school = 'moved'; const home = homes[0] || 'firehouse'; for (const [n, sk] of [['Mina Hale', 'guard'], ['Ruben Ostrow', 'cook'], ['Petra Lind', 'farmer']]) { const sv = CZ.newSurvivor('school'); Object.assign(sv, { name: n, skill: sk, home, state: 'travelling', arrive: S().day + 1 }); } log('The Lincoln High refugees are moving to ' + CZ.ZONES[home].name + ': a guard, a cook and a farmer among them. More mouths to feed.'); CZ.add(G.player.cz.m, 'radiopart', 1); t.cz.person.leaving = true; advance(); } },
-      { label: 'STAY AND FORTIFY: WE\'LL TRADE', fn: () => { S().story.flags.school = 'trade'; log('The Lincoln High refugees are staying. Mina will trade with us.'); CZ.add(G.player.cz.m, 'radiopart', 1); advance(); } }]);
+    [{ label: homes.length ? 'COME TO ' + CZ.ZONES[homes[0]].name : 'COME TO THE FIREHOUSE', fn: () => { S().story.flags.school = 'moved'; const home = homes[0] || 'firehouse'; for (const [n, sk] of [['Mina Hale', 'guard'], ['Ruben Ostrow', 'cook'], ['Petra Lind', 'farmer']]) { const sv = CZ.newSurvivor('school'); Object.assign(sv, { name: n, skill: sk, home, state: 'travelling', arrive: S().day + 1 }); } log('The Lincoln High refugees are moving to ' + CZ.ZONES[home].name + ': a guard, a cook and a farmer among them. More mouths to feed.'); CZ.add(me().cz.m, 'radiopart', 1); t.cz.person.leaving = true; advance(); } },
+      { label: 'STAY AND FORTIFY: WE\'LL TRADE', fn: () => { S().story.flags.school = 'trade'; log('The Lincoln High refugees are staying. Mina will trade with us.'); CZ.add(me().cz.m, 'radiopart', 1); advance(); } }]);
   }
   function mara(t) {
-    const s = S(), m = G.player.cz.m, haveAV = s.squad.some(x => x.alive && x.inv.antiviral > 0);
+    const s = S(), m = me().cz.m, haveAV = s.squad.some(x => x.alive && x.inv.antiviral > 0);
     say([{ who: 'Dr Halvard Mara', t: "Don't come closer. I'm... it's in me. Three days. Maybe two." },
       { who: 'Dr Halvard Mara', t: "You found the notes. Then you know. The culture's in this case. It works, it actually works, but it has to go out to everyone or Command burns it with the rest of us." },
       { who: 'Dr Halvard Mara', t: 'The uplink at Delta can send the formula anywhere. Take it.' }],
@@ -199,6 +238,7 @@
       { label: 'TAKE THE CASE', fn: () => { s.story.flags.mara = 'left'; CZ.add(m, 'culture', 1); log("We took Mara's culture. He stayed in the signal room. He wasn't going to leave it."); setTimeout(() => { if (t.state === 'alive') { const p = t.pos.clone(); t.die(null, false); if (CZ.on()) CZ.spawnInfected('runner', p).name = 'Mara'; } }, 20000); advance(); } }].filter(Boolean));
   }
   /* ---- the end of the road: the uplink */
+  CZ.finale = () => finale();
   function finale() {
     const s = S(), homes = Object.keys(s.safe).filter(z => CZ.isSafe(z)), home = (s.survivors || []).filter(x => x.state === 'home').length;
     const canStay = homes.length >= 2 || home >= 4;
@@ -279,7 +319,7 @@
   CZ.listen('enter', zid => {
     const s = S();
     if (s.pendingToast) { HUD.toast(s.pendingToast, 'info'); s.pendingToast = null; }
-    if (s.pendingAmbush === zid) { s.pendingAmbush = null; setTimeout(() => { if (!CZ.on() || !G.player) return; for (let i = 0; i < 5; i++) { const p = G.player.pos.clone().add(V().set((Math.random() - 0.5) * 24, 0, (Math.random() - 0.5) * 24)), n = NAV.nearest(p, 6); if (n >= 0 && U.dist3(NAV.nodePos(n), G.player.pos) > 9) { const a = CZ.spawnInfected('runner', NAV.nodePos(n)); a.cz.state = 'chase'; a.cz.target = G.player; a.cz.seenT = G.time; } } HUD.banner('AMBUSH', 'They followed you in', 2, 'lose'); }, 4000); }
+    if (s.pendingAmbush === zid) { s.pendingAmbush = null; setTimeout(() => { const L = me(); if (!CZ.on() || !L || !L.cz) return; for (let i = 0; i < 5; i++) { const p = L.pos.clone().add(V().set((Math.random() - 0.5) * 24, 0, (Math.random() - 0.5) * 24)), n = NAV.nearest(p, 6); if (n >= 0 && U.dist3(NAV.nodePos(n), L.pos) > 9) { const a = CZ.spawnInfected('runner', NAV.nodePos(n)); a.cz.state = 'chase'; a.cz.target = L; a.cz.seenT = G.time; } } HUD.banner('AMBUSH', 'They followed you in', 2, 'lose'); }, 4000); }
   });
   /* random trouble in the place you are: a horde now and then, more at night */
   CZ.eventsTick = function (dt) {
@@ -292,7 +332,7 @@
   CZ.listen('enter', zid => {
     if (zid !== 'school' || S().story.flags.school !== 'trade') return;
     CZ.spawnPerson({ name: 'Mina Hale', room: 'Gymnasium', head: 'bandana', talk: t => {
-      const m = G.player.cz.m, offers = CZ.TRADES.filter(([give]) => (m.inv[give] || 0) > 0).slice(0, 5);
+      const m = me().cz.m, offers = CZ.TRADES.filter(([give]) => (m.inv[give] || 0) > 0).slice(0, 5);
       say([{ who: 'Mina Hale', t: offers.length ? 'What have you got? We\'ll make it worth your while.' : 'Come back when you have something to trade. Water, food, medicine, rounds.' }],
         offers.map(([give, get, gn, rn]) => ({ label: gn + ' ' + CZ.itemName(give) + ' → ' + rn + ' ' + CZ.itemName(get), fn: () => { if ((m.inv[give] || 0) >= gn) { CZ.take(m, give, gn); CZ.add(m, get, rn); HUD.toast('Traded', 'info'); } } })).concat([{ label: 'NOTHING TODAY', cls: 'ghost' }]));
     } });
