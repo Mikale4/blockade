@@ -280,7 +280,7 @@
   };
   /* a squad bot's goal: by the current order */
   CZ.squadGoal = function (a) {
-    const S = CZ.S, p = CZ.leader(); if (!p) return null;
+    const S = CZ.S, p = CZ.leader(); if (!p || !S) return null;
     if (a === p) return CZ.autoGoal ? CZ.autoGoal(a) : null;   // watching: the leader plays on its own
     const mates = G.actors.filter(x => x.bot && x.team === CZ.TEAM && x.state === 'alive');
     const i = Math.max(0, mates.indexOf(a));

@@ -408,15 +408,26 @@
     const p = CZ.leader() || G.player, near = G.actors.filter(a => a.cz && (a.cz.inf || a.cz.opx) && a.state === 'alive' && U.dist3(a.pos, p.pos) < 28);
     if (near.length) { HUD.toast("You can't sleep with them this close", 'warn'); return false; }
     const S = CZ.S, now = S.min;
-    let mins = hours ? hours * 60 : ((6.5 * 60 - now + 1440) % 1440 || 480);
-    mins = Math.max(60, Math.min(14 * 60, mins));
-    CZ.advance(mins, 'sleep');
+    // "until morning" means 06:30, however long that is (it used to stop at 14 hours, which from a
+    // daytime nap meant waking at one in the morning). Hours are slept half an hour at a time, and
+    // anyone getting desperately hungry or thirsty wakes the squad early
+    let mins = hours ? hours * 60 : CZ.toMorning();
+    mins = Math.max(60, mins);
+    let slept = 0, woke = null;
+    while (slept < mins) {
+      const step = Math.min(30, mins - slept);
+      CZ.advance(step, 'sleep'); slept += step;
+      const m = S.squad.find(x => x.alive && (x.st.thirst >= 95 || x.st.hunger >= 95));
+      if (m && slept < mins) { woke = m; break; }
+    }
     for (const a of G.actors) if (a.cz && a.cz.m && a.state === 'alive') { a.hp = Math.min(a.maxHp, a.cz.m.hp); a.resetKit && false; if (a.gadget) a.gadget.count = Math.max(a.gadget.count, (DATA.GADGETS[a.gadget.id] || {}).count || a.gadget.count); if (a.ability && a.op.ability) a.ability.count = a.op.ability.count; }
-    HUD.banner('DAY ' + S.day + ' · ' + CZ.clock(), 'You slept ' + Math.round(mins / 60) + ' hours', 3);
+    HUD.banner('DAY ' + S.day + ' · ' + CZ.clock(), woke ? 'Woken after ' + Math.round(slept / 60) + ' h: ' + DATA.OPMAP[woke.op].name + ' is too ' + (woke.st.thirst >= 95 ? 'thirsty' : 'hungry') + ' to sleep' : 'You slept ' + Math.round(slept / 60) + ' hours', 3);
     if (CZ.ui) CZ.ui.fade();
     CZ.save(true);
     return true;
   };
+  /* minutes from now to 06:30 (the next one) */
+  CZ.toMorning = () => { const m = (6.5 * 60 - CZ.S.min + 1440) % 1440; return m || 1440; };
   /* what safehouses make each day, and what their people do */
   CZ.dailySafe = function () {
     const S = CZ.S;

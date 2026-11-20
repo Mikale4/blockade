@@ -358,7 +358,7 @@
     if (CZ.isSafe(here)) {
       const tired = squad().reduce((t, x) => t + x.cz.m.st.fatigue, 0) / Math.max(1, squad().length);
       const hurt = squad().some(x => x.hp < 50);
-      if ((tired > 70 || (CZ.night() && tired > 35) || (hurt && CZ.night())) && G.time > (Z.sleptT || 0)) { const g = fixGoal(a, 'czbed', () => { Z.sleptT = G.time + 120; CZ.sleep(); }); if (g) return g; }
+      if ((tired > 70 || (CZ.night() && tired > 35) || (hurt && CZ.night())) && G.time > (Z.sleptT || 0)) { const g = fixGoal(a, 'czbed', () => { Z.sleptT = G.time + 120; const h = S.min / 60, toDusk = 19.5 - h; CZ.sleep(CZ.night() || toDusk < 3 ? undefined : Math.max(2, Math.min(Math.floor(toDusk), Math.ceil((tired - 10) / 14)))); }); if (g) return g; }
       const sf = S.safe[here];
       if (!sf.up.includes('radio') && CZ.haveAll(CZ.SAFE_UP.find(u => u.id === 'radio').needs, CZ.sources(a))) { const g = fixGoal(a, 'czbench', x => CZ.upgrade(here, 'radio', x)); if (g) return g; }
       for (const u of CZ.SAFE_UP.slice(1)) if (!sf.up.includes(u.id) && (!u.after || sf.up.includes(u.after)) && u.id !== 'radio' && CZ.haveAll(u.needs, CZ.sources(a))) { const g = fixGoal(a, 'czbench', x => CZ.upgrade(here, u.id, x)); if (g) return g; }

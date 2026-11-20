@@ -264,7 +264,8 @@
   };
   UI.sleepMenu = function () {
     overlay($('div', { class: 'panel cz-panel cz-small' }, $('h2', {}, 'SLEEP'), $('p', { class: 'sub' }, 'Day ' + CZ.S.day + ', ' + CZ.clock() + '. Sleeping heals, passes the time and makes you hungry and thirsty. Your squad sleeps too.'),
-      $('div', { class: 'actions' }, btn('UNTIL MORNING', () => { UI.close(); CZ.sleep(); }, 'big'), btn('4 HOURS', () => { UI.close(); CZ.sleep(4); }), btn('1 HOUR', () => { UI.close(); CZ.sleep(1); }), btn('NOT NOW', () => UI.close(), 'ghost'))));
+      $('div', { class: 'actions' }, btn('UNTIL MORNING (06:30 · ' + Math.round(CZ.toMorning() / 60) + ' H)', () => { UI.close(); CZ.sleep(); }, 'big'), btn('4 HOURS', () => { UI.close(); CZ.sleep(4); }), btn('1 HOUR', () => { UI.close(); CZ.sleep(1); }), btn('NOT NOW', () => UI.close(), 'ghost')),
+      CZ.toMorning() > 14 * 60 ? $('p', { class: 'warn' }, 'That is a long sleep from here: eat and drink first. Anyone who gets desperately hungry or thirsty wakes the squad.') : null));
   };
   /* a conversation: lines in turn, then choices */
   UI.dialog = function (o) {
