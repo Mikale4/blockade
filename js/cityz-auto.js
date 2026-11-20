@@ -471,6 +471,7 @@
       if (G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
       // searched already and what's left didn't fit: not again until there's room
       if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
+      if (skipped('loot:' + e.cid)) continue;   // couldn't be reached a moment ago
       const known = e.items ? Object.keys(e.items) : null;
       const has = x => known && known.some(k => x.includes(k) || (need === 'ammo' && k.startsWith('gun:')));
       let s = U.dist3(e.pos, a.pos), fits = !want && !mats;
@@ -482,9 +483,10 @@
     }
     return best;
   }
+  const skipped = key => !!(CZ.Z && CZ.Z.skip && CZ.Z.skip[key] > G.time);
   function lootGoal(a, e, then) {
     a.bot.loot = e;
-    return { pos: e.pos.clone(), kind: 'loot', r: 1.1, look: e.pos.clone().setY(e.pos.y + 0.5), act: x => {
+    return { key: 'loot:' + e.cid, pos: e.pos.clone(), kind: 'loot', r: 1.1, look: e.pos.clone().setY(e.pos.y + 0.5), act: x => {
       if (x.busy > 0 || !e.alive) { if (!e.alive) x.bot.loot = null; return; }
       x.busy = 1.3; x.busyLabel = 'SEARCHING';
       setTimeout(() => {
@@ -545,17 +547,19 @@
   });
 
   /* ================================================================ the leader, watching */
-  function inPlace() { const t = CZ.targets ? CZ.targets() : []; const lead = CZ.leader(); if (!lead) return null; t.sort((p, q) => U.dist3(p.p, lead.pos) - U.dist3(q.p, lead.pos)); return t[0] || null; }
+  /* the objective's targets here, nearest first, less any it couldn't reach a moment ago */
+  const targetKey = t => { const box = G.ents.find(e => e.alive && e.type === 'czloot' && e.pos === t.p); if (box) return 'loot:' + box.cid; const who = G.actors.find(x => x.pos === t.p && x.cz && x.cz.person); if (who) return 'talk:' + who.id; const fx = G.ents.find(e => e.alive && e.czFix && e.pos === t.p); return fx ? 'fix:' + fx.czFix : 'road:' + t.road; };
+  function inPlace() { const t = CZ.targets ? CZ.targets() : []; const lead = CZ.leader(); if (!lead) return null; t.sort((p, q) => U.dist3(p.p, lead.pos) - U.dist3(q.p, lead.pos)); return t.find(x => !skipped(targetKey(x))) || null; }
   function exitTo(zone) { const side = CZ.exitsOf(CZ.Z.id)[zone]; return side ? CZ.Z.exits.find(e => e.side === side) : null; }
   function roadGoal(a, zone) {
     const e = exitTo(zone); if (!e) return null;
     const p = V().set(e.x, e.y, e.z), n = NAV.nearest(p, 6);
-    return { pos: n >= 0 ? NAV.nodePos(n) : p, kind: 'road', r: 2.5, act: () => { if (CZ.Z && !CZ.Z.leaving) { CZ.Z.leaving = true; HUD.toast('The squad heads for ' + CZ.ZONES[zone].name, 'info'); setTimeout(() => CZ.on() && CZ.travel(zone), 600); } } };
+    return { key: 'road:' + zone, pos: n >= 0 ? NAV.nodePos(n) : p, kind: 'road', r: 2.5, act: () => { if (CZ.Z && !CZ.Z.leaving) { CZ.Z.leaving = true; HUD.toast('The squad heads for ' + CZ.ZONES[zone].name, 'info'); setTimeout(() => CZ.on() && CZ.travel(zone), 600); } } };
   }
   function fixGoal(a, kind, act) {
     const e = G.ents.find(x => x.alive && x.czFix === kind); if (!e) return null;
     const n = NAV.nearest(e.pos, 4);
-    return { pos: n >= 0 ? NAV.nodePos(n) : e.pos.clone(), kind: 'fix', r: 1.4, look: e.pos.clone(), act: x => { if (x.busy > 0 || G.time < (x.czActT || 0)) return; x.czActT = G.time + 3; act(x); } };
+    return { key: 'fix:' + kind, pos: n >= 0 ? NAV.nodePos(n) : e.pos.clone(), kind: 'fix', r: 1.4, look: e.pos.clone(), act: x => { if (x.busy > 0 || G.time < (x.czActT || 0)) return; x.czActT = G.time + 3; act(x); } };
   }
   /* what the objective still wants in materials (the squad's packs and every stash counted), for the
      steps that are built: restoring the first safehouse, the radio */
@@ -588,7 +592,23 @@
       }
     }
   }
+  /* The leader's plan (plan() below), with a check that it's getting somewhere: a target it hasn't got
+     any closer to for 25 seconds (a container behind a wall it can't path round, a room whose way in
+     is blocked) is given up on for a minute and a half, and it gets on with something else. A goal it
+     can't reach used to hold it against a wall for good */
   CZ.autoGoal = function (a) {
+    const g = plan(a); if (!g || !CZ.Z || !g.pos) return g;
+    const Z = CZ.Z, key = g.key || (g.kind + ':' + Math.round(g.pos.x) + ',' + Math.round(g.pos.z)), d = U.dist3(a.pos, g.pos);
+    if (Z.gk !== key) { Z.gk = key; Z.gkBest = d; Z.gkT = G.time; }
+    else if (d < Z.gkBest - 0.75) { Z.gkBest = d; Z.gkT = G.time; }
+    if (d > (g.r || 1.5) + 1 && G.time - Z.gkT > 25 && !(a.busy > 0) && !(CZ.ui && CZ.ui.isOpen()) && g.kind !== 'hold' && g.kind !== 'shelter' && g.kind !== 'warm') {
+      (Z.skip || (Z.skip = {}))[key] = G.time + 90; Z.gk = null;
+      if (a.bot && a.bot.loot) a.bot.loot = null;
+      return null;
+    }
+    return g;
+  };
+  function plan(a) {
     if (!CZ.watching || !CZ.Z || !CZ.S) return null;   // (between places, while the next one loads)
     const S = CZ.S, here = CZ.Z.id, Z = CZ.Z;
     Z.autoT = (Z.autoT || 0);
@@ -610,8 +630,9 @@
       Z.entryDone = true;
     }
     // someone here waiting for help (a distress call, a stranger): go and talk to them
-    const sv = G.actors.find(x => x.cz && x.cz.person && x.cz.person.sid && !x.cz.person.talked && !x.cz.person.leaving && x.state === 'alive' && U.dist3(x.pos, a.pos) < 60);
-    if (sv) return { pos: sv.pos.clone(), kind: 'talk', r: 1.8, look: sv.eye(V()), act: () => { if (G.time < (Z.talkT || 0) || (CZ.ui && CZ.ui.isOpen())) return; Z.talkT = G.time + 8; sv.cz.person.talked = true; const o = sv.cz.person; if (o.talk) o.talk(sv); else if (CZ.survivorTalk) CZ.survivorTalk(sv); } };
+    const sv = G.actors.filter(x => x.cz && x.cz.person && x.cz.person.sid && !x.cz.person.talked && !x.cz.person.leaving && x.state === 'alive' && U.dist3(x.pos, a.pos) < 60 && !skipped('talk:' + x.id)).sort((p2, q) => U.dist3(p2.pos, a.pos) - U.dist3(q.pos, a.pos))[0];
+    const storyP = (() => { const t0 = inPlace(); return t0 && G.actors.find(x => x.pos === t0.p && x.cz && x.cz.person); })();
+    if (sv && !(storyP && U.dist3(storyP.pos, a.pos) < U.dist3(sv.pos, a.pos))) return { key: 'talk:' + sv.id, pos: sv.pos.clone(), kind: 'talk', r: 1.8, look: sv.eye(V()), act: () => { if (G.time < (Z.talkT || 0) || (CZ.ui && CZ.ui.isOpen()) || sv.czTalkUntil > performance.now()) return; Z.talkT = G.time + 8; sv.czTalkUntil = performance.now() + 30000; sv.cz.person.talked = true; const o = sv.cz.person; if (o.talk) o.talk(sv); else if (CZ.survivorTalk) CZ.survivorTalk(sv); } };
     // a safehouse: restore it, build what the story wants, sleep when the squad is worn out
     if (CZ.ZONES[here].safe && !CZ.isSafe(here) && CZ.haveAll(CZ.SAFE_UP[0].needs, CZ.sources(a))) { const g = fixGoal(a, 'czbench', x => CZ.restore(here, x)); if (g) return g; }
     // a cold squad: inside, or to a fire (the cold ones handle the fire themselves)
@@ -637,7 +658,7 @@
       if (t.road) return roadGoal(a, t.road);
       const box = G.ents.find(e => e.alive && e.type === 'czloot' && e.pos === t.p); if (box) return lootGoal(a, box);
       const who = G.actors.find(x => x.pos === t.p && x.cz && x.cz.person);
-      if (who) return { pos: who.pos.clone(), kind: 'talk', r: 1.8, look: who.eye(V()), act: () => { if (G.time < (Z.talkT || 0) || (CZ.ui && CZ.ui.isOpen())) return; Z.talkT = G.time + 8; const o = who.cz.person; if (o.talk) o.talk(who); } };
+      if (who) return { key: 'talk:' + who.id, pos: who.pos.clone(), kind: 'talk', r: 1.8, look: who.eye(V()), act: () => { if (G.time < (Z.talkT || 0) || (CZ.ui && CZ.ui.isOpen()) || who.czTalkUntil > performance.now()) return; Z.talkT = G.time + 8; who.czTalkUntil = performance.now() + 20000; const o = who.cz.person; if (o.talk) o.talk(who); } };
       const fx = G.ents.find(e => e.alive && e.czFix && e.pos === t.p);
       if (fx && fx.czFix === 'uplink') return fixGoal(a, 'uplink', () => { if (!(CZ.ui && CZ.ui.isOpen()) && CZ.finale) CZ.finale(); });
       if (fx && fx.czFix === 'czbench' && CZ.isSafe(here) && CZ.haveAll(CZ.SAFE_UP.find(u => u.id === 'radio').needs, CZ.sources(a))) return fixGoal(a, 'czbench', x => CZ.upgrade(here, 'radio', x));
@@ -663,7 +684,7 @@
       const score = z => (S.visited.includes(z) ? 0 : 3) + ((CZ.zoneState(z).looted || []).length < 12 ? 1 : 0) + Math.random();
       next = ns.sort((p2, q) => score(q) - score(p2))[0] || Object.keys(CZ.ZONES[here].links)[0];
     } else if (goal && goal !== here) next = CZ.routeTo(here, goal);
-    if (!next) { const ns = Object.keys(CZ.ZONES[here].links); next = ns.find(z => !S.visited.includes(z)) || ns[Math.floor(Math.random() * ns.length)]; }
+    if (!next || skipped('road:' + next)) { const ns = Object.keys(CZ.ZONES[here].links).filter(z => !skipped('road:' + z)); next = ns.find(z => !S.visited.includes(z)) || ns[Math.floor(Math.random() * ns.length)] || next; }
     return roadGoal(a, next);
-  };
+  }
 })();

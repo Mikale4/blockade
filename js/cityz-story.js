@@ -19,6 +19,10 @@
   const say = (lines, choices, who) => CZ.ui.dialog({ lines, choices, who });
   const CALDER = 'OVERSEER CALDER (radio)';
   const me = () => (CZ.leader && CZ.leader()) || G.player;
+  // someone out of the world, if they're still in it
+  const drop = t => { if (t.rig) t.removeFrom(G.scene); const i = G.actors.indexOf(t); if (i >= 0) G.actors.splice(i, 1); };
+  // a choice that only counts once (a conversation can be answered again in the moment before it takes effect)
+  const once = (t, fn) => () => { if (t.czAnswered) return; t.czAnswered = true; fn(); };
 
   /* ================================================================ people */
   const CIV = { id: '_civ', armor: 1, speed: 2, look: { head: 'beanie', helmet: 0x6a5a4a, vest: 0x5a6a7a, cloth: 0x4a4a52, accent: 0xd8c8a8, skin: 0xd8a888, hair: 0x3a2a1a }, primaries: ['p10'], secondaries: ['p10'], gadgets: [] };
@@ -44,7 +48,7 @@
     for (const a of [...G.actors]) {
       const o = a.cz && a.cz.person; if (!o || a.state !== 'alive') continue;
       // someone leaving: gone a moment later (they know their own way out)
-      if (o.leaving) { o.leaveT = (o.leaveT || 0) + dt; a.mf = 1; if (o.leaveT > 1.2) { a.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(a), 1); } continue; }
+      if (o.leaving) { o.leaveT = (o.leaveT || 0) + dt; a.mf = 1; if (o.leaveT > 1.2) drop(a); continue; }
       if (o.follow && p) {
         const d = U.dist3(a.pos, p.pos);
         if (d > 3) { const yaw = Math.atan2(-(p.pos.x - a.pos.x), -(p.pos.z - a.pos.z)); if ((a.czPathT = (a.czPathT || 0) - dt) <= 0) { a.czPathT = 1; a.czPath = NAV.path(a.pos, p.pos, { partial: true, max: 6000 }); a.czPi = 0; } const path = a.czPath; let to = p.pos; if (path && path.length) { while (a.czPi < path.length - 1 && Math.hypot(path[a.czPi].x - a.pos.x, path[a.czPi].z - a.pos.z) < 0.5) a.czPi++; to = path[a.czPi]; } a.yaw = Math.atan2(-(to.x - a.pos.x), -(to.z - a.pos.z)); a.mf = 1; a.sprint = d > 8; }
@@ -78,11 +82,11 @@
     const lines = [{ who: sv.name, t: sv.why === 'wounded' ? "I got bit, I think. Or scratched. I don't know. Please. I can't walk far." : sv.why === 'road' ? "Don't shoot! I'm not one of them. I've been walking for two days." : "Thank God. I've been hiding in here since the fences went down. I can't go out there alone." }, { who: sv.name, t: 'I was a ' + sk.name.toLowerCase() + ' before all this. I can still be useful. ' + sk.desc }];
     const choices = [];
     // join the squad (five at most, you included): anyone can. You'll find out who they are later
-    if (CZ.recruit && CZ.squadCount() < CZ.MAX_SQUAD) choices.push({ label: 'COME WITH US (JOIN THE SQUAD · ' + CZ.squadCount() + '/' + CZ.MAX_SQUAD + ')', fn: () => { const m = CZ.recruit(t, sv.name, sv.skill); if (m) { sv.state = 'joined'; S().stats.rescued++; } } });
-    else if (CZ.recruit) lines.push({ who: sv.name, t: "(The squad is full: five is as many as can move together. Part ways with someone first if you want " + sv.name + ' along.)' });
-    for (const z of homes) choices.push({ label: 'GO TO ' + CZ.ZONES[z].name, fn: () => { sv.home = z; sv.state = 'travelling'; sv.arrive = S().day + 1; t.cz.person.leaving = true; S().stats.rescued++; log(sv.name + ' (' + sk.name + ') is making their way to ' + CZ.ZONES[z].name + '.'); HUD.toast(sv.name + ' will meet you at ' + CZ.ZONES[z].name, 'info'); t.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(t), 1); } });
+    if (CZ.recruit && CZ.squadCount() < CZ.MAX_SQUAD) choices.push({ label: 'COME WITH US (JOIN THE SQUAD · ' + CZ.squadCount() + '/' + CZ.MAX_SQUAD + ')', fn: once(t, () => { const m = CZ.recruit(t, sv.name, sv.skill); if (m) { sv.state = 'joined'; S().stats.rescued++; } }) });
+    else if (CZ.recruit) lines.push({ who: sv.name, t: '(The squad is full: ' + CZ.MAX_SQUAD + ' is as many as can move together. Part ways with someone first if you want ' + sv.name + ' along.)' });
+    for (const z of homes) choices.push({ label: 'GO TO ' + CZ.ZONES[z].name, fn: once(t, () => { sv.home = z; sv.state = 'travelling'; sv.arrive = S().day + 1; t.cz.person.leaving = true; S().stats.rescued++; log(sv.name + ' (' + sk.name + ') is making their way to ' + CZ.ZONES[z].name + '.'); HUD.toast(sv.name + ' will meet you at ' + CZ.ZONES[z].name, 'info'); drop(t); }) });
     if (!homes.length) choices.push({ label: 'FIND A SAFEHOUSE FIRST (WAIT HERE)', fn: () => { HUD.toast('Restore a safehouse, then come back for ' + sv.name, 'info'); } });
-    choices.push({ label: 'HERE, TAKE SOME FOOD', fn: () => { const m = me().cz.m, f = ['bar', 'beans', 'water', 'apple'].find(id => m.inv[id] > 0); if (f) { CZ.take(m, f, 1); sv.state = 'gone'; HUD.toast(sv.name + ' thanks you and slips away', 'info'); const gift = ['a9', 'bandage', 'cloth', 'battery'][Math.floor(Math.random() * 4)]; CZ.add(m, gift, gift === 'a9' ? 12 : 1); HUD.toast('+ ' + CZ.itemName(gift), 'info'); t.cz.person.leaving = true; } else HUD.toast('You have no food to give', 'warn'); } });
+    choices.push({ label: 'HERE, TAKE SOME FOOD', fn: once(t, () => { const m = me().cz.m, f = ['bar', 'beans', 'water', 'apple'].find(id => m.inv[id] > 0); if (f) { CZ.take(m, f, 1); sv.state = 'gone'; HUD.toast(sv.name + ' thanks you and slips away', 'info'); const gift = ['a9', 'bandage', 'cloth', 'battery'][Math.floor(Math.random() * 4)]; CZ.add(m, gift, gift === 'a9' ? 12 : 1); HUD.toast('+ ' + CZ.itemName(gift), 'info'); t.cz.person.leaving = true; } else { t.czAnswered = false; HUD.toast('You have no food to give', 'warn'); } }) });
     choices.push({ label: "WE CAN'T HELP YOU", cls: 'ghost', fn: () => { sv.state = 'refused'; log('You left ' + sv.name + ' in ' + CZ.ZONES[sv.zone].name + '.'); } });
     say(lines, choices);
   }
@@ -205,8 +209,8 @@
     say([{ who: 'Teo Baines', t: "You're not army. Army doesn't knock. ...BLOCKADE? Never heard of you. Doesn't matter. Get in, quick." },
       { who: 'Teo Baines', t: "Mara? Tall, grey, looked like he hadn't slept since the first week. He came through here for antivirals, the VX-7 stuff. Said he was going to the refugee school, Lincoln High. That was a fortnight ago." },
       { who: 'Teo Baines', t: "I'm a pharmacist. Was. I can't stay here, the back door won't hold another night." }],
-    [{ label: homes.length ? 'COME WITH US: GO TO THE FIREHOUSE' : 'GO TO THE FIREHOUSE, WE\'LL MEET YOU', fn: () => { S().story.flags.teo = 'home'; const sv = CZ.newSurvivor('mainst'); Object.assign(sv, { name: 'Teo Baines', skill: 'medic', home: 'firehouse', state: 'travelling', arrive: S().day + 1 }); log('Teo Baines, a pharmacist, is going to the firehouse. He\'ll treat the squad there.'); t.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(t), 1); advance(); } },
-      { label: 'TAKE THESE AND GO YOUR OWN WAY', fn: () => { S().story.flags.teo = 'own'; const m = me().cz.m; if (m.inv.water) CZ.take(m, 'water', 1); CZ.add(m, 'antibiotics', 2); HUD.toast('Teo gives you 2 antibiotics', 'info'); log('Teo Baines went his own way. He gave us antibiotics.'); t.cz.person.leaving = true; advance(); } }]);
+    [{ label: homes.length ? 'COME WITH US: GO TO THE FIREHOUSE' : 'GO TO THE FIREHOUSE, WE\'LL MEET YOU', fn: () => { if (S().story.flags.teo) return; S().story.flags.teo = 'home'; const sv = CZ.newSurvivor('mainst'); Object.assign(sv, { name: 'Teo Baines', skill: 'medic', home: 'firehouse', state: 'travelling', arrive: S().day + 1 }); log('Teo Baines, a pharmacist, is going to the firehouse. He\'ll treat the squad there.'); drop(t); advance(); } },
+      { label: 'TAKE THESE AND GO YOUR OWN WAY', fn: () => { if (S().story.flags.teo) return; S().story.flags.teo = 'own'; const m = me().cz.m; if (m.inv.water) CZ.take(m, 'water', 1); CZ.add(m, 'antibiotics', 2); HUD.toast('Teo gives you 2 antibiotics', 'info'); log('Teo Baines went his own way. He gave us antibiotics.'); t.cz.person.leaving = true; advance(); } }]);
   }
   function mina(t) {
     const s = S();
@@ -214,7 +218,7 @@
     if (s.story.flags.gymHold === 'won') return minaAfter(t);
     say([{ who: 'Mina Hale', t: "Stop right there. ...You're not infected. Fine. I'm Mina, I run what's left of this place. Eleven of us in the gym." },
       { who: 'Mina Hale', t: "The doctor? He was here. Left the way he came, toward the hospital. But we have a problem first. The noise you made coming in. Listen." }],
-    [{ label: 'WE\'LL HOLD THE GYM', fn: () => holdGym(t) }]);
+    [{ label: 'WE\'LL HOLD THE GYM', fn: () => { if (!S().story.flags.gymHold) holdGym(t); } }]);
   }
   function holdGym(t) {
     const s = S(); s.story.flags.gymHold = 'on';
@@ -235,16 +239,16 @@
     const homes = Object.keys(S().safe).filter(z => CZ.isSafe(z));
     say([{ who: 'Mina Hale', t: 'You held. ...Thank you. Here: a valve set from the school radio. If you can get a set working, you can reach whoever sent you.' },
       { who: 'Mina Hale', t: "We can't stay here much longer. The fence is gone. Do you have somewhere safer? Or we fortify here and you come and trade with us. Your call." }],
-    [{ label: homes.length ? 'COME TO ' + CZ.ZONES[homes[0]].name : 'COME TO THE FIREHOUSE', fn: () => { S().story.flags.school = 'moved'; const home = homes[0] || 'firehouse'; for (const [n, sk] of [['Mina Hale', 'guard'], ['Ruben Ostrow', 'cook'], ['Petra Lind', 'farmer']]) { const sv = CZ.newSurvivor('school'); Object.assign(sv, { name: n, skill: sk, home, state: 'travelling', arrive: S().day + 1 }); } log('The Lincoln High refugees are moving to ' + CZ.ZONES[home].name + ': a guard, a cook and a farmer among them. More mouths to feed.'); CZ.add(me().cz.m, 'radiopart', 1); t.cz.person.leaving = true; advance(); } },
-      { label: 'STAY AND FORTIFY: WE\'LL TRADE', fn: () => { S().story.flags.school = 'trade'; log('The Lincoln High refugees are staying. Mina will trade with us.'); CZ.add(me().cz.m, 'radiopart', 1); advance(); } }]);
+    [{ label: homes.length ? 'COME TO ' + CZ.ZONES[homes[0]].name : 'COME TO THE FIREHOUSE', fn: () => { if (S().story.flags.school) return; S().story.flags.school = 'moved'; const home = homes[0] || 'firehouse'; for (const [n, sk] of [['Mina Hale', 'guard'], ['Ruben Ostrow', 'cook'], ['Petra Lind', 'farmer']]) { const sv = CZ.newSurvivor('school'); Object.assign(sv, { name: n, skill: sk, home, state: 'travelling', arrive: S().day + 1 }); } log('The Lincoln High refugees are moving to ' + CZ.ZONES[home].name + ': a guard, a cook and a farmer among them. More mouths to feed.'); CZ.add(me().cz.m, 'radiopart', 1); t.cz.person.leaving = true; advance(); } },
+      { label: 'STAY AND FORTIFY: WE\'LL TRADE', fn: () => { if (S().story.flags.school) return; S().story.flags.school = 'trade'; log('The Lincoln High refugees are staying. Mina will trade with us.'); CZ.add(me().cz.m, 'radiopart', 1); advance(); } }]);
   }
   function mara(t) {
     const s = S(), m = me().cz.m, haveAV = s.squad.some(x => x.alive && x.inv.antiviral > 0);
     say([{ who: 'Dr Halvard Mara', t: "Don't come closer. I'm... it's in me. Three days. Maybe two." },
       { who: 'Dr Halvard Mara', t: "You found the notes. Then you know. The culture's in this case. It works, it actually works, but it has to go out to everyone or Command burns it with the rest of us." },
       { who: 'Dr Halvard Mara', t: 'The uplink at Delta can send the formula anywhere. Take it.' }],
-    [haveAV ? { label: 'GIVE HIM THE ANTIVIRAL', fn: () => { for (const x of s.squad) if (x.alive && x.inv.antiviral > 0) { x.inv.antiviral--; if (!x.inv.antiviral) delete x.inv.antiviral; break; } s.story.flags.mara = 'alive'; CZ.add(m, 'culture', 1); const sv = CZ.newSurvivor('subway'); const home = Object.keys(s.safe).find(z => CZ.isSafe(z)) || 'firehouse'; Object.assign(sv, { name: 'Dr Halvard Mara', skill: 'medic', home, state: 'travelling', arrive: s.day + 1 }); log('Mara lives, for now: the antiviral bought him time. He is going to ' + CZ.ZONES[home].name + '. We have the culture.'); t.cz.person.leaving = true; t.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(t), 1); advance(); } } : null,
-      { label: 'TAKE THE CASE', fn: () => { s.story.flags.mara = 'left'; CZ.add(m, 'culture', 1); log("We took Mara's culture. He stayed in the signal room. He wasn't going to leave it."); setTimeout(() => { if (t.state === 'alive') { const p = t.pos.clone(); t.die(null, false); if (CZ.on()) CZ.spawnInfected('runner', p).name = 'Mara'; } }, 20000); advance(); } }].filter(Boolean));
+    [haveAV ? { label: 'GIVE HIM THE ANTIVIRAL', fn: () => { if (s.story.flags.mara) return; for (const x of s.squad) if (x.alive && x.inv.antiviral > 0) { x.inv.antiviral--; if (!x.inv.antiviral) delete x.inv.antiviral; break; } s.story.flags.mara = 'alive'; CZ.add(m, 'culture', 1); const sv = CZ.newSurvivor('subway'); const home = Object.keys(s.safe).find(z => CZ.isSafe(z)) || 'firehouse'; Object.assign(sv, { name: 'Dr Halvard Mara', skill: 'medic', home, state: 'travelling', arrive: s.day + 1 }); log('Mara lives, for now: the antiviral bought him time. He is going to ' + CZ.ZONES[home].name + '. We have the culture.'); t.cz.person.leaving = true; drop(t); advance(); } } : null,
+      { label: 'TAKE THE CASE', fn: () => { if (s.story.flags.mara) return; s.story.flags.mara = 'left'; CZ.add(m, 'culture', 1); log("We took Mara's culture. He stayed in the signal room. He wasn't going to leave it."); setTimeout(() => { if (t.state === 'alive') { const p = t.pos.clone(); t.die(null, false); if (CZ.on()) CZ.spawnInfected('runner', p).name = 'Mara'; } }, 20000); advance(); } }].filter(Boolean));
   }
   /* ---- the end of the road: the uplink */
   CZ.finale = () => { if (CZ.agentAtUplink && CZ.agentAtUplink()) return; finale(); };

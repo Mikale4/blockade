@@ -396,7 +396,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     more says it's them or me: patch it up within two minutes, part ways with one of them, or they
     walk. The squad tab shows who gets on with whom, as far as you've seen.
   - **Recruits and hidden agendas:** survivors you meet (and strangers sometimes waiting in places)
-    can join the squad, five at most including you; PART WAYS lets anyone go. You never know someone
+    can join the squad, ten at most including you (a campaign starts with five); PART WAYS lets anyone go. You never know someone
     straight away: their kind of person at once, their traits after a day, their intentions only when
     they show them. Most are what they seem. Some are thieves who vanish in the night with half the
     stash, plants who turn their gun on the squad in a fight, quitters who walk off when it gets bad,

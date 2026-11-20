@@ -412,6 +412,7 @@ p.warn { color: var(--gold); }
 .cz-wp span { color: #fff; font-size: 10px; text-shadow: 0 1px 2px #000; }
 .cz-wp.edge i { background: var(--gold); }
 .cz-mate em.need { color: var(--gold); }
+.cz-squad.many .cz-mate { padding: 1px 6px 3px; margin-bottom: 2px; font-size: 11px; }
 .cz-mate small.mood { margin-left: 6px; font-size: 10px; letter-spacing: 0.08em; color: var(--dim); }
 .cz-mate small.mood.scared, .cz-mate small.mood.angry, .cz-mate small.mood.uneasy { color: var(--gold); }
 .cz-mate small.mood.panicking, .cz-mate small.mood.furious { color: #e05a4a; }

@@ -17,7 +17,7 @@
    Nothing they do is certain: CZ.decide() turns how badly something is needed, who they are and how
    they feel into a chance, rolled each time they think about it. So one eats at the first pang and
    another waits until they're shaking; one hands over their last can and another won't share at all.
-   Recruits join the squad (five at most, you included); anyone can be let go. */
+   Recruits join the squad (ten at most, you included; a campaign starts with five); anyone can be let go. */
 (function () {
   'use strict';
   const CZ = window.CZ;
@@ -304,11 +304,11 @@
   CZ.calmAfterSleep = () => { for (const m of CZ.S.squad) if (m.p && m.alive) m.p.stress = Math.max(0, m.p.stress * 0.4); };
 
   /* ================================================================ recruits */
-  CZ.MAX_SQUAD = 5;
+  CZ.MAX_SQUAD = 10;   // you included; a campaign starts with five
   CZ.squadCount = () => CZ.S.squad.filter(m => m.alive && !m.gone).length;
   /* someone met in the city joins: a member like any other, with a pistol and a little */
   CZ.recruit = function (personActor, name, skill) {
-    if (CZ.squadCount() >= CZ.MAX_SQUAD) { HUD.toast('The squad is full (five at most): part ways with someone first', 'warn'); return null; }
+    if (CZ.squadCount() >= CZ.MAX_SQUAD) { HUD.toast('The squad is full (' + CZ.MAX_SQUAD + ' at most): part ways with someone first', 'warn'); return null; }
     const k = Math.floor(Math.random() * 5), op = '_civ_' + k;
     const m = { op, name: name || 'Stranger', recruit: true, hp: 100, alive: true, player: false,
       st: { hunger: R(30, 60), thirst: R(30, 60), fatigue: R(20, 60), stamina: 100, infection: 0, bleed: 0, fracture: false, temp: 36.8, sick: 0, pain: 0 },
@@ -325,7 +325,7 @@
     CZ.S.squad.push(m);
     // into the place now: an actor where the person stood
     if (CZ.on() && personActor) {
-      const pos = personActor.pos.clone(); personActor.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(personActor), 1);
+      const pos = personActor.pos.clone(); personActor.removeFrom(G.scene); { const i = G.actors.indexOf(personActor); if (i >= 0) G.actors.splice(i, 1); }
       if (CZ.spawnMember) { const a = CZ.spawnMember(m, pos, personActor.yaw); if (a && a.bot && AI.teams[CZ.TEAM]) AI.teams[CZ.TEAM].bots.push(a); if (CZ.netAdded) CZ.netAdded(a); }
     }
     HUD.banner(m.name.toUpperCase() + ' JOINS THE SQUAD', CZ.ARCHETYPES[m.p.arch].name + ' · you\'ll learn more about them the longer they travel with you', 3, 'win');

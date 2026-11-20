@@ -286,7 +286,7 @@
       if (L.length < Math.min(cap(), st.pop)) { const kind = pickKind(Z.def.danger), p = hiddenSpot(32, Math.random() < 0.4); if (p) CZ.spawnInfected(kind, p); }
     }
     // the dead are cleared away after a while (keeps the place light)
-    for (const a of [...G.actors]) if (a.cz && (a.cz.inf || a.cz.opx) && a.state === 'dead' && (a.deathT || 0) > 25) { a.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(a), 1); }
+    for (const a of [...G.actors]) if (a.cz && (a.cz.inf || a.cz.opx) && a.state === 'dead' && (a.deathT || 0) > 25) { a.removeFrom(G.scene); const i = G.actors.indexOf(a); if (i >= 0) G.actors.splice(i, 1); }
   };
   const GADGET_ITEM = { frag: 'pipebomb', impact: 'pipebomb', c4: 'pipebomb', claymore: 'pipebomb', breach: 'pipebomb', smoke: 'flare', stun: 'noisemaker', flash: 'noisemaker', stim: 'painkillers', alarm: 'battery', flankcam: 'parts', dshield: 'scrap', wire: 'scrap' };
   function gearOf(v) {
