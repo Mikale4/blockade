@@ -19,13 +19,22 @@
   'use strict';
   const CZ = window.CZ;
   const V = () => new THREE.Vector3();
-  const FOOD = ['stew', 'mre', 'beans', 'soup', 'bar', 'apple', 'crisps', 'dogfood'];
+  const FOOD = ['stew', 'mre', 'beans', 'soup', 'bar', 'apple', 'choc', 'crisps', 'oldtin', 'dogfood'];
   const DRINK = ['water', 'soda', 'coffee', 'dirtywater'];
+  // things that might make you sick: only when there's nothing else, unless you know no better
+  const RISKY = id => { const u = CZ.ITEMS[id] && CZ.ITEMS[id].use; return !!(u && u.sick > 0); };
+  // who they are decides what they do (cityz-people.js); without it, they just do it
+  const decide = (a, kind, sev) => CZ.decide ? CZ.decide(a, kind, sev) : true;
+  const th = (a, k, d) => CZ.th ? CZ.th(a, k, d) : d;
+  const P = a => CZ.P ? CZ.P(a) : null;
+  const orderOf = a => CZ.orderOf ? CZ.orderOf(a) : CZ.S.order;
+  const KIND = { hunger: 'eat', thirst: 'drink', bleed: 'treat', fracture: 'treat', hurt: 'treat', infection: 'treat', sick: 'treat' };
   const NEED = {
     bleed: { ids: ['bandage', 'rag', 'medkit'], craft: ['bandage', 'rag'], word: 'a dressing', tables: ['medical', 'pharmacy', 'home'], treat: true },
     fracture: { ids: ['splint', 'medkit', 'painkillers'], craft: ['splint'], word: 'a splint', tables: ['medical', 'workshop', 'store'], treat: true },
     hurt: { ids: ['medkit', 'painkillers', 'bandage'], word: 'medical supplies', tables: ['medical', 'pharmacy', 'home'], treat: true },
     infection: { ids: ['antiviral', 'antibiotics'], word: 'antibiotics', tables: ['pharmacy', 'medical'], treat: true },
+    sick: { ids: ['antibiotics'], word: 'something for my stomach', tables: ['pharmacy', 'medical'], treat: true },
     thirst: { ids: DRINK, word: 'water', tables: ['kitchen', 'shop', 'store'] },
     hunger: { ids: FOOD, word: 'food', tables: ['kitchen', 'shop', 'store', 'farm'] },
     ammo: { word: 'ammunition', tables: ['police', 'military', 'home', 'office'] },
@@ -37,30 +46,70 @@
   const calOf = a => CZ.calOf((a.w[0] || {}).id || 'p10');
   const rounds = (m, a) => { let n = 0; const seen = new Set(); for (const w of a.w) { const c = CZ.calOf(w.id); if (seen.has(c)) continue; seen.add(c); n += m.inv[c] || 0; } return n + a.w.reduce((t, w) => t + (w.mag || 0), 0); };
 
-  /* what someone needs, most urgent first */
+  /* what someone needs, most urgent first: by their own limits (when hunger, a wound or the cold
+     becomes something they act on is theirs, and moves from day to day) */
   function needsOf(a) {
     const m = a.cz.m, st = m.st, out = [];
     if (st.bleed > 0) out.push('bleed');
     if (st.fracture && !(st.pain > 0)) out.push('fracture');
-    if (a.hp < 45) out.push('hurt');
-    if (st.infection > 30) out.push('infection');   // from 30 it grows by itself: treat it then
-    if (st.thirst > 60) out.push('thirst');
-    if (st.hunger > 65) out.push('hunger');
+    if (a.hp < th(a, 'hurt', 45)) out.push('hurt');
+    if (st.infection > th(a, 'infection', 30)) out.push('infection');   // from 30 it grows by itself
+    if (st.sick > 25) out.push('sick');
+    if (st.thirst > th(a, 'thirst', 60)) out.push('thirst');
+    if (st.hunger > th(a, 'hunger', 65)) out.push('hunger');
     // rounds for the main gun (in the pack and in the magazines): short at under two magazines' worth,
     // so it is sorted out before the gun runs dry
     const mag = (a.w[0] && a.w[0].def.mag) || 20;
     if (calRounds(a, calOf(a)) < mag * 2) out.push('ammo');
-    if (st.fatigue > 70) out.push('fatigue');   // tired: rest (or coffee, or a bed) before it's exhaustion
-    if (st.temp < (exposed(a) ? 36.5 : 36.2)) out.push('cold');   // getting cold: warm up long before hypothermia (35.5); sooner out in a cold, wet night
+    if (st.fatigue > th(a, 'fatigue', 70)) out.push('fatigue');   // tired: rest (or coffee, or a bed) before it's exhaustion
+    if (st.temp < coldAt(a)) out.push('cold');   // getting cold: warm up before hypothermia (35.5); sooner out in a cold, wet night
     return out;
   }
   CZ.needsOf = needsOf;
+  const coldAt = a => th(a, 'cold', 36.2) + (exposed(a) ? 0.3 : 0);
+  /* how bad a need is, 0..1 */
+  function sevOf(a, need) {
+    const st = a.cz.m.st, over = (v, t) => U.clamp((v - t) / Math.max(5, 100 - t), 0, 1);
+    switch (need) {
+      case 'bleed': return Math.min(1, 0.45 + st.bleed * 0.18 + (a.hp < 50 ? 0.2 : 0));
+      case 'fracture': return 0.55;
+      case 'hurt': return U.clamp((60 - a.hp) / 50, 0.1, 1);
+      case 'infection': return over(st.infection, 25);
+      case 'sick': return U.clamp(st.sick / 80, 0.1, 1);
+      case 'thirst': return over(st.thirst, th(a, 'thirst', 60) - 5);
+      case 'hunger': return over(st.hunger, th(a, 'hunger', 65) - 5);
+      case 'fatigue': return over(st.fatigue, th(a, 'fatigue', 70) - 5);
+      case 'cold': return U.clamp((coldAt(a) - st.temp) / 1.2, 0.05, 1);
+      case 'ammo': { const mag = (a.w[0] && a.w[0].def.mag) || 20; return U.clamp(1 - calRounds(a, calOf(a)) / (mag * 2), 0, 1); }
+    }
+    return 0.5;
+  }
+  CZ.sevOf = sevOf;
   /* the item in a pack that answers a need (the last resorts only when it is bad) */
   function itemIn(m, need, a) {
     if (need === 'ammo') { const c = calOf(a); return (m.inv[c] || 0) > 0 ? c : null; }
     if (need === 'infection') { const inf = a && a.cz ? a.cz.m.st.infection : 50, order = inf >= 60 ? ['antiviral', 'antibiotics'] : ['antibiotics', 'antiviral']; return order.find(id => (m.inv[id] || 0) > 0) || null; }
-    const st = m.st;
-    return NEED[need].ids.find(id => (m.inv[id] || 0) > 0 && !(id === 'dirtywater' && st.thirst < 88) && !(id === 'dogfood' && st.hunger < 85) && !(id === 'painkillers' && need === 'fracture' && (m.inv.splint || 0) > 0));
+    const iron = a && CZ.has && CZ.has(a, 'ironstomach');
+    return NEED[need].ids.find(id => (m.inv[id] || 0) > 0 && (iron || !RISKY(id)) && !(id === 'painkillers' && need === 'fracture' && (m.inv.splint || 0) > 0));
+  }
+  /* the last resort for hunger or thirst: something that might make them ill */
+  const riskyIn = (m, need) => (NEED[need].ids || []).find(id => RISKY(id) && (m.inv[id] || 0) > 0) || null;
+  /* will they hand it over? Who they are, how bad it is, rolled now and then (and remembered for a
+     while, so a refusal is a refusal). The generous sometimes give away their own last one */
+  function willGive(a, t, need, base) {
+    const p = P(a); if (!p) return base;
+    const k = t.id + ':' + need, memo = a.czWill || (a.czWill = {});
+    if (!memo[k] || memo[k].until < G.time) {
+      const sev = sevOf(t, need);
+      let v = 0;
+      if (base > 0) v = decide(a, NEED[need] && NEED[need].treat ? 'help' : 'share', sev) ? 1 : 0;
+      else if (need !== 'ammo' && need !== 'cold' && p.t.gen > 0.75 && !p.flaws.includes('hoarder') && Math.random() < (p.t.gen - 0.7) * 1.6 * (0.4 + sev)) v = 2;
+      memo[k] = { v, until: G.time + 15 + Math.random() * 30 };
+      if (v === 0 && base > 0 && (t.isPlayer || Math.random() < 0.3)) say(a, 'refuse', p.flaws.includes('hoarder') || p.t.gen < 0.25 ? ["Not mine to give. Well. It is. And I'm keeping it.", 'Get your own.', 'Sorry. Need it more than you.'] : p.flaws.includes('squeamish') && NEED[need] && NEED[need].treat ? ["I can't. The blood. I'm sorry.", "Don't ask me to do that."] : ["Can't spare it right now.", 'Ask someone else.'], 2);
+      if (v === 2) say(a, 'give', ["Take mine. I'll manage.", "Here. Don't argue.", 'You need it more than me.'], 3);
+    }
+    const v = memo[k].v;
+    return v === 0 ? 0 : v === 2 ? 1 : base;
   }
   /* can it be spared? (keep one for yourself unless you have plenty) */
   /* everything someone has of one calibre: the pack, and the magazines of the guns that take it */
@@ -110,8 +159,10 @@
       if (u.bleed) st.bleed = Math.max(0, st.bleed + u.bleed);
       if (u.fracture) st.fracture = false;
       if (u.infection) st.infection = Math.max(0, st.infection + u.infection);
+      if (u.sick < 0) st.sick = Math.max(0, st.sick + u.sick);
       if (u.pain) st.pain = u.pain;
       if (u.hp) t.heal(u.hp);
+      const q = P(t); if (q) q.stress = Math.max(0, q.stress - 6 - (u.calm || 0));   // being looked after helps
       t.cz.m.hp = t.hp;
       CZ.tell(t, giver.op.name + ' used ' + it.name + ' on you', 'info');
     }, 2000);
@@ -154,48 +205,75 @@
   const say = (a, key, lines, pri) => { if (window.VOICE) VOICE.say(a, key, lines, pri || 2); };
 
   /* ================================================================ the care tick (every AI member) */
+  /* Nobody here runs on a timer. Each teammate thinks about their state every second or few (when is
+     their own), notices what is past their own limits, and then decides, by who they are and how bad
+     it is, whether to do something about it now: so one eats at the first pang and another waits until
+     they're shaking, one dresses a cut straight away and another forgets until it's bad, the clever
+     boil their water and the rest sometimes just drink it */
   CZ.botCare = function (a, dt) {
     if ((a.czCareT = (a.czCareT || 0) - dt) > 0) return;
-    a.czCareT = 1.5;
+    const p = P(a);
+    a.czCareT = 1.2 + Math.random() * 2.3 + (p && p.flaws.includes('scatterbrain') ? 2 : 0);
     if (a.busy > 0 || a.state !== 'alive') return;
+    if (CZ.inPanic && CZ.inPanic(a)) return;   // nobody sorts out their pack mid-panic
     const m = a.cz.m, needs = needsOf(a), hot = fighting(a);
     // a dry gun: the other one
     if (a.w[a.cur] && a.w[a.cur].mag <= 0 && a.w[a.cur].reserve <= 0) { const o = a.w.findIndex((w, i) => i !== a.cur && (w.mag > 0 || w.reserve > 0)); if (o >= 0) WPN.swap(a, o); }
     a.czNeed = null;
     restTick(a, hot);
     if (warmTick(a, hot)) return;
+    // dirty water and a fire (or the safehouse stove): the ones who know better boil it first
+    if (!hot && CZ.canBoil && CZ.canBoil(a) && decide(a, 'boil', 0.5)) { CZ.boil(a); if (Math.random() < 0.5) say(a, 'boil', ['Boiling this before anyone drinks it.', "Water's going on the fire."]); return; }
     for (const need of needs) {
       if (need === 'cold') continue;
-      if (need === 'fatigue') { const c = (m.inv.coffee || 0) > 0 && m.st.fatigue > 80 && !hot; if (c) { CZ.use(a, 'coffee', true); return; } continue; }
+      if (need === 'fatigue') { if ((m.inv.coffee || 0) > 0 && m.st.fatigue > 80 && !hot && decide(a, 'drink', sevOf(a, need) * 0.6)) { CZ.use(a, 'coffee', true); return; } continue; }
       if (hot && need !== 'bleed' && !(need === 'hurt' && a.hp < 25)) continue;   // in a fight only what can't wait (a wound can't)
-      const id = itemIn(m, need, a) || (need !== 'ammo' && fromStash(a, need));
-      if (id && need !== 'ammo') { CZ.use(a, id, true); if (Math.random() < 0.3) say(a, 'self', need === 'bleed' ? ['Patching myself up.', 'Bandaging.'] : need === 'thirst' ? ['Drinking.'] : need === 'hunger' ? ['Eating something quick.'] : ['Treating it.']); return; }
+      const sev = sevOf(a, need), kind = KIND[need];
+      // not now: they put it off (they'll think of it again in a moment, more likely the worse it gets)
+      if (kind && !decide(a, kind, sev)) continue;
+      let id = itemIn(m, need, a);
+      // hungry or thirsty with only something risky: a gamble, or (not knowing better) it's the first thing in the bag
+      if ((need === 'hunger' || need === 'thirst') && !(CZ.has && CZ.has(a, 'ironstomach'))) {
+        const r = riskyIn(m, need);
+        if (r && (!id && decide(a, 'risky', sev) || id && p && p.t.smarts < 0.35 && Math.random() < 0.2)) {
+          CZ.use(a, r, true); say(a, 'risky', r === 'dirtywater' ? ["It's water. Mostly.", 'Bottoms up. God help me.', "Can't be worse than thirst."] : ["Smells... fine. Probably.", "Don't watch me eat this."], 2);
+          return;
+        }
+      }
+      if (!id && need !== 'ammo') id = fromStash(a, need);
+      if (id && need !== 'ammo') { CZ.use(a, id, true); if (Math.random() < 0.3) say(a, 'self', need === 'bleed' ? ['Patching myself up.', 'Bandaging.'] : need === 'thirst' ? ['Drinking.', 'Need a sip.'] : need === 'hunger' ? ['Eating something quick.', 'Two minutes. Food.'] : ['Treating it.']); return; }
       // rounds still in the pack: fine for now, unless it's down to the last magazine's worth (then say so)
       if (need === 'ammo' && id && calRounds(a, calOf(a)) >= ((a.w[0] && a.w[0].def.mag) || 20)) continue;
-      if (NEED[need].craft && NEED[need].craft.some(rid => craftOwn(a, rid))) return;
+      // make one: if they know how (some just don't)
+      if (NEED[need].craft && decide(a, 'craft', sev) && NEED[need].craft.some(rid => craftOwn(a, rid))) { if (Math.random() < 0.4) say(a, 'craft', ['Making a dressing.', 'Give me a second, tearing some cloth.']); return; }
       if (need === 'bleed') {
-        // nothing to dress it with: a teammate has a few seconds to bring something; then the last resort
+        // nothing to dress it with: a teammate has a few seconds to bring something; then the last
+        // resort (sooner for the quick-witted, later for the rest)
         a.czBleedSince = a.czBleedSince || G.time;
-        const bad = m.st.bleed >= 2 || a.hp < 55, waited = G.time - a.czBleedSince > (bad ? 4 : 10);
+        const bad = m.st.bleed >= 2 || a.hp < 55, slow = p ? 1.6 - p.t.smarts : 1, waited = G.time - a.czBleedSince > (bad ? 4 : 10) * slow;
         if ((waited || hot) && CZ.improvise(a)) { a.czBleedSince = 0; say(a, 'self', ['Tearing my sleeve for this.', 'Pressing on it. Hold on.'], 3); return; }
       }
+      if (need === 'infection' && CZ.hidBite && CZ.hidBite(a)) continue;   // and saying nothing
       a.czNeed = a.czNeed || need;
     }
     if (!m.st.bleed) a.czBleedSince = 0;
-    // ask for what it can't sort out itself
+    // ask for what it can't sort out itself: some straight away, some only when it's bad, some loudly
     if (a.czNeed && G.time > (a.czAskT || 0)) {
-      a.czAskT = G.time + 45;
-      const w = a.czNeed === 'ammo' ? CZ.itemName(calOf(a)) : NEED[a.czNeed].word;
-      say(a, 'ask', a.czNeed === 'ammo' ? ["I'm almost out. Need " + w + '.', 'Low on ammo!'] : a.czNeed === 'bleed' ? ["I'm bleeding, anyone got " + w + '?', 'Need a bandage here!'] : ['I need ' + w + '.', 'Anyone got ' + w + '?'], 3);
-      const p = G.player; if (p && !p.ghost && p.cz) CZ.tell(p, a.op.name + ' needs ' + w + (p.state === 'alive' ? ' · give it from your pack (' + KEYS.name('czInv') + ')' : ''), 'warn');
+      a.czAskT = G.time + 6;
+      if (decide(a, 'ask', sevOf(a, a.czNeed))) {
+        a.czAskT = G.time + 35 + Math.random() * 40;
+        const w = a.czNeed === 'ammo' ? CZ.itemName(calOf(a)) : NEED[a.czNeed].word, hot2 = p && p.t.temper > 0.65;
+        say(a, 'ask', a.czNeed === 'ammo' ? ["I'm almost out. Need " + w + '.', 'Low on ammo!'] : a.czNeed === 'bleed' ? ["I'm bleeding, anyone got " + w + '?', 'Need a bandage here!'] : hot2 ? ['Is anyone going to get me ' + w + ' or what?', 'I need ' + w + '. Now.'] : p && p.t.nerve < 0.35 ? ['Sorry, does anyone have ' + w + '?', 'I... I need ' + w + '.'] : ['I need ' + w + '.', 'Anyone got ' + w + '?'], 3);
+        const pl = G.player; if (pl && !pl.ghost && pl.cz) CZ.tell(pl, a.op.name + ' needs ' + w + (pl.state === 'alive' ? ' · give it from your pack (' + KEYS.name('czInv') + ')' : ''), 'warn');
+      }
     }
-    // and help: the nearest teammate (you too) with a need this one can answer
+    // and help: the nearest teammate (you too) with a need this one can answer, if they're the helping kind
     if (a.czGiveT > G.time) return;
     if (hot) {
       // in a fight nobody walks over, but rounds get tossed to someone right beside you
       for (const t of squad()) {
         if (t === a || U.dist3(t.pos, a.pos) > 5 || !needsOf(t).includes('ammo')) continue;
-        const c = calOf(t), n = spare(m, c, a, 'ammo', t); if (!n) continue;
+        const c = calOf(t), n = willGive(a, t, 'ammo', spare(m, c, a, 'ammo', t)); if (!n) continue;
         const g = CZ.add(t.cz.m, c, n); CZ.take(m, c, g);
         if (g) { a.czGiveT = G.time + 6; CZ.tell(t, a.op.name + ' tossed you ' + g + ' × ' + CZ.itemName(c), 'info'); say(a, 'give', ['Mag! Catch!', 'Ammo, here!', 'Take these rounds!'], 3); return; }
       }
@@ -204,23 +282,24 @@
     // the worst off first (a deep wound, a bad infection, starving), so two helpers don't both go to
     // the first name on the list while someone else goes without
     const worst = t => { const st = t.cz.m.st; return st.bleed * 30 + Math.max(0, st.infection - 30) * 1.5 + Math.max(0, st.hunger - 60) + Math.max(0, st.thirst - 60) + (t.hp < 45 ? 40 : 0); };
-    for (const t of squad().sort((p, q) => worst(q) - worst(p))) {
+    for (const t of squad().sort((p2, q) => worst(q) - worst(p2))) {
       // someone starving or bleeding badly is worth going further for
       const ts = t.cz.m.st, urgent = ts.hunger >= 80 || ts.thirst >= 80 || ts.bleed >= 2 || ts.infection >= 60;
       if (t === a || U.dist3(t.pos, a.pos) > (urgent ? 40 : 16) || t.czTendT > G.time || (t.busy > 0 && /IMPROVISING|TREATING/.test(t.busyLabel || ''))) continue;
       for (const need of needsOf(t)) {
         if (t.czClaim && t.czClaim[need] && t.czClaim[need].t > G.time && t.czClaim[need].by !== a) continue;   // someone's already bringing it
+        if (need === 'infection' && CZ.hidBite && CZ.hidBite(t)) continue;   // they're hiding it
         let id = need === 'ammo' ? calOf(t) : itemIn(m, need, t);
         // the antiviral is scarce: it only goes to someone whose infection is serious
         if (id === 'antiviral' && need === 'infection' && t !== a && (t.cz.m.st.infection || 0) < 50 && (m.inv.antiviral || 0) < 2) id = null;
-        if (!id && need === 'bleed' && craftOwn(a, 'rag')) id = 'rag';
-        if (!id && need === 'bleed' && (t.cz.m.st.bleed >= 2 || t.hp < 55) && CZ.canImprovise(a) && !(t.bot && CZ.canImprovise(t))) {
+        if (!id && need === 'bleed' && decide(a, 'craft', sevOf(t, need)) && craftOwn(a, 'rag')) id = 'rag';
+        if (!id && need === 'bleed' && (t.cz.m.st.bleed >= 2 || t.hp < 55) && CZ.canImprovise(a) && !(t.bot && CZ.canImprovise(t)) && willGive(a, t, 'bleed', 1)) {
           a.czGiveT = G.time + 6;
           a.bot.tasks.unshift({ at: t.pos.clone(), time: 0.4, run: x => { if (t.state !== 'dead' && U.dist3(t.pos, x.pos) < 4 && CZ.improvise(x, t)) say(x, 'give', ['Hold still, pressing on it.', "I've got you."], 3); } });
           return;
         }
         if (!id) continue;
-        const n = spare(m, id, a, need, t);
+        const n = willGive(a, t, need, spare(m, id, a, need, t));
         if (!n) continue;
         a.czGiveT = G.time + 8;
         (t.czClaim || (t.czClaim = {}))[need] = { by: a, t: G.time + 12 };
@@ -247,13 +326,15 @@
   const fireNear = (p, r) => G.ents.find(e => e.alive && e.type === 'fire' && e.campfire && U.dist3(e.pos, p) < r);
   function warmTick(a, hot) {
     const m = a.cz.m, st = m.st;
-    if (st.temp >= 36.6) { a.czColdWant = false; return false; }
-    if (st.temp >= (exposed(a) ? 36.5 : 36.2)) return false;
+    if (st.temp >= coldAt(a) + 0.4) { a.czColdWant = false; return false; }
+    if (st.temp >= coldAt(a)) return false;
+    // going to do something about it? (the careful sooner; some shrug it off until they're shaking)
+    if (!a.czColdWant && !hot) { if (G.time < (a.czColdRollT || 0)) return false; a.czColdRollT = G.time + 6 + Math.random() * 8; if (!decide(a, 'warm', sevOf(a, 'cold'))) return false; }
     a.czColdWant = !hot;
     if (hot || a.busy > 0) return false;
-    if ((m.inv.stew || 0) > 0 && st.temp < 35.9) { CZ.use(a, 'stew', true); return true; }
+    if ((m.inv.stew || 0) > 0 && st.temp < 35.9 && decide(a, 'eat', 0.6)) { CZ.use(a, 'stew', true); return true; }
     const calm = !G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 18);
-    if (calm && !fireNear(a.pos, 12) && G.time > (CZ.Z.fireT || 0) && (CZ.night() || CZ.S.weather === 'rain' || st.temp < 35.9)) {
+    if (calm && !fireNear(a.pos, 12) && G.time > (CZ.Z.fireT || 0) && (CZ.night() || CZ.S.weather === 'rain' || st.temp < 35.9) && decide(a, 'fire', sevOf(a, 'cold'))) {
       if (!(m.inv.firewood > 0) && (m.inv.planks || 0) >= 2) { CZ.take(m, 'planks', 2); m.inv.firewood = (m.inv.firewood || 0) + 1; }
       if (m.inv.firewood > 0 && CZ.lightFire(a)) { CZ.Z.fireT = G.time + 150; say(a, 'fire', ['Getting a fire going.', "Freezing. I'm lighting a fire."], 3); return true; }
     }
@@ -291,9 +372,11 @@
   function restTick(a, hot) {
     const st = a.cz.m.st;
     if (hot) { a.czRestWant = false; return; }
-    if (st.fatigue > 70) a.czRestWant = true;
-    else if (st.fatigue < (a.czNap > G.time ? 15 : 45)) { if (a.czRestWant && a.stance > 0) a.setStance(0); a.czRestWant = false; a.czNap = 0; }
-    if (st.fatigue > 85 && G.time > (a.czSleepAskT || 0)) {
+    const lim = th(a, 'fatigue', 70);
+    // tired past their limit: stop for a rest? (some push on; the nervous stop sooner)
+    if (st.fatigue > lim && !a.czRestWant && G.time > (a.czRestRollT || 0)) { a.czRestRollT = G.time + 8 + Math.random() * 10; if (decide(a, 'rest', sevOf(a, 'fatigue'))) a.czRestWant = true; }
+    else if (st.fatigue < (a.czNap > G.time ? 15 : Math.max(45, lim - 25))) { if (a.czRestWant && a.stance > 0) a.setStance(0); a.czRestWant = false; a.czNap = 0; }
+    if (st.fatigue > Math.max(85, lim + 10) && G.time > (a.czSleepAskT || 0)) {
       a.czSleepAskT = G.time + 90;
       const home = CZ.Z && CZ.isSafe(CZ.Z.id);
       say(a, 'tired', home ? ["I'm dead on my feet. I need that bed.", 'Need to sleep. Just an hour.'] : ["I'm running on empty. We need to get back and sleep.", "I can barely keep my eyes open."], 3);
@@ -339,15 +422,19 @@
   }
   /* in the follow order: go and find what is missing, or pick over what is close when it is quiet */
   CZ.forageGoal = function (a) {
-    if (!CZ.S || fighting(a) || CZ.S.order === 'quiet' || CZ.S.order === 'hold') return null;
+    const o = CZ.S && orderOf(a);
+    if (!CZ.S || fighting(a) || o === 'quiet' || o === 'hold') return null;
     if (a.bot.loot && a.bot.loot.alive) return lootGoal(a, a.bot.loot);
     const lead = CZ.leader(); if (!lead || lead === a) return null;
     const calm = !G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 18);
     if (!calm) return null;
-    if (a.czNeed && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a))) { const e = pickContainer(a, a.czNeed, 30); if (e) return lootGoal(a, e); }
+    if (a.czNeed && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a)) && G.time > (a.czHuntT || 0)) {
+      a.czHuntT = G.time + 6 + Math.random() * 6;
+      if (decide(a, 'forage', sevOf(a, a.czNeed))) { const e = pickContainer(a, a.czNeed, 30); if (e) return lootGoal(a, e); }
+    }
     if (G.time > (a.czPickT || 0) && CZ.weight(a.cz.m) < CZ.capacity(a.cz.m) * 0.75) {
       a.czPickT = G.time + 20 + Math.random() * 20;
-      const e = pickContainer(a, null, 12); if (e) return lootGoal(a, e);
+      if (decide(a, 'forage', 0)) { const e = pickContainer(a, null, 12); if (e) return lootGoal(a, e); }
     }
     return null;
   };
@@ -355,8 +442,9 @@
   const oGoal = CZ.squadGoal;
   CZ.squadGoal = function (a) {
     const lead = CZ.leader();
-    if (a !== lead && CZ.S && (CZ.S.order === 'follow' || CZ.S.order === 'hold')) { const w = CZ.warmGoal(a); if (w) return w; const r = CZ.restGoal(a); if (r) return r; }
-    if (a !== lead && CZ.S && CZ.S.order === 'follow') { const g = CZ.forageGoal(a); if (g) return g; }
+    const o = CZ.S && orderOf(a);
+    if (a !== lead && CZ.S && (o === 'follow' || o === 'hold')) { const w = CZ.warmGoal(a); if (w) return w; const r = CZ.restGoal(a); if (r) return r; }
+    if (a !== lead && CZ.S && o === 'follow') { const g = CZ.forageGoal(a); if (g) return g; }
     return oGoal.apply(this, arguments);
   };
 
@@ -370,6 +458,7 @@
       const d = U.dist3(c.pos, a.pos); if (d < 6 || d > 20) continue;
       const near = inf.filter(t => U.dist3(t.pos, c.pos) < 4);
       if (near.length < 3 || squad().some(t => U.dist3(t.pos, c.pos) < 5)) continue;
+      if (!decide(a, 'throw', Math.min(1, near.length / 6))) { a.czThrowT = G.time + 3 + Math.random() * 4; return; }
       a.czThrowT = G.time + 10;
       a.yaw = Math.atan2(-(c.pos.x - a.pos.x), -(c.pos.z - a.pos.z)); a.pitch = Math.atan2(4, d) * 0.5;
       CZ.throwItem(a); say(a, 'throw', id === 'molotov' ? ['Burn!', 'Fire out!'] : ['Pipe bomb!', 'Clear out!'], 3);

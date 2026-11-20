@@ -31,7 +31,7 @@
       H.obj = $('div', { class: 'cz-obj' });
       H.orders = $('div', { class: 'cz-orders' });
       H.bars = {};
-      for (const [k, label] of [['hp', 'HEALTH'], ['stamina', 'STAMINA'], ['hunger', 'FOOD'], ['thirst', 'WATER'], ['fatigue', 'REST'], ['infection', 'INFECTION'], ['temp', 'WARMTH']]) {
+      for (const [k, label] of [['hp', 'HEALTH'], ['stamina', 'STAMINA'], ['hunger', 'FOOD'], ['thirst', 'WATER'], ['fatigue', 'REST'], ['infection', 'INFECTION'], ['temp', 'WARMTH'], ['nerves', 'NERVES']]) {
         const fill = $('i'), row = $('div', { class: 'cz-bar ' + k }, $('span', {}, label), $('b', {}, fill));
         H.bars[k] = { row, fill }; H.needs.append(row);
       }
@@ -53,12 +53,16 @@
     set('hunger', 100 - st.hunger, st.hunger > 75);
     set('thirst', 100 - st.thirst, st.thirst > 75);
     set('fatigue', 100 - st.fatigue, st.fatigue > 80);
-    set('infection', st.infection, st.infection > 50); H.bars.infection.row.style.display = st.infection > 0.5 ? '' : 'none';
+    set('infection', st.infection, st.infection > 50); H.bars.infection.row.style.display = st.infection > 0.5 && !(CZ.hidBite && CZ.hidBite(p) && p !== G.player) ? '' : 'none';
     set('temp', (st.temp - 33) / 4.4 * 100, st.temp < 35.5);
+    const pp = CZ.P && CZ.P(p);
+    set('nerves', pp ? 100 - pp.stress : 100, pp && pp.stress > 70); H.bars.nerves.row.style.display = pp ? '' : 'none';
     const tags = [];
     if (st.bleed > 0) tags.push('<i class="bad">BLEEDING ' + '●'.repeat(Math.min(4, Math.ceil(st.bleed))) + '</i>');
     if (st.fracture) tags.push('<i class="bad">BROKEN BONE</i>');
-    if (st.sick > 0) tags.push('<i class="warn">SICK</i>');
+    if (st.sick > 0) tags.push('<i class="warn">SICK' + (st.sick > 25 ? ' · ANTIBIOTICS CLEAR IT' : '') + '</i>');
+    if (p.czQueasy) tags.push('<i>YOUR STOMACH FEELS ODD</i>');
+    if (pp) { const pk = CZ.inPanic && CZ.inPanic(p); if (pk) tags.push('<i class="bad">PANIC ATTACK · CROUCH AND BREATHE</i>'); else if (pp.stress > 75) tags.push('<i class="bad">' + (pp.t.temper > 0.65 ? 'SEEING RED' : 'TERRIFIED') + ' · SHAKING HANDS</i>'); else if (pp.stress > 50) tags.push('<i class="warn">' + (pp.t.temper > 0.65 ? 'ON EDGE' : 'ANXIOUS') + '</i>'); }
     if (st.pain > 0) tags.push('<i>PAINKILLERS</i>');
     if (p.czResting) tags.push('<i>RESTING</i>');
     else if (st.fatigue >= 80) tags.push('<i class="' + (st.fatigue >= 95 ? 'bad' : 'warn') + '">' + (st.fatigue >= 95 ? 'EXHAUSTED' : 'TIRED') + ' · REST OR SLEEP</i>');
@@ -70,7 +74,7 @@
     H.status.innerHTML = tags.join('');
     // the squad: names, health, order
     const sq = CZ.isGuest && CZ.isGuest() ? G.actors.filter(a => a.team === CZ.TEAM && a.op && !/^_/.test(a.op.id)).map(a => (a.cz || (a.cz = { m: { st: {} } }), a)) : G.actors.filter(a => a.cz && a.cz.m);
-    H.squad.innerHTML = (CZ.isWatching && CZ.isWatching() ? '<div class="cz-ord">WATCHING · THE SQUAD PLAYS ON ITS OWN</div>' : '<div class="cz-ord">ORDERS · ' + CZ.ORDERS[S.order || 'follow'].name + ' <kbd>Y</kbd></div>') + sq.map(a => '<div class="cz-mate' + (a === p ? ' me' : '') + (a.state !== 'alive' ? ' ' + a.state : '') + '"><b>' + a.op.name + '</b><i style="width:' + pct(a.state === 'dead' ? 0 : a.hp / a.maxHp * 100) + '"></i>' + (a.cz.m.st.infection > 40 ? '<em>INFECTED</em>' : '') + (a.czNeed ? '<em class="need">NEEDS ' + (a.czNeed === 'ammo' ? 'AMMO' : a.czNeed === 'bleed' ? 'A DRESSING' : a.czNeed === 'thirst' ? 'WATER' : a.czNeed === 'hunger' ? 'FOOD' : a.czNeed === 'infection' ? 'MEDS' : a.czNeed === 'fracture' ? 'A SPLINT' : 'MEDICAL') + '</em>' : '') + '</div>').join('');
+    H.squad.innerHTML = (CZ.isWatching && CZ.isWatching() ? '<div class="cz-ord">WATCHING · THE SQUAD PLAYS ON ITS OWN</div>' : '<div class="cz-ord">ORDERS · ' + CZ.ORDERS[S.order || 'follow'].name + ' <kbd>Y</kbd></div>') + sq.map(a => { const q = CZ.P && CZ.P(a), hid = q && q.agenda && q.agenda.kind === 'secretbite' && !q.agenda.shown && a.cz.m.st.infection < 75, pk = CZ.inPanic && CZ.inPanic(a), mood = a.state === 'alive' && q ? CZ.moodOf(a) : ''; return '<div class="cz-mate' + (a === p ? ' me' : '') + (a.state !== 'alive' ? ' ' + a.state : '') + '"><b>' + a.op.name + '</b>' + (mood ? '<small class="mood ' + mood + '">' + (pk ? 'PANICKING' : mood.toUpperCase()) + '</small>' : '') + '<i style="width:' + pct(a.state === 'dead' ? 0 : a.hp / a.maxHp * 100) + '"></i>' + (a.cz.m.st.infection > 40 && !hid ? '<em>INFECTED</em>' : '') + (a.cz.m.st.sick > 25 ? '<em class="need">SICK</em>' : '') + (a.czNeed ? '<em class="need">NEEDS ' + (a.czNeed === 'ammo' ? 'AMMO' : a.czNeed === 'bleed' ? 'A DRESSING' : a.czNeed === 'thirst' ? 'WATER' : a.czNeed === 'hunger' ? 'FOOD' : a.czNeed === 'infection' || a.czNeed === 'sick' ? 'MEDS' : a.czNeed === 'fracture' ? 'A SPLINT' : 'MEDICAL') + '</em>' : '') + '</div>'; }).join('');
     // the story's current objective
     const o = CZ.objective ? CZ.objective() : null;
     H.obj.innerHTML = o ? '<b>' + o.title + '</b><span>' + o.text + '</span>' : '';
@@ -140,6 +144,7 @@
       if (id.startsWith('gun:')) for (const slot of [0, 1]) acts.push(btn(slot ? 'EQUIP SECONDARY' : 'EQUIP PRIMARY', () => { if (G2) { CZ.ask('equip', { id: id.slice(4), slot }); UI.close(); } else { equip(p, id.slice(4), slot); UI.inventory('pack'); } }));
       if (id === 'barricade' && !G2) acts.push(btn('BOARD UP', () => { UI.close(); setTimeout(() => CZ.boardUp(p), 50); }));
       if (id === 'firewood' && !G2) acts.push(btn('LIGHT A CAMPFIRE', () => { UI.close(); setTimeout(() => CZ.lightFire(p), 50); }));
+      if (id === 'dirtywater') acts.push(CZ.canBoil(p) ? btn('BOIL IT ALL', () => { UI.close(); CZ.boil(p); }) : $('span', { class: 'muted' }, 'boil it by a campfire or at a workbench'));
       for (const a of near) acts.push(btn('GIVE ' + a.op.name, () => { const n = CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo' ? Math.min(m.inv[id], 30) : 1; if (G2) { CZ.ask('give', { id, to: a.id, n }); UI.close(); return; } const t = CZ.add(a.cz.m, id, Math.min(n, m.inv[id])); CZ.take(m, id, t); if (!t) HUD.toast(a.op.name + ' can\'t carry it', 'warn'); UI.inventory('pack'); }, 'ghost'));
       acts.push(btn('DROP', () => { if (G2) { CZ.ask('drop', { id }); UI.close(); return; } const n = m.inv[id]; CZ.take(m, id, n); CZ.dropLoot(p.pos, [[id, n]], 'Dropped'); UI.inventory('pack'); }, 'ghost'));
       return acts;
@@ -168,24 +173,32 @@
       const ok = CZ.canCraft(r), locked = (r.bench || 0) > lvl;
       body.append($('div', { class: 'cz-item' + (ok ? '' : ' off') },
         $('b', {}, (r.makes[1] > 1 ? r.makes[1] + ' × ' : '') + CZ.itemName(r.makes[0])),
-        $('small', {}, Object.entries(r.needs).map(([k, n]) => n + ' ' + CZ.itemName(k)).join(' · ') + (r.bench ? ' · needs ' + (r.bench > 1 ? 'the machine shop' : 'the workbench') : '') + (r.fire ? ' · cooked' : '')),
+        $('small', {}, Object.entries(r.needs).map(([k, n]) => n + ' ' + CZ.itemName(k)).join(' · ') + (r.bench ? ' · needs ' + (r.bench > 1 ? 'the machine shop' : 'the workbench') : '') + (r.fire ? ' · over a fire: a campfire, or the workbench stove' : '')),
         $('div', { class: 'cz-acts' }, locked ? $('span', { class: 'muted' }, 'LOCKED') : btn('MAKE', () => { CZ.craft(r.id); UI.inventory('craft'); }, ok ? '' : 'ghost'))));
     }
   }
   function squadTab(body, p) {
+    const full = CZ.squadCount ? CZ.squadCount() : 0;
+    body.append($('p', { class: 'sub' }, 'The squad: ' + full + ' of ' + (CZ.MAX_SQUAD || 5) + '. You learn who people are by travelling with them: what they\'re like after a day, whether to trust them only when they show you.'));
     for (const a of G.actors.filter(x => x.cz && x.cz.m)) {
-      const m = a.cz.m, st = m.st;
+      const m = a.cz.m, st = m.st, k = CZ.knownAbout ? CZ.knownAbout(a) : null, me = a === p;
+      const who = k ? $('div', { class: 'cz-who' },
+        $('span', {}, k.kind + (me ? '' : ' · ' + (CZ.inPanic(a) ? 'panicking' : k.mood)) + (k.words.length ? ' · ' + k.words.join(', ') : '')),
+        $('small', {}, (k.perks.length ? 'Good at: ' + k.perks.join(', ') : '') + (k.flaws.length ? ' · Weak spots: ' + k.flaws.join(', ') : '')),
+        $('small', { class: 'muted' }, k.bio + (me ? '' : ' ' + k.trust))) : null;
       const card = $('div', { class: 'cz-mcard' + (a === p ? ' me' : '') },
-        $('b', {}, a.op.name + ' · ' + a.name + (a === p ? ' (YOU)' : '')),
-        $('span', {}, a.state === 'dead' ? 'DEAD' : 'Health ' + Math.round(a.hp) + ' · Food ' + Math.round(100 - st.hunger) + '% · Water ' + Math.round(100 - st.thirst) + '% · Rest ' + Math.round(100 - st.fatigue) + '%' + (st.infection > 0.5 ? ' · Infection ' + Math.round(st.infection) + '%' : '') + (st.bleed > 0 ? ' · bleeding' : '') + (st.fracture ? ' · broken bone' : '')),
+        $('b', {}, (m.recruit ? a.name : a.op.name + ' · ' + a.name) + (a === p ? ' (YOU)' : '')), who,
+        $('span', {}, a.state === 'dead' ? 'DEAD' : 'Health ' + Math.round(a.hp) + ' · Food ' + Math.round(100 - st.hunger) + '% · Water ' + Math.round(100 - st.thirst) + '% · Rest ' + Math.round(100 - st.fatigue) + '%' + (st.infection > 0.5 && !(CZ.hidBite && CZ.hidBite(a)) ? ' · Infection ' + Math.round(st.infection) + '%' : '') + (st.bleed > 0 ? ' · bleeding' : '') + (st.fracture ? ' · broken bone' : '')),
         $('small', {}, 'Pack ' + CZ.weight(m) + ' / ' + CZ.capacity(m) + ' kg: ' + (CZ.itemsText(m.inv) || 'empty')),
         a !== p && a.state === 'alive' ? $('div', { class: 'cz-acts' },
           btn('PLAY AS ' + a.op.name, () => { UI.close(); CZ.takeControl(a); }),
-          U.dist3(a.pos, p.pos) < 6 ? btn('TAKE THEIR SUPPLIES', () => { for (const [id, n] of Object.entries(m.inv)) { if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo' && (CZ.calOf(a.w[0].id) === id || CZ.calOf(a.w[1] ? a.w[1].id : '') === id)) continue; const t = CZ.add(p.cz.m, id, n); CZ.take(m, id, t); } UI.inventory('squad'); }, 'ghost') : null) : null);
+          U.dist3(a.pos, p.pos) < 6 ? btn('ASK FOR THEIR SUPPLIES', () => { CZ.askSupplies(a, p); UI.inventory('squad'); }, 'ghost') : null,
+          U.dist3(a.pos, p.pos) < 6 && CZ.P(a) && CZ.P(a).stress > 45 && G.time > (a.czCalmedT || 0) ? btn('CALM THEM DOWN', () => { a.czCalmedT = G.time + 60; CZ.calmDown(p, a); UI.inventory('squad'); }, 'ghost') : null,
+          btn('PART WAYS', () => { if (a.czPartAsk !== true) { a.czPartAsk = true; HUD.toast('Press PART WAYS again to send ' + a.name + ' away for good', 'warn'); setTimeout(() => { a.czPartAsk = false; }, 4000); return; } CZ.partWays(a); UI.inventory('squad'); }, 'ghost')) : null);
       body.append(card);
     }
     const fallen = CZ.S.squad.filter(m => !m.alive);
-    if (fallen.length) body.append($('h3', {}, 'LOST'), $('p', { class: 'muted' }, fallen.map(m => DATA.OPMAP[m.op].name + ' · ' + m.name).join(', ')));
+    if (fallen.length) body.append($('h3', {}, 'LOST'), $('p', { class: 'muted' }, fallen.map(m => (m.recruit ? m.name : DATA.OPMAP[m.op].name + ' · ' + m.name) + (m.turned ? ' (turned on you)' : m.gone ? ' (gone)' : '')).join(', ')));
   }
   function stashTab(body, p) {
     const S = CZ.S, z = CZ.Z.id, stash = S.stash[z] || (S.stash[z] = {}), m = p.cz.m;

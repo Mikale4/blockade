@@ -331,8 +331,10 @@ body.kc #hud, body.kc #fxLayer { visibility: hidden; }
 .vo-line b { font-weight: 700; letter-spacing: 1px; margin-right: 2px; }
 .vo-line.enemy { border-left-color: #d04a4a; opacity: 0.85; }
 .vo-line.fade { opacity: 0; }
+body.cz #vo { left: 290px; bottom: 140px; width: min(420px, calc(100vw - 320px)); }   /* City Z: beside the needs, not over them */
 
 /* ---------------------------------------------------------------- City Z */
+#czStress { position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(20,0,0,0.55) 75%, rgba(10,0,0,0.92) 100%); }
 #czNight { position: fixed; inset: 0; pointer-events: none; z-index: 2; background: #050a1e; mix-blend-mode: multiply; opacity: 0; display: none; transition: opacity 1s; }
 body.cz #hud .h-top, body.cz #hud .h-obj, body.cz #hud .h-board, body.cz #hud .h-feed { display: none !important; }
 .cz-hud { position: absolute; left: 16px; bottom: 138px; width: 250px; font: 600 12px var(--f); letter-spacing: 0.08em; }
@@ -410,3 +412,10 @@ p.warn { color: var(--gold); }
 .cz-wp span { color: #fff; font-size: 10px; text-shadow: 0 1px 2px #000; }
 .cz-wp.edge i { background: var(--gold); }
 .cz-mate em.need { color: var(--gold); }
+.cz-mate small.mood { margin-left: 6px; font-size: 10px; letter-spacing: 0.08em; color: var(--dim); }
+.cz-mate small.mood.scared, .cz-mate small.mood.angry, .cz-mate small.mood.uneasy { color: var(--gold); }
+.cz-mate small.mood.panicking, .cz-mate small.mood.furious { color: #e05a4a; }
+.cz-who { display: grid; gap: 2px; padding: 2px 0 4px; }
+.cz-who span, .cz-who small { font: 500 13px/1.35 'Rajdhani', 'Segoe UI', sans-serif; letter-spacing: 0.03em; text-transform: none; }
+.cz-who span { color: #e8eaed !important; font-weight: 700; }
+.cz-bar.nerves i { background: #c88ac8; }

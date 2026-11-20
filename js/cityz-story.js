@@ -77,6 +77,9 @@
     const sk = CZ.SURVIVOR_SKILLS[sv.skill];
     const lines = [{ who: sv.name, t: sv.why === 'wounded' ? "I got bit, I think. Or scratched. I don't know. Please. I can't walk far." : sv.why === 'road' ? "Don't shoot! I'm not one of them. I've been walking for two days." : "Thank God. I've been hiding in here since the fences went down. I can't go out there alone." }, { who: sv.name, t: 'I was a ' + sk.name.toLowerCase() + ' before all this. I can still be useful. ' + sk.desc }];
     const choices = [];
+    // join the squad (five at most, you included): anyone can. You'll find out who they are later
+    if (CZ.recruit && CZ.squadCount() < CZ.MAX_SQUAD) choices.push({ label: 'COME WITH US (JOIN THE SQUAD · ' + CZ.squadCount() + '/' + CZ.MAX_SQUAD + ')', fn: () => { const m = CZ.recruit(t, sv.name, sv.skill); if (m) { sv.state = 'joined'; S().stats.rescued++; } } });
+    else if (CZ.recruit) lines.push({ who: sv.name, t: "(The squad is full: five is as many as can move together. Part ways with someone first if you want " + sv.name + ' along.)' });
     for (const z of homes) choices.push({ label: 'GO TO ' + CZ.ZONES[z].name, fn: () => { sv.home = z; sv.state = 'travelling'; sv.arrive = S().day + 1; t.cz.person.leaving = true; S().stats.rescued++; log(sv.name + ' (' + sk.name + ') is making their way to ' + CZ.ZONES[z].name + '.'); HUD.toast(sv.name + ' will meet you at ' + CZ.ZONES[z].name, 'info'); t.removeFrom(G.scene); G.actors.splice(G.actors.indexOf(t), 1); } });
     if (!homes.length) choices.push({ label: 'FIND A SAFEHOUSE FIRST (WAIT HERE)', fn: () => { HUD.toast('Restore a safehouse, then come back for ' + sv.name, 'info'); } });
     choices.push({ label: 'HERE, TAKE SOME FOOD', fn: () => { const m = me().cz.m, f = ['bar', 'beans', 'water', 'apple'].find(id => m.inv[id] > 0); if (f) { CZ.take(m, f, 1); sv.state = 'gone'; HUD.toast(sv.name + ' thanks you and slips away', 'info'); const gift = ['a9', 'bandage', 'cloth', 'battery'][Math.floor(Math.random() * 4)]; CZ.add(m, gift, gift === 'a9' ? 12 : 1); HUD.toast('+ ' + CZ.itemName(gift), 'info'); t.cz.person.leaving = true; } else HUD.toast('You have no food to give', 'warn'); } });
@@ -190,7 +193,7 @@
   });
   OPS2.chain('interactions', function (a, out) {
     if (!CZ.on() || !a.isPlayer || GAME.client) return;
-    for (const e of G.ents) if (e.alive && e.czFix === 'uplink' && U.dist3(e.pos, a.pos.clone().setY(a.pos.y + 0.6)) < 1.8) { out.push({ kind: 'uplink', label: has('keycard') ? 'USE THE UPLINK' : 'THE UPLINK IS LOCKED (KEYCARD)', time: 1.2, ok: () => true, run: () => has('keycard') ? finale() : HUD.toast("The Commander's keycard opens it", 'warn') }); return; }
+    for (const e of G.ents) if (e.alive && e.czFix === 'uplink' && U.dist3(e.pos, a.pos.clone().setY(a.pos.y + 0.6)) < 1.8) { out.push({ kind: 'uplink', label: has('keycard') ? 'USE THE UPLINK' : 'THE UPLINK IS LOCKED (KEYCARD)', time: 1.2, ok: () => true, run: () => has('keycard') ? CZ.finale() : HUD.toast("The Commander's keycard opens it", 'warn') }); return; }
   });
 
   /* ---- the characters */
@@ -238,7 +241,7 @@
       { label: 'TAKE THE CASE', fn: () => { s.story.flags.mara = 'left'; CZ.add(m, 'culture', 1); log("We took Mara's culture. He stayed in the signal room. He wasn't going to leave it."); setTimeout(() => { if (t.state === 'alive') { const p = t.pos.clone(); t.die(null, false); if (CZ.on()) CZ.spawnInfected('runner', p).name = 'Mara'; } }, 20000); advance(); } }].filter(Boolean));
   }
   /* ---- the end of the road: the uplink */
-  CZ.finale = () => finale();
+  CZ.finale = () => { if (CZ.agentAtUplink && CZ.agentAtUplink()) return; finale(); };
   function finale() {
     const s = S(), homes = Object.keys(s.safe).filter(z => CZ.isSafe(z)), home = (s.survivors || []).filter(x => x.state === 'home').length;
     const canStay = homes.length >= 2 || home >= 4;

@@ -203,28 +203,35 @@
     let k = 0;
     for (const m of S.squad) {
       if (!m.alive) continue;
-      const op = DATA.OPMAP[m.op];
-      const lo = { primary: m.guns[0] ? m.guns[0].id : op.primaries[0], secondary: m.guns[1] ? m.guns[1].id : op.secondaries[0], gadget: op.gadgets[0], cos: {} };
-      const a = new Actor({ name: m.name, team: CZ.TEAM, side: 'atk', op, loadout: lo, isPlayer: m.player });
-      a.drones = 0; a.cz = { m };
-      a.hp = Math.max(1, Math.min(a.maxHp, m.hp));
-      // magazines as they were; reserves come from the pack (cityz-survival.js keeps them in step)
-      a.w.forEach((w, i) => { const g = m.guns[i]; if (g && g.mag >= 0) w.mag = Math.min(g.mag, w.def.mag || g.mag); w.reserve = 0; });
-      if (a.gadget && m.gad >= 0) a.gadget.count = m.gad;
-      if (a.ability && m.ab >= 0) a.ability.count = m.ab;
       const lat = (k - 2) * 1.2, fw = 2.5 + (k % 2) * 1.2;
       const p = V().set(ex.x + inward[0] * fw + (inward[0] ? 0 : lat), ex.y, ex.z + inward[1] * fw + (inward[1] ? 0 : lat));
-      const n = NAV.nearest(p, 8); a.pos.copy(n >= 0 ? NAV.nodePos(n) : p);
-      a.yaw = Math.atan2(-inward[0], -inward[1]);
-      if (!m.player || CZ.watching) { a.isPlayer = false; a.isBot = true; a.persona = PERSONA.make([]); AI.attach(a); a.bot.role = 'squad'; }
-      else G.player = a;
-      a.addTo(G.scene); G.actors.push(a);
-      a.match = { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: 0, human: !!m.player, me: !!m.player, op: op.id };
+      CZ.spawnMember(m, p, Math.atan2(-inward[0], -inward[1]));
       k++;
     }
     if (CZ.watching) { G.player = PLAYER.ghost(); return; }
     if (!G.player) { const a = G.actors.find(x => x.team === CZ.TEAM); if (a) CZ.takeControl(a, true); }
   }
+  /* one member of the squad into the place: an operator, or someone recruited on the way (a civilian
+     with their own name and look) */
+  CZ.spawnMember = function (m, p, yaw) {
+    let op = DATA.OPMAP[m.op];
+    if (m.recruit) op = Object.assign({}, op, { name: m.name, look: Object.assign({}, op.look, m.look || {}) });
+    const lo = { primary: m.guns[0] ? m.guns[0].id : op.primaries[0], secondary: m.guns[1] ? m.guns[1].id : op.secondaries[0], gadget: (op.gadgets || [])[0] || null, cos: {} };
+    const a = new Actor({ name: m.name, team: CZ.TEAM, side: 'atk', op, loadout: lo, isPlayer: m.player && !CZ.watching });
+    a.drones = 0; a.cz = { m };
+    a.hp = Math.max(1, Math.min(a.maxHp, m.hp));
+    // magazines as they were; reserves come from the pack (cityz-survival.js keeps them in step)
+    a.w.forEach((w, i) => { const g = m.guns[i]; if (g && g.mag >= 0) w.mag = Math.min(g.mag, w.def.mag || g.mag); w.reserve = 0; });
+    if (a.gadget && m.gad >= 0) a.gadget.count = m.gad;
+    if (a.ability && m.ab >= 0) a.ability.count = m.ab;
+    const n = NAV.nearest(p, 8); a.pos.copy(n >= 0 ? NAV.nodePos(n) : p);
+    a.yaw = yaw || 0;
+    if (!m.player || CZ.watching) { a.isPlayer = false; a.isBot = true; a.persona = PERSONA.make([]); AI.attach(a); a.bot.role = 'squad'; }
+    else G.player = a;
+    a.addTo(G.scene); G.actors.push(a);
+    a.match = { k: 0, d: 0, a: 0, s: 0, hs: 0, name: a.name, team: 0, human: !!m.player, me: !!m.player, op: op.id };
+    return a;
+  };
   /* the squad as it is now, into the save */
   function snapSquad() {
     for (const a of G.actors) {
@@ -285,13 +292,14 @@
     const mates = G.actors.filter(x => x.bot && x.team === CZ.TEAM && x.state === 'alive');
     const i = Math.max(0, mates.indexOf(a));
     const look = p.eye(V()).addScaledVector(p.fwd(V()), 10);
-    if (S.order === 'hold' && CZ.holdAt) {
+    const order = CZ.orderOf ? CZ.orderOf(a) : S.order;   // (cityz-people.js: not everyone jumps when told)
+    if (order === 'hold' && CZ.holdAt) {
       const ang = i * 1.6, spot = CZ.holdAt.clone().add(V().set(Math.cos(ang) * 1.4, 0, Math.sin(ang) * 1.4));
       const n = NAV.nearest(spot, 4);
       return { pos: n >= 0 ? NAV.nodePos(n) : CZ.holdAt, kind: 'hold', r: 1, look: CZ.holdLook || look, crouch: true };
     }
-    if (S.order === 'attack' && CZ.focus && CZ.focus.state === 'alive') return { pos: CZ.focus.pos.clone(), kind: 'push', r: 5, look: CZ.focus.eye(V()), sprint: true };
-    if (S.order === 'loot' && CZ.botLoot) { const g = CZ.botLoot(a); if (g) return g; }
+    if (order === 'attack' && CZ.focus && CZ.focus.state === 'alive') return { pos: CZ.focus.pos.clone(), kind: 'push', r: 5, look: CZ.focus.eye(V()), sprint: true };
+    if (order === 'loot' && CZ.botLoot) { const g = CZ.botLoot(a); if (g) return g; }
     // follow: a loose file behind the player, sprinting to catch up
     const d = U.dist3(a.pos, p.pos), back = p.fwd(V()).setY(0).normalize().multiplyScalar(-1);
     const side = V().set(-back.z, 0, back.x), off = back.multiplyScalar(1.8 + Math.floor(i / 2) * 1.6).addScaledVector(side, (i % 2 ? 1 : -1) * 1.3);

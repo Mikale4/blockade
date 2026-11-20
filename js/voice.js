@@ -136,7 +136,8 @@
     const gen = VOICE.GENERIC[a.side === 'def' ? 'def' : 'atk'];
     return gen && gen[ev];
   }
-  VOICE.say = function (a, ev, force) {
+  VOICE.say = function (a, ev, force, pri) {
+    if (Array.isArray(force)) return sayText(a, ev, force, pri);   // (a, key, [lines], priority): words of the caller's own
     if (!a || !a.op || a.hostage || a.dummy || a.ghost) return false;
     if (window.GAME && GAME.client) return false;            // (the host decides, and tells the guests)
     if (a.state === 'dead' && ev !== 'down') return false;
@@ -153,14 +154,34 @@
     if (window.NP && NP.active && NP.host) NP.push({ k: 'vo', a: a.id, e: ev, i });
     return true;
   };
+  /* a line written by the caller (City Z's people say what they feel and need): one of the lines given,
+     with the same pacing (a few seconds between lines from one person, longer for the same kind) */
+  function sayText(a, ev, L, pri) {
+    if (!a || !a.op || a.hostage || a.dummy || a.ghost || !L || !L.length) return false;
+    if (window.GAME && GAME.client) return false;
+    if (a.state === 'dead') return false;
+    const now = G.time, pr = pri || 2;
+    if (pr < 4) {
+      if (now - (lastBy.get(a) || -99) < (pr >= 3 ? 3 : 6)) return false;
+      const k = a.id + ':' + ev; if (now - (lastEv[k] || -99) < 12) return false; lastEv[k] = now;
+    }
+    lastBy.set(a, now);
+    const key = a.id + ':' + ev; let i = Math.floor(Math.random() * L.length); if (L.length > 1 && i === lastIdx[key]) i = (i + 1) % L.length; lastIdx[key] = i;
+    deliverText(a, L[i], pr);
+    if (window.NP && NP.active && NP.host) NP.push({ k: 'vo', a: a.id, t: L[i], p: pr });
+    return true;
+  }
+  VOICE.sayText = sayText;
   /* show it and speak it, if it reaches this player */
   function deliver(a, ev, i, pr) {
-    const me = G.player; if (!me) return;
     const L = linesFor(a, ev); if (!L || !L[i]) return;
+    deliverText(a, L[i], pr);
+  }
+  function deliverText(a, text, pr) {
+    const me = G.player; if (!me) return;
     const spect = !!(GAME && GAME.spectator) || me.ghost;
     const mine = a === me, team = !spect && a.team === me.team, near = U.dist3(a.pos, me.pos) < 14;
     if (!mine && !team && !near && !spect) return;
-    const text = L[i];
     if (G.settings.voiceLines !== false) show(a, text, !mine && !team && !spect);
     if (G.settings.voiceSpeech !== false && window.speechSynthesis && (pr >= 2 || !speechSynthesis.speaking)) speak(a, text, mine || team || spect ? 1 : 0.55);
   }
@@ -223,7 +244,7 @@
   // guests: what the host says
   if (window.OPS2) OPS2.chain('guestEvent', function (e) {
     if (e.k !== 'vo') return;
-    const a = NP.byId && NP.byId.get(e.a); if (a) deliver(a, e.e, e.i | 0, PRIO[e.e] || 1);
+    const a = NP.byId && NP.byId.get(e.a); if (a) { if (e.t) deliverText(a, String(e.t), e.p || 2); else deliver(a, e.e, e.i | 0, PRIO[e.e] || 1); }
     return true;
   });
 })();

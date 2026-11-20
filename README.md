@@ -342,6 +342,39 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     dressing, one made from cloth, one from a teammate (who makes a rag if that's all they have), the
     safehouse stash, or, with nothing at all, a strip torn from their clothes and pressed on it, which
     stops the bleeding (once a minute; your treat key does the same when your pack is empty).
+  - **People, not robots:** none of that is automatic. Every member of the squad (the five you start
+    with, and anyone who joins) is rolled fresh each campaign: one of eight kinds of person (the
+    veteran, the rookie, the loner, the carer, the hothead, the scholar, the joker, the cynic), each
+    with their own generosity, nerve, know-how, discipline, appetite and temper, one or two strengths
+    (medic, scrounger, pack mule, iron stomach, night owl, sharpshooter, handy, calm, tough) and one or
+    two flaws (clumsy, glutton, insomniac, squeamish, coward, short fuse, scatterbrain, hoarder, bad
+    back, anxious). When hunger, thirst, a wound, tiredness or the cold becomes something they act on
+    is their own, and shifts a little each day; and each time they think about it they roll whether to
+    act now. So one eats at the first pang and another waits until they're shaking; one hands over
+    their last can and a hoarder won't share at all ("Get your own"); the squeamish can't dress your
+    wound; the quick-witted boil their water and make dressings, others don't know how; the nervous
+    won't go off scavenging, least of all at night; orders are argued with, obeyed late, or refused for
+    a while. Asking a teammate for their supplies gets you what they're willing to part with.
+  - **Nerves:** everyone (you too) carries stress, shown as your NERVES bar and each teammate's mood
+    on the squad list. Wounds, hunger, the cold, sickness, the infected close, being alone or out in
+    the dark, a friend dying or panicking beside you all push it up; a safehouse, a fire, rest,
+    crouching still, comfort food (chocolate, stew, crisps), a steady teammate nearby and sleep bring it
+    down. It shakes your aim and sways your view, slows your hands with dressings and food, makes bad
+    choices likelier and keeps people awake at night; past their limit comes a panic attack: for you a
+    pounding heartbeat, tunnel vision and loud breathing the infected can hear; for a teammate,
+    freezing up, bolting, or charging in blind. Talk a teammate down (CALM ... DOWN, beside them);
+    steady teammates do it for each other, and for you.
+  - **Recruits and hidden agendas:** survivors you meet (and strangers sometimes waiting in places)
+    can join the squad, five at most including you; PART WAYS lets anyone go. You never know someone
+    straight away: their kind of person at once, their traits after a day, their intentions only when
+    they show them. Most are what they seem. Some are thieves who vanish in the night with half the
+    stash, plants who turn their gun on the squad in a fight, quitters who walk off when it gets bad,
+    people hiding a bite (a medic may spot it), Command's agent waiting for the uplink, or a field medic
+    hiding it until it counts. Even the starting crew can have one, different every run.
+  - **Bad food and dirty water:** dirty water (from tanks, troughs, sheds), dog food and unlabelled
+    tins may make you sick half a minute later: throwing up (losing food and water, loudly), short of
+    breath, thirsty, worn down if it's bad; antibiotics clear it. Boil dirty water by a campfire or at a
+    workbench (BOIL IT ALL); an iron stomach never minds.
   - **Objective markers** show where to go: the things and people the current objective needs, or
     the road toward the place it is in.
   - **The city:** ten places joined by roads (a firehouse street, Main Street, a refugee school, a
@@ -568,7 +601,7 @@ hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `ma
 `maps-xp1`, `maps-xp2` (the twelve machinery maps) · `cityz-data` (City Z's places, items, loot, recipes, infected) ·
 `cityz-zones` (building its places) · `cityz` (the persistent world, travel, the squad) · `cityz-infected` ·
 `cityz-survival` (needs, packs, searching, crafting, safehouses) · `cityz-ui` · `cityz-story` (campaign,
-people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, and watching) · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
+people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, and watching) · `cityz-people` (who the squad are: personalities, nerves and panic, recruits, hidden agendas) · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
 lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·

@@ -386,6 +386,8 @@
       let sx = 0, sy = 0;
       if (P.shakeT > 0) { sx = (Math.random() - 0.5) * P.shakeT * 0.06; sy = (Math.random() - 0.5) * P.shakeT * 0.06; }
       if (a.stun > 0) { sx += Math.sin(G.time * 3) * 0.02 * Math.min(1, a.stun); sy += Math.cos(G.time * 2.3) * 0.015 * Math.min(1, a.stun); }
+      // City Z: nerves (stress sways the view; a panic attack shakes it)
+      if (a.czSway > 0 && a.state === 'alive') { const k = a.czSway * (1 - a.ads * 0.5); sx += (Math.sin(G.time * 1.3) * 0.010 + Math.sin(G.time * 3.9) * 0.003) * k; sy += (Math.cos(G.time * 1.1) * 0.007 + Math.sin(G.time * 4.7) * 0.0025) * k; }
       cam.rotation.set(a.pitch + P.rec.p + sy, a.yaw + P.rec.y + sx, -a.lean * 0.16 + (a.rappel ? 0 : 0), 'YXZ');
       fov = s.fov / U.lerp(1, P.zoomNow(), a.ads);
       if (a.sprint && a.moving > 3.6) fov += 4;

@@ -58,23 +58,27 @@
   /* kg: weight. cat: food / drink / med / ammo / mat / throw / gear / weapon / quest. use: what using it
      does (cityz-survival.js). stack: how many share a slot */
   CZ.ITEMS = {
-    beans: { name: 'Canned Beans', cat: 'food', kg: 0.45, use: { hunger: -32 } },
-    soup: { name: 'Canned Soup', cat: 'food', kg: 0.45, use: { hunger: -25, thirst: -8 } },
-    bar: { name: 'Energy Bar', cat: 'food', kg: 0.1, use: { hunger: -14, stamina: 30 } },
-    mre: { name: 'Field Ration', cat: 'food', kg: 0.6, use: { hunger: -55, thirst: -10 } },
-    apple: { name: 'Apples', cat: 'food', kg: 0.3, use: { hunger: -12, thirst: -6 } },
-    crisps: { name: 'Crisps', cat: 'food', kg: 0.1, use: { hunger: -8, thirst: 6 } },
-    dogfood: { name: 'Dog Food', cat: 'food', kg: 0.5, use: { hunger: -28, sick: 10 } },
-    stew: { name: 'Hot Stew', cat: 'food', kg: 0.5, use: { hunger: -45, warmth: 3 } },
+    // sick + risk: the chance it makes you sick (an iron stomach never), and how badly. calm: what it does
+    // for the nerves (stress down; coffee puts it up)
+    beans: { name: 'Canned Beans', cat: 'food', kg: 0.45, use: { hunger: -32, calm: 3 } },
+    soup: { name: 'Canned Soup', cat: 'food', kg: 0.45, use: { hunger: -25, thirst: -8, calm: 6 } },
+    bar: { name: 'Energy Bar', cat: 'food', kg: 0.1, use: { hunger: -14, stamina: 30, calm: 3 } },
+    mre: { name: 'Field Ration', cat: 'food', kg: 0.6, use: { hunger: -55, thirst: -10, calm: 5 } },
+    apple: { name: 'Apples', cat: 'food', kg: 0.3, use: { hunger: -12, thirst: -6, calm: 3 } },
+    crisps: { name: 'Crisps', cat: 'food', kg: 0.1, use: { hunger: -8, thirst: 6, calm: 6 } },
+    choc: { name: 'Chocolate', cat: 'food', kg: 0.1, use: { hunger: -6, calm: 18 }, desc: 'Not much of a meal. Does wonders for the nerves.' },
+    dogfood: { name: 'Dog Food', cat: 'food', kg: 0.5, use: { hunger: -28, sick: 30, risk: 0.5 }, desc: 'Filling. Half the time it comes back up.' },
+    oldtin: { name: 'Unlabelled Tin', cat: 'food', kg: 0.45, use: { hunger: -30, sick: 30, risk: 0.35 }, desc: 'No label, a dent in the side, a bit swollen. Probably fine.' },
+    stew: { name: 'Hot Stew', cat: 'food', kg: 0.5, use: { hunger: -45, warmth: 3, calm: 15 } },
     water: { name: 'Bottled Water', cat: 'drink', kg: 0.5, use: { thirst: -40 } },
-    soda: { name: 'Can of Soda', cat: 'drink', kg: 0.35, use: { thirst: -22, hunger: -4 } },
-    dirtywater: { name: 'Dirty Water', cat: 'drink', kg: 0.5, use: { thirst: -30, sick: 25 } },
-    coffee: { name: 'Cold Coffee', cat: 'drink', kg: 0.3, use: { thirst: -12, fatigue: -18 } },
+    soda: { name: 'Can of Soda', cat: 'drink', kg: 0.35, use: { thirst: -22, hunger: -4, calm: 4 } },
+    dirtywater: { name: 'Dirty Water', cat: 'drink', kg: 0.5, use: { thirst: -30, sick: 35, risk: 0.7 }, desc: 'From a tank, a trough or a puddle. Boil it by a campfire or at a safehouse workbench first, or risk getting sick.' },
+    coffee: { name: 'Cold Coffee', cat: 'drink', kg: 0.3, use: { thirst: -12, fatigue: -18, calm: -6 } },
     rag: { name: 'Rag Dressing', cat: 'med', kg: 0.05, use: { bleed: -1 } },
     bandage: { name: 'Bandage', cat: 'med', kg: 0.05, use: { bleed: -3, hp: 5 } },
     splint: { name: 'Splint', cat: 'med', kg: 0.3, use: { fracture: true } },
-    painkillers: { name: 'Painkillers', cat: 'med', kg: 0.05, use: { hp: 12, pain: 90 } },
-    antibiotics: { name: 'Antibiotics', cat: 'med', kg: 0.05, use: { infection: -25, sick: -40 } },
+    painkillers: { name: 'Painkillers', cat: 'med', kg: 0.05, use: { hp: 12, pain: 90, calm: 8 } },
+    antibiotics: { name: 'Antibiotics', cat: 'med', kg: 0.05, use: { infection: -25, sick: -60 }, desc: 'Slows the infection a little. Cures a stomach bug.' },
     antiviral: { name: 'Antiviral (VX-7)', cat: 'med', kg: 0.05, use: { infection: -65 } },
     medkit: { name: 'First-Aid Kit', cat: 'med', kg: 0.6, use: { hp: 55, bleed: -9, fracture: true } },
     a9: { name: '9mm Rounds', cat: 'ammo', kg: 0.012 },
@@ -132,20 +136,20 @@
   /* what a container holds is drawn from the table its room's name points at, a few rolls each.
      [item, weight, min, max] */
   CZ.LOOT = {
-    kitchen: [['beans', 6, 1, 2], ['soup', 5, 1, 2], ['water', 6, 1, 2], ['soda', 4, 1, 2], ['crisps', 3, 1, 3], ['alcohol', 2, 1, 1], ['cloth', 2, 1, 2], ['coffee', 2, 1, 1], ['dogfood', 1, 1, 1]],
+    kitchen: [['beans', 6, 1, 2], ['soup', 5, 1, 2], ['water', 6, 1, 2], ['soda', 4, 1, 2], ['crisps', 3, 1, 3], ['alcohol', 2, 1, 1], ['cloth', 2, 1, 2], ['coffee', 2, 1, 1], ['dogfood', 1, 1, 1], ['oldtin', 2, 1, 1]],
     medical: [['bandage', 7, 1, 3], ['painkillers', 5, 1, 2], ['antibiotics', 3, 1, 1], ['medkit', 1, 1, 1], ['splint', 2, 1, 1], ['alcohol', 3, 1, 1], ['cloth', 3, 1, 2], ['antiviral', 0.4, 1, 1]],
     pharmacy: [['painkillers', 6, 1, 3], ['antibiotics', 5, 1, 2], ['bandage', 6, 2, 4], ['medkit', 2, 1, 1], ['antiviral', 0.8, 1, 1], ['chem', 2, 1, 1], ['water', 2, 1, 1]],
     workshop: [['scrap', 6, 1, 3], ['nails', 5, 1, 2], ['tape', 4, 1, 2], ['planks', 4, 1, 2], ['parts', 3, 1, 1], ['battery', 3, 1, 2], ['fuel', 1, 1, 1], ['chem', 2, 1, 1], ['engine', 0.6, 1, 1]],
-    office: [['parts', 3, 1, 1], ['battery', 4, 1, 2], ['tape', 2, 1, 1], ['coffee', 3, 1, 1], ['bar', 3, 1, 2], ['water', 3, 1, 1], ['torch', 0.6, 1, 1], ['a9', 1, 6, 15]],
-    home: [['beans', 3, 1, 1], ['water', 3, 1, 1], ['cloth', 5, 1, 3], ['bandage', 2, 1, 1], ['painkillers', 2, 1, 1], ['alcohol', 2, 1, 1], ['battery', 2, 1, 1], ['jacket', 0.5, 1, 1], ['raincoat', 0.5, 1, 1], ['pack_s', 0.4, 1, 1], ['a9', 1, 4, 12], ['a12', 0.8, 2, 6]],
-    shop: [['crisps', 4, 1, 3], ['soda', 4, 1, 2], ['water', 4, 1, 2], ['bar', 4, 1, 3], ['battery', 3, 1, 2], ['tape', 2, 1, 1], ['torch', 0.6, 1, 1], ['pack_s', 0.5, 1, 1], ['jacket', 0.4, 1, 1], ['flare', 1, 1, 2]],
-    store: [['beans', 3, 1, 2], ['firewood', 2, 1, 1], ['planks', 3, 1, 2], ['nails', 3, 1, 2], ['scrap', 3, 1, 2], ['cloth', 3, 1, 2], ['fuel', 1, 1, 1], ['water', 2, 1, 2], ['seeds', 1, 1, 2]],
+    office: [['parts', 3, 1, 1], ['battery', 4, 1, 2], ['tape', 2, 1, 1], ['coffee', 3, 1, 1], ['bar', 3, 1, 2], ['water', 3, 1, 1], ['choc', 1.5, 1, 1], ['torch', 0.6, 1, 1], ['a9', 1, 6, 15]],
+    home: [['beans', 3, 1, 1], ['water', 3, 1, 1], ['dirtywater', 2, 1, 1], ['oldtin', 1.5, 1, 1], ['choc', 1, 1, 1], ['cloth', 5, 1, 3], ['bandage', 2, 1, 1], ['painkillers', 2, 1, 1], ['alcohol', 2, 1, 1], ['battery', 2, 1, 1], ['jacket', 0.5, 1, 1], ['raincoat', 0.5, 1, 1], ['pack_s', 0.4, 1, 1], ['a9', 1, 4, 12], ['a12', 0.8, 2, 6]],
+    shop: [['crisps', 4, 1, 3], ['soda', 4, 1, 2], ['choc', 3, 1, 2], ['water', 4, 1, 2], ['bar', 4, 1, 3], ['battery', 3, 1, 2], ['tape', 2, 1, 1], ['torch', 0.6, 1, 1], ['pack_s', 0.5, 1, 1], ['jacket', 0.4, 1, 1], ['flare', 1, 1, 2]],
+    store: [['beans', 3, 1, 2], ['oldtin', 2, 1, 2], ['dirtywater', 2, 1, 2], ['firewood', 2, 1, 1], ['planks', 3, 1, 2], ['nails', 3, 1, 2], ['scrap', 3, 1, 2], ['cloth', 3, 1, 2], ['fuel', 1, 1, 1], ['water', 2, 1, 2], ['seeds', 1, 1, 2]],
     police: [['a9', 6, 10, 30], ['a45', 3, 6, 20], ['a12', 4, 4, 12], ['a556', 2, 10, 30], ['bandage', 3, 1, 2], ['flare', 2, 1, 2], ['gun:p10', 1.2, 1, 1], ['gun:salvo9', 0.6, 1, 1], ['gun:gale12', 0.5, 1, 1], ['pack_l', 0.3, 1, 1]],
     military: [['a556', 7, 15, 45], ['a762', 4, 10, 30], ['a9', 4, 15, 30], ['a12', 3, 6, 16], ['mre', 5, 1, 3], ['water', 4, 1, 2], ['medkit', 2, 1, 1], ['bandage', 4, 1, 3], ['pipebomb', 1, 1, 1], ['powder', 2, 1, 3], ['gun:mako', 0.8, 1, 1], ['gun:vkr5', 0.6, 1, 1], ['gun:razor', 0.4, 1, 1], ['gun:tallow', 0.2, 1, 1], ['pack_l', 0.6, 1, 1], ['antiviral', 0.3, 1, 1]],
-    farm: [['apple', 6, 1, 3], ['firewood', 3, 1, 2], ['seeds', 4, 1, 3], ['planks', 4, 1, 2], ['nails', 3, 1, 2], ['fuel', 2, 1, 1], ['a12', 2, 2, 8], ['cloth', 3, 1, 2], ['alcohol', 2, 1, 1], ['gun:gale12', 0.4, 1, 1], ['gun:longbow', 0.2, 1, 1]],
-    garage: [['fuel', 4, 1, 1], ['scrap', 5, 1, 3], ['engine', 2, 1, 1], ['tape', 3, 1, 2], ['battery', 3, 1, 2], ['parts', 2, 1, 1], ['chem', 2, 1, 1], ['nails', 2, 1, 2]],
-    school: [['bar', 4, 1, 2], ['water', 4, 1, 2], ['soda', 3, 1, 1], ['bandage', 3, 1, 2], ['cloth', 3, 1, 2], ['battery', 2, 1, 1], ['parts', 2, 1, 1], ['chem', 1.5, 1, 1], ['painkillers', 1.5, 1, 1]],
-    any: [['cloth', 4, 1, 2], ['scrap', 3, 1, 1], ['water', 3, 1, 1], ['beans', 2, 1, 1], ['bandage', 2, 1, 1], ['tape', 1, 1, 1], ['battery', 1, 1, 1], ['a9', 1, 4, 10], ['alcohol', 1, 1, 1]],
+    farm: [['apple', 6, 1, 3], ['dirtywater', 4, 1, 2], ['firewood', 3, 1, 2], ['seeds', 4, 1, 3], ['planks', 4, 1, 2], ['nails', 3, 1, 2], ['fuel', 2, 1, 1], ['a12', 2, 2, 8], ['cloth', 3, 1, 2], ['alcohol', 2, 1, 1], ['gun:gale12', 0.4, 1, 1], ['gun:longbow', 0.2, 1, 1]],
+    garage: [['fuel', 4, 1, 1], ['dirtywater', 1.5, 1, 1], ['scrap', 5, 1, 3], ['engine', 2, 1, 1], ['tape', 3, 1, 2], ['battery', 3, 1, 2], ['parts', 2, 1, 1], ['chem', 2, 1, 1], ['nails', 2, 1, 2]],
+    school: [['bar', 4, 1, 2], ['choc', 1.5, 1, 1], ['water', 4, 1, 2], ['soda', 3, 1, 1], ['bandage', 3, 1, 2], ['cloth', 3, 1, 2], ['battery', 2, 1, 1], ['parts', 2, 1, 1], ['chem', 1.5, 1, 1], ['painkillers', 1.5, 1, 1]],
+    any: [['cloth', 4, 1, 2], ['scrap', 3, 1, 1], ['water', 3, 1, 1], ['dirtywater', 1.5, 1, 1], ['oldtin', 1, 1, 1], ['beans', 2, 1, 1], ['bandage', 2, 1, 1], ['tape', 1, 1, 1], ['battery', 1, 1, 1], ['a9', 1, 4, 10], ['alcohol', 1, 1, 1]],
   };
   /* a room's name -> its loot table */
   CZ.LOOT_BY_ROOM = [
@@ -182,8 +186,8 @@
     { id: 'a12', makes: ['a12', 6], needs: { scrap: 1, powder: 1 }, bench: 1 },
     { id: 'a762', makes: ['a762', 8], needs: { scrap: 2, powder: 2 }, bench: 2 },
     { id: 'medkit', makes: ['medkit', 1], needs: { bandage: 2, painkillers: 1, alcohol: 1 }, bench: 1 },
-    { id: 'stew', makes: ['stew', 1], needs: { beans: 1, water: 1 }, bench: 1, fire: true },
-    { id: 'purify', makes: ['water', 1], needs: { dirtywater: 1 }, bench: 1, fire: true },
+    { id: 'stew', makes: ['stew', 1], needs: { beans: 1, water: 1 }, bench: 0, fire: true },
+    { id: 'purify', makes: ['water', 1], needs: { dirtywater: 1 }, bench: 0, fire: true },
     { id: 'powder', makes: ['powder', 2], needs: { chem: 1 }, bench: 2 },
   ];
 

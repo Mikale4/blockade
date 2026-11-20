@@ -101,7 +101,7 @@
         if (!a.czThreat) { st.fatigue = Math.max(40, st.fatigue - dt * (a.stance > 0 ? 0.45 : 0.22) * (G.map.inside(a.pos) ? 1.3 : 1)); a.czResting = true; }
       }
       // stamina: sprinting spends it; you get it back walking, slower when hungry, thirsty or exhausted
-      const smax = st.fatigue >= 95 ? 45 : st.fatigue > 80 ? 75 : 100;
+      const smax = Math.min(st.fatigue >= 95 ? 45 : st.fatigue > 80 ? 75 : 100, st.sick > 30 ? 70 : 100);
       if (a.sprint && a.moving > 0.5) st.stamina = Math.max(0, st.stamina - 13 * dt);
       else st.stamina = Math.min(smax, st.stamina + 15 * dt * (st.hunger > 75 || st.thirst > 75 ? 0.5 : 1));
       if (st.stamina <= 0) a.czWinded = G.time + 2.5;
@@ -109,7 +109,23 @@
       if (st.bleed > 0) { a.czBleedAcc = (a.czBleedAcc || 0) + dt * st.bleed * 0.55; if (a.czBleedAcc >= 1) { const n = Math.floor(a.czBleedAcc); a.czBleedAcc -= n; a.hurt(n, { kind: 'bleed' }); if (Math.random() < 0.3) FX.blood && FX.blood(a.center(V()), 0, -1, 0); } }
       if (st.hunger >= 100) a.hurt(0.25 * dt, { kind: 'starve' });
       if (st.thirst >= 100) a.hurt(0.35 * dt, { kind: 'starve' });
-      if (st.sick > 0) { st.sick = Math.max(0, st.sick - 0.25 * dt); if (Math.random() < dt * 0.04) GAME.noise(a.pos, 8, a, 'step'); }
+      // a bad tin or dirty water: it hits half a minute or so later, and then you're sick for a while (a
+      // dose of antibiotics clears it): throwing up (what was eaten and drunk comes back up, loudly),
+      // thirsty, short of breath, and a bad bout wears you down
+      if (a.czQueasy && G.time > a.czQueasy.t) {
+        st.sick = Math.min(100, st.sick + a.czQueasy.n); a.czQueasy = null;
+        CZ.tell(a, 'Your stomach turns over: something you ate or drank was bad', 'warn');
+        if (a.bot && window.VOICE) VOICE.say(a, 'sick', ['Oh no. Oh, that water...', "I'm going to be sick.", 'Should not have eaten that.'], 3);
+      }
+      if (st.sick > 0) {
+        st.sick = Math.max(0, st.sick - 0.12 * dt);
+        if (Math.random() < dt * (0.012 + st.sick / 100 * 0.04) && !(a.busy > 0)) {
+          st.thirst = Math.min(100, st.thirst + 8); st.hunger = Math.min(100, st.hunger + 6);
+          GAME.noise(a.pos, 12, a, 'step'); a.busy = 1.6; a.busyLabel = 'THROWING UP';
+          if (a.isPlayer) { CZ.tell(a, 'You threw up', 'warn'); if (PLAYER.punch) PLAYER.punch(0.35); }
+        }
+        if (st.sick > 50) a.hurt(0.04 * dt, { kind: 'starve' });
+      }
       st.pain = Math.max(0, (st.pain || 0) - dt);
       // the infection: once it has a hold it grows by itself; at 100 they turn
       if (st.infection > 30) st.infection = Math.min(100, st.infection + 0.018 * dt * diff.infect);
@@ -170,7 +186,9 @@
     if (a.busy > 0) return false;
     const u = it.use, st = m.st;
     CZ.take(m, id, 1);
-    a.busy = USE_T[it.cat] || 2; a.busyLabel = it.cat === 'med' ? 'TREATING' : it.cat === 'drink' ? 'DRINKING' : 'EATING';
+    // stressed hands are slower ones
+    const P = CZ.P && CZ.P(a), shaky = P ? 1 + P.stress / 250 : 1;
+    a.busy = (USE_T[it.cat] || 2) * shaky; a.busyLabel = it.cat === 'med' ? 'TREATING' : it.cat === 'drink' ? 'DRINKING' : 'EATING';
     setTimeout(() => {
       if (a.state !== 'alive') return;
       if (u.hunger) st.hunger = U.clamp(st.hunger + u.hunger, 0, 100);
@@ -180,14 +198,26 @@
       if (u.bleed) st.bleed = Math.max(0, st.bleed + u.bleed);
       if (u.fracture) st.fracture = false;
       if (u.infection) st.infection = Math.max(0, st.infection + u.infection);
-      if (u.sick) st.sick = Math.max(0, st.sick + u.sick);
+      if (u.sick < 0) st.sick = Math.max(0, st.sick + u.sick);
+      else if (u.sick && !(CZ.has && CZ.has(a, 'ironstomach')) && Math.random() < (u.risk == null ? 1 : u.risk)) a.czQueasy = { n: u.sick, t: G.time + 20 + Math.random() * 30 };
+      if (u.calm && P) P.stress = U.clamp(P.stress - u.calm, 0, 100);
       if (u.pain) st.pain = u.pain;
       if (u.warmth) st.temp = Math.min(37.4, st.temp + u.warmth * 0.3);
       if (u.hp) a.heal(u.hp);
       m.hp = a.hp;
       if (!quiet) CZ.tell(a, 'Used ' + it.name, 'info');
       if (a.isPlayer) SFX.ui(700);
-    }, (USE_T[it.cat] || 2) * 900);
+    }, (USE_T[it.cat] || 2) * 900 * shaky);
+    return true;
+  };
+  /* boiling dirty water: by a campfire, or at a safehouse workbench (its stove). All of it at once */
+  CZ.canBoil = a => !!(a && a.cz && a.cz.m && (a.cz.m.inv.dirtywater || 0) > 0 && (nearFire(a) || CZ.benchLevel(a) > 0));
+  CZ.boil = function (a) {
+    if (CZ.isGuest && CZ.isGuest()) { CZ.ask('craft', { rid: 'purify' }); return true; }
+    if (!CZ.canBoil(a) || a.busy > 0) return false;
+    const m = a.cz.m, n = Math.min(4, m.inv.dirtywater);
+    a.busy = 2 + n; a.busyLabel = 'BOILING WATER';
+    setTimeout(() => { if (a.state !== 'alive' || !CZ.on()) return; const k = Math.min(n, m.inv.dirtywater || 0); if (!k) return; CZ.take(m, 'dirtywater', k); m.inv.water = (m.inv.water || 0) + k; CZ.tell(a, 'Boiled ' + k + ' × dirty water: safe to drink', 'info'); }, (2 + n) * 900);
     return true;
   };
   /* the quick heal key: whatever helps most right now */
@@ -270,6 +300,7 @@
     }
     return out;
   }
+  CZ.rollLoot = rollLoot;
   function makeContainer(pos, id, label, model, items, table) {
     const e = new GAD.Ent('czloot', null, pos, { model, upright: true, yaw: Math.random() * 6.28, hp: 999, hitR: 0, melee: false, team: -1 });
     e.bulletproof = true; e.blastproof = true; e.meleeable = false; e.cid = id; e.label = label; e.items = items || null; e.table = table || 'any';

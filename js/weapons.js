@@ -126,6 +126,7 @@
     // a sidearm fired one-handed from beside the shield is loose; aiming past its edge tightens it
     if (a.shieldOp && a.shieldUp) s += 1.4 * (1 - a.ads);
     if (a.isBot) s += a.bot ? a.bot.extraSpread || 0 : 0;
+    if (a.czShake) s += a.czShake;                             // City Z: shaking hands (stress, panic)
     return s;
   };
 
