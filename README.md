@@ -217,7 +217,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   model and the bars change), click to fit it.
 - **Pick your spawn:** in operator select every player chooses their own spawn. Attackers pick
   one of the map's outdoor spawns; defenders pick the objective or another room in the building.
-- **18 maps.** Every map is a compound in several parts: three to five joined buildings, 45 to 90
+- **30 maps.** The first eighteen are compounds in several parts: three to five joined buildings, 45 to 90
   rooms on three or four floors, a double-height centrepiece, a dozen or more ways in from
   outside, enclosed stairwells and open flights between every pair of floors, 8 to 26 hatches,
   5 to 7 bomb-site pairs spread over different floors and wings, plus Secure Area and Hostage
@@ -271,6 +271,38 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     lab, visitor, arid-house and water-plant wings (late afternoon)
   - **Foundry**: a steelworks. The casting hall round its blast furnace with glowing runners in
     the floor, a rolling mill, a power house, an office block (smoky sunset)
+
+  And twelve built round a working machine (seasons 15-18). Each is one or two buildings, 35 to 56
+  rooms on three or four floors, and its machinery (`js/mapmech.js`) is set up fresh every round;
+  players work it with the interact key, bots work it when it helps them, and guests see it move:
+  - **Underline**: a metro interchange. A train comes through the platform hall every 45 s, horn
+    first; anyone on the track is killed (night)
+  - **Zenith Tower**: the top floors of a glass tower. A window cleaner's gondola rides the facade
+    between all three floors (clear day)
+  - **Vaultline**: a bank headquarters. The security desk drops steel grilles across the banking
+    hall and the vault corridor, and blacks out the vault level (grey afternoon)
+  - **Mercy General**: a hospital. A working lift serves all four floors (bots ride it too); the
+    emergency power can black out the wards (night)
+  - **Galleria**: a shopping centre. The escalators carry whoever stands on them, and the shop
+    grilles come down and go up every 50 s (bright day)
+  - **Aquarium**: break enough of the great tank's glass and the ocean hall floods; a sluice floods
+    the basement. Wading is slow and loud, and the water kills electronics (blue hour)
+  - **Skygate**: an airport. A jet bridge shuttles between gate seven and the door of a parked
+    airliner (airstairs at its back door); baggage belts carry you between the baggage hall and
+    check-in (bright morning)
+  - **Deepcut**: a colliery. The cage runs the shaft from the mine level to the headframe floor
+    (bots ride it); in the old workings six timber props hold up the pithead floor, and when most
+    of their wood is gone it comes down on whoever is under it (wet evening)
+  - **Liftbridge**: a canal basin. The lifting bridge goes up from its control room and by itself
+    every minute; the other way across is a footbridge high over the water (dusk)
+  - **Broadcast House**: a television centre. The lighting desk blacks out the studio floor, and
+    two scenery flats run along their tracks, opening one line and closing another (election night)
+  - **Coldstore**: a data centre in the snow. Each of its three data halls has its own gas
+    suppression, pulled from outside: an alarm, then twelve seconds of gas that blinds and hurts
+    (snow)
+  - **Timberline**: a sawmill. The log carriage runs the length of the saw hall carrying a log
+    (moving cover, or a ride); a blast on the sawdust starts a fire that creeps across the floor
+    (misty morning)
 
   New maps go in their own file (`js/maps-*.js`) and register with `MAPS.define`; see
   [tools/MAPS.md](tools/MAPS.md). `node tools/mapcheck.js` builds every map headlessly and
@@ -472,7 +504,9 @@ match itself are not.
 `util` (helpers, settings, key bindings) · `data` (materials, weapons, gadgets, operators) ·
 `world` (voxel storage, meshing, rays, destruction) · `maps` (map builder, range,
 attacker spawns and their cover) · `maps-kit` (floor-plan layout kit: doors, windows, stairwells,
-hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `maps-millrace` (the 18 maps) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
+hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `maps-millrace` (the first 18 maps) ·
+`maps-xp1`, `maps-xp2` (the twelve machinery maps) · `mapmech` (their machinery: lifts, moving platforms, trains,
+lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·
 `ops3-a`, `ops3-b`, `ops3-c`, `ops3-d` (the seasons 15-18 operators, on the same registry) · `voice` (operator voice lines) ·

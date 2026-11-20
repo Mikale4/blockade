@@ -107,18 +107,30 @@ Feint's charges · Gust blows back Stain's dye and Lodestone's charge · Drag + 
 ## 3. The 12 maps (each with a mechanic)
 | # | Map | Place | Mechanic | Status |
 |---|---|---|---|---|
-| 1 | TERMINUS | rail and bus interchange | freight lift between three levels; a shuttle train through the platform every 70 s | planned |
-| 2 | SLUICEWAY | hydro dam | sluice valves flood or drain the lower galleries (water slows, kills electronics) | planned |
-| 3 | COPPERLINE | refinery | gas valves light pipe flares that block corridors for 15 s | planned |
-| 4 | HALCYON TOWER | penthouse floors | facade gondola moving between floors; glass atrium | planned |
-| 5 | STRONGHOLD | bank | security room toggles lockdown shutters and the lights | planned |
-| 6 | STARGAZE | mountain observatory | the dome rotates, moving the slot (a sightline) round the hill | planned |
-| 7 | SALTMARSH | cannery on the coast | the tide rises through the round and floods the ground floor | planned |
-| 8 | UNDERLINE | metro interchange | trains through the tunnels (deadly); vent fans clear or pull smoke | planned |
-| 9 | VERDANT | greenhouse lab | controllable vents spread or clear gas; misting fog | planned |
-| 10 | GRAND REGAL | old cinema | stage lighting rig: lights, spotlights, blackout; fly bars drop scenery | planned |
-| 11 | DEEPCUT | mine outpost | lift cage between levels; mine-cart cover on rails; props hold a ceiling up | planned |
-| 12 | LIFTBRIDGE | harbour lift bridge | the bridge raises and lowers, changing the way across | planned |
+As built. Several planned names were replaced because the game already had that kind of place (a dam,
+an observatory, a cannery, a theatre, a greenhouse dome, a rail depot): TERMINUS, SLUICEWAY,
+COPPERLINE, STARGAZE, SALTMARSH, VERDANT and GRAND REGAL became the maps below. Halcyon Tower was built as
+Zenith Tower and Stronghold as Vaultline.
+
+| # | Map | Place | Mechanic | Status |
+|---|---|---|---|---|
+| 1 | UNDERLINE | metro interchange | a train through the platform hall every 45 s, horn first; deadly on the track | built · tested (horn, a man on the track killed) · bot round, no errors |
+| 2 | ZENITH TOWER | penthouse floors of a glass tower | facade gondola between the three floors | built · tested (carries a rider up a floor) · bot round, no errors |
+| 3 | VAULTLINE | bank HQ | security desk: lockdown grilles; vault-level lights | built · tested (261 bars; a route 16.5 -> 30.7 m; dark blocks sight past 6 m) · bot round, no errors |
+| 4 | MERCY GENERAL | hospital | a lift on four floors (bots ride it); ward blackout | built · tested (called, ridden; 6 lift links) · bot round, no errors |
+| 5 | GALLERIA | shopping centre | escalators that carry you; shop grilles every 50 s | built · tested (3.9 m along and 2.75 m up in 4 s; grilles) · bot round, no errors |
+| 6 | AQUARIUM | public aquarium | the great tank breaks and floods the hall; a sluice floods the basement | built · tested (floods to 1 m, wading at 60% speed) |
+| 7 | SKYGATE | airport | jet bridge between the gate and an airliner; baggage belts between floors | built · tested (gate to aircraft door and back with a rider) |
+| 8 | DEEPCUT | colliery | the cage in the shaft (bots ride it); timber props hold the pithead floor up | built · tested (a bot rode the cage 0.25 -> 6.25 m; the floor fell, the man under it hit for 45) |
+| 9 | LIFTBRIDGE | canal basin | lifting bridge from a lever and every 60 s; a high footbridge | built · tested (lever up and down, raises itself on its timer) |
+| 10 | BROADCAST HOUSE | TV centre | lighting desk blackout; two sliding scenery flats | built · tested (both flats out and back; five rooms dark) |
+| 11 | COLDSTORE | data centre | gas suppression in each of three data halls | built · tested (alarm, gas, 25 damage to a man inside) |
+| 12 | TIMBERLINE | sawmill | log carriage with a log on it; sawdust fires that creep | built · tested (a rider carried 14 m; one blast became three fires) |
+
+Every map passes `node tools/mapcheck.js` (objectives exist, every room reachable, a route from each
+attacker spawn to every objective, stairs connect, spawns unseen from windows). Presentation: each has a
+description, a lighting theme, a menu card tint and named rooms (the callouts); there is no separate
+loading-screen art or per-map soundscape yet.
 
 ## 4. City Z (summary; the full design is written in the City Z phase)
 **A persistent world, not a list of missions** (added 2026-11-20): one saved wasteland. You travel
@@ -150,8 +162,10 @@ dynamic events, day and night and weather, and a story campaign in chapters with
 | HUD readings for guests (gauge alerts, glints, bearings, afterimages, mic bearings, sniffer alerts) | built: sent host to guest as they are made |
 | Victory poses and selection-screen artwork beyond the live busts | planned (polish phase) |
 | Unique first-person hands per operator | partial: arms take each operator's colours; no per-operator hand models yet |
-| Maps 1-6 | planned |
-| Maps 7-12 | planned |
+| Maps 1-6 (Underline, Zenith Tower, Vaultline, Mercy General, Galleria, Aquarium) | built · mechanics tested · bot rounds |
+| Maps 7-12 (Skygate, Deepcut, Liftbridge, Broadcast House, Coldstore, Timberline) | built · mechanics tested · bot rounds |
+| Bots and the machinery | bots ride lifts on their paths; any bot beside a panel works it when it helps its side (gas on enemies, lights out on attackers, grilles down, bridge up, flats moved, a flood on enemies); one defender in two rounds holds the room with the panel nearest him |
+| Per-map loading-screen art and soundscapes | not built (the maps use the shared card, theme and ambience) |
 | City Z: everything | planned |
 
 ## 6. Notes from testing

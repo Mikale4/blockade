@@ -16,7 +16,7 @@
       this.w = new VW.World(W, H, D);
       this.W = W; this.H = H; this.D = D;
       this.meta = {
-        id, name, rooms: [], openings: [], hatches: [], spawns: [], cams: [], flights: [], fences: [],
+        id, name, rooms: [], openings: [], hatches: [], spawns: [], cams: [], flights: [], fences: [], mech: [],
         bombs: [], secure: [], hostage: [], buildings: [], theme: {}, desc: '',
       };
     }
@@ -1356,6 +1356,18 @@
     for (const p of [...meta.spawns, ...meta.cams]) { p.x += dx * VS; p.z += dz * VS; }
     for (const b of meta.buildings) { b.x += dx; b.z += dz; b.x1 += dx; b.z1 += dz; }
     for (const f of meta.fences) { f.x0 += dx; f.x1 += dx; f.z0 += dz; f.z1 += dz; }
+    // map mechanics (js/mapmech.js): voxel points and inclusive voxel ranges, in world voxels
+    for (const m of meta.mech || []) mechPts(m, x => x + dx, z => z + dz, x => x + dx, z => z + dz);
+  }
+  /* every coordinate a mechanic carries: x/z points, x0..x1 / z0..z1 ranges, and the same inside its
+     .pts list (stops, waypoints) and .boxes list */
+  function mechPts(m, fx, fz, hx, hz) {
+    const one = o => {
+      if (o.x != null) o.x = fx(o.x); if (o.z != null) o.z = fz(o.z);
+      if (o.x0 != null) { o.x0 = fx(o.x0); o.x1 = hx(o.x1); } if (o.z0 != null) { o.z0 = fz(o.z0); o.z1 = hz(o.z1); }
+    };
+    one(m); for (const p of m.pts || []) one(p); for (const b of m.boxes || []) one(b);
+    for (const k of ['panel', 'lever', 'valve', 'tank']) if (m[k]) one(m[k]);
   }
   /* grow the world by pw/pn/pe/ps voxels on its west/north/east/south sides: the new ground is the
      edge's ground carried straight out (bedrock, subsoil and its surface, never anything on it) */
@@ -1547,6 +1559,7 @@
       const lx = f.x0 === f.x1, lz = f.z0 === f.z1;   // a fence along z keeps one x, and the other way round
       f.x0 = vx(f.x0); f.x1 = lx ? f.x0 : hx(f.x1); f.z0 = vz(f.z0); f.z1 = lz ? f.z0 : hz(f.z1);
     }
+    for (const m of meta.mech || []) mechPts(m, vx, vz, hx, hz);
   }
 
   /* add a map, or replace one of the same id (other files: js/maps-*.js).
@@ -1580,5 +1593,5 @@
     return meta;
   }
 
-  window.MAPS = { LIST, THEMES, build, GY, VS, viewpoints, spawnSpots, Builder, Bld, COVER, WING, COVER_OF, define };
+  window.MAPS = { LIST, THEMES, build, GY, VS, viewpoints, spawnSpots, Builder, Bld, COVER, WING, COVER_OF, define, mechPts };
 })();
