@@ -25,7 +25,7 @@ API = 'https://api.elevenlabs.io/v1'
 MODEL = 'eleven_flash_v2_5'          # quick and cheap; fine for short radio calls
 FORMAT = 'mp3_22050_32'              # small files: a two-second call is about 8 KB
 FLOOR = 150                          # credits always left untouched
-START_RATE = 0.2                     # credits per character to assume at first (this account's flash rate measured 0.11)
+START_RATE = 0.3                     # credits per character to assume at first (Flash cost this account about 0.2)
 SETTINGS = {'stability': 0.45, 'similarity_boost': 0.8, 'style': 0.2, 'use_speaker_boost': True}
 
 
