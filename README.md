@@ -328,7 +328,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     follows the objectives, restores and builds at safehouses, sleeps there, loots and travels on.
   - **The squad looks after itself** (playing or watching): each AI teammate treats its own wounds,
     eats, drinks and re-arms, makes a dressing or splint when it has the cloth or planks, hands
-    spares (dressings, food, water, rounds) to whoever needs them, you included, calls out what it
+    spares (dressings, food, water, rounds) to whoever needs them, you included (its last food or water
+    too, to anyone close to starving or clearly worse off than itself), calls out what it
     needs when nobody has it (shown on the squad list), scavenges nearby rooms of the right kind for
     it, and throws molotovs and pipe bombs into packs of infected. A wound is never left: its own
     dressing, one made from cloth, one from a teammate (who makes a rag if that's all they have), the

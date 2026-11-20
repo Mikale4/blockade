@@ -56,8 +56,15 @@
     return NEED[need].ids.find(id => (m.inv[id] || 0) > 0 && !(id === 'dirtywater' && st.thirst < 88) && !(id === 'dogfood' && st.hunger < 85) && !(id === 'painkillers' && need === 'fracture' && (m.inv.splint || 0) > 0));
   }
   /* can it be spared? (keep one for yourself unless you have plenty) */
-  function spare(m, id, giver, need) {
+  function spare(m, id, giver, need, t) {
     const n = m.inv[id] || 0; if (!n) return 0;
+    // food and water: one to spare goes freely; the last one goes to someone clearly worse off, or to
+    // anyone close to starving (unless the giver is just as close)
+    if (need === 'hunger' || need === 'thirst') {
+      if (n > 1) return 1;
+      const gs = giver.cz.m.st[need] || 0, ts = t && t.cz ? t.cz.m.st[need] || 0 : 0;
+      return (ts >= 80 && gs < 85) || ts - gs >= 20 ? 1 : 0;
+    }
     if ((need === 'bleed' || need === 'hurt') && NEED.bleed.ids.includes(id)) return giver.cz.m.st.bleed > 0 && n < 2 ? 0 : 1;
     if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo') { const keep = giver.w.some(w => CZ.calOf(w.id) === id) ? ((giver.w[0] && giver.w[0].def.mag) || 20) * 2 : 0; return Math.max(0, Math.min(n - keep, 60)); }
     return n > 1 || !needsOf(giver).length ? 1 : 0;
@@ -150,7 +157,9 @@
     // and help: the nearest teammate (you too) with a need this one can answer
     if (hot || a.czGiveT > G.time) return;
     for (const t of squad()) {
-      if (t === a || U.dist3(t.pos, a.pos) > 16 || t.czTendT > G.time || (t.busy > 0 && /IMPROVISING|TREATING/.test(t.busyLabel || ''))) continue;
+      // someone starving or bleeding badly is worth going further for
+      const ts = t.cz.m.st, urgent = ts.hunger >= 80 || ts.thirst >= 80 || ts.bleed >= 2;
+      if (t === a || U.dist3(t.pos, a.pos) > (urgent ? 40 : 16) || t.czTendT > G.time || (t.busy > 0 && /IMPROVISING|TREATING/.test(t.busyLabel || ''))) continue;
       for (const need of needsOf(t)) {
         let id = need === 'ammo' ? calOf(t) : itemIn(m, need, t);
         if (!id && need === 'bleed' && craftOwn(a, 'rag')) id = 'rag';
@@ -160,7 +169,7 @@
           return;
         }
         if (!id) continue;
-        const n = spare(m, id, a, need);
+        const n = spare(m, id, a, need, t);
         if (!n) continue;
         a.czGiveT = G.time + 8;
         a.bot.tasks.unshift({ at: t.pos.clone(), time: 0.6, run: x => {
