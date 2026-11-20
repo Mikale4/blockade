@@ -137,6 +137,7 @@
     return gen && gen[ev];
   }
   VOICE.say = function (a, ev, force, pri) {
+    if (VOICE.mute && a && VOICE.mute(a)) return false;           // (a mode can silence some: City Z's infected)
     if (Array.isArray(force)) return sayText(a, ev, force, pri);   // (a, key, [lines], priority): words of the caller's own
     if (!a || !a.op || a.hostage || a.dummy || a.ghost) return false;
     if (window.GAME && GAME.client) return false;            // (the host decides, and tells the guests)

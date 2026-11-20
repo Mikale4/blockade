@@ -127,7 +127,7 @@
   /* Will they do it, now? A chance from how bad things are (sev 0..1) and who they are, rolled each
      time they think about it (every second and a half or so): so action comes after a delay that is
      theirs, and sometimes not at all */
-  CZ.decide = function (a, kind, sev) {
+  CZ.decide = function (a, kind, sev, who) {
     const p = CZ.P(a); if (!p) return true;
     const t = p.t, st = p.stress / 100, F = f => p.flaws.includes(f), K = k => p.perks.includes(k);
     sev = clamp01(sev);
@@ -148,6 +148,8 @@
       case 'risky': c = 0.05 + sev * 0.6 + (1 - t.smarts) * 0.3 + (F('glutton') ? 0.15 : 0); break;   // eat or drink something that might make them sick
       default: c = 0.5 + sev * 0.3;
     }
+    // for someone in particular: a friend gets more, someone they can't stand much less (cityz-bonds.js)
+    if (who && CZ.relOf && (kind === 'share' || kind === 'help')) c += CZ.relOf(a, who) / 200;
     return Math.random() < clamp01(c);
   };
 
@@ -166,8 +168,10 @@
       let refuse = 0;
       if (kind === 'hold' && (p.flaws.includes('hothead') || t.disc < 0.25) && Math.random() < 0.5) refuse = R(8, 20);
       if ((kind === 'attack' || kind === 'loot') && t.nerve < 0.35 && Math.random() < 0.3 + st * 0.5) refuse = R(6, 18);
+      const rel = CZ.relOf && G.player ? CZ.relOf(a, G.player) : 0;
+      if (!refuse && rel < -40 && Math.random() < 0.15 + (-rel - 40) / 120) { refuse = R(8, 20); a.czOrder = { kind: before || 'follow', until: G.time + refuse }; if (window.VOICE) VOICE.say(a, 'no', ['Why should I listen to you?', "You're not the boss of me.", 'Do it yourself.'], 3); continue; }
       if (refuse) { a.czOrder = { kind: before || 'follow', until: G.time + refuse }; if (window.VOICE) VOICE.say(a, 'no', kind === 'hold' ? ['Hold? With them out there? No.', "I'm not sitting still."] : ['No way. Not out there.', "I can't. I'm sorry, I can't."], 3); continue; }
-      const lag = (1 - t.disc) * R(0, 4) + st * R(0, 2);
+      const lag = ((1 - t.disc) * R(0, 4) + st * R(0, 2)) * (rel > 40 ? 0.5 : rel < -20 ? 1.5 : 1);
       if (lag > 1) a.czOrder = { kind: before || 'follow', until: G.time + lag };
       if (window.VOICE && Math.random() < 0.35) VOICE.say(a, 'ack', t.disc > 0.7 ? ['Copy.', 'On it.', 'Moving.'] : t.temper > 0.6 ? ['Yeah, yeah.', 'Fine.', "Whatever you say."] : ['Okay...', 'Sure, sure.', 'If you say so.'], 2);
     }
@@ -199,7 +203,7 @@
       if (!t.cz || !t.cz.m) continue;
       if (d < 25) a.czCompanyT = G.time + 1;
       const q = CZ.P(t);
-      if (q && d < 8 && q.stress < 30 && q.t.nerve > 0.65) a.czSteadyNear = G.time + 1;
+      if (q && d < 8 && q.stress < 30 && q.t.nerve > 0.65 && !(CZ.relOf && CZ.relOf(a, t) < -30)) a.czSteadyNear = G.time + 1;
       if (d < 10 && CZ.inPanic(t)) a.czPanicNear = G.time + 1;
     }
   }
@@ -238,7 +242,7 @@
     a.czShake = sh * 1.6 * (p.perks.includes('sharpshooter') ? 0.5 : 1) + (pk ? 1.5 : 0);
     a.czSway = sh + (pk ? 1 : 0);
     // the clumsy make noise
-    if (p.flaws.includes('clumsy') && (a.moving || 0) > 0.5 && Math.random() < dt * 0.15) { SFX.impact(a.pos, true); GAME.noise(a.pos, 14, a, 'step'); }
+    if (p.flaws.includes('clumsy') && (a.moving || 0) > 0.5 && Math.random() < dt * 0.15) { SFX.impact(a.pos, true); GAME.noise(a.pos, 14, a, 'step'); CZ.fire('clumsy', a); }
     // talking it down: a steady, caring teammate notices someone close to breaking
     if (a.bot && !pk && p.stress < 35 && (t.gen > 0.6 || p.arch === 'carer' || p.arch === 'veteran') && G.time > (a.czCalmT || 0) && !(a.czNearInfT > G.time)) {
       const who = sq().find(x => x !== a && CZ.P(x) && CZ.P(x).stress > 65 && U.dist3(x.pos, a.pos) < 6);
@@ -251,6 +255,7 @@
     const t = p.t, d = 6 + Math.random() * 5;
     const kind = a.isPlayer ? 'attack' : t.temper > 0.7 && Math.random() < 0.6 ? 'rage' : (p.flaws.includes('coward') || t.nerve < 0.35) && Math.random() < 0.7 ? 'flee' : 'freeze';
     a.czPanic = { kind, until: G.time + d }; a.czPanicCd = G.time + d + 40 + Math.random() * 50;
+    CZ.fire('panic', a, kind);
     if (a.isPlayer) { HUD.toast('PANIC ATTACK · your heart is racing and your hands won\'t stop shaking. Crouch and breathe, get clear of them, or get somewhere safe', 'warn'); if (PLAYER.punch) PLAYER.punch(0.3); return; }
     if (a.bot) { a.bot.goal = null; a.bot.loot = null; }
     const L = { rage: ['COME ON THEN! COME ON!', "That's it, I'll kill every one of you!"], flee: ["I'm out! I'm OUT!", 'Run! Just run!', "I can't, I can't, I can't!"], freeze: ["I can't move. I can't move.", 'No no no no no...', "My hands won't work..."] };
@@ -261,8 +266,9 @@
   function calmDown(by, who) {
     const q = CZ.P(who); if (!q) return 0;
     const bp = CZ.P(by), skill = bp ? 0.6 + bp.t.gen * 0.4 + (bp.perks.includes('medic') ? 0.2 : 0) - bp.stress / 200 : 0.8;
-    let k = (15 + Math.random() * 20) * skill;
-    const snap = q.t.temper > 0.7 && Math.random() < 0.4;
+    const rel = CZ.relOf ? CZ.relOf(who, by) : 0;
+    let k = (15 + Math.random() * 20) * skill * U.clamp(1 + rel / 150, 0.4, 1.6);
+    const snap = Math.random() < (q.t.temper > 0.7 ? 0.4 : 0) + (rel < -30 ? 0.35 : 0);
     if (snap) k *= 0.3;
     q.stress = Math.max(0, q.stress - k);
     if (who.czPanic && who.czPanic.until > G.time && !snap) who.czPanic.until = G.time + Math.min(2, who.czPanic.until - G.time);
@@ -271,6 +277,7 @@
       if (who.bot) setTimeout(() => { if (who.state === 'alive') VOICE.say(who, 'calmed', snap ? ["Don't tell me to calm down!", 'Back off. I\'m fine.'] : ['...Okay. Okay. Thanks.', 'Sorry. I\'m alright now.', 'Yeah. Breathing.'], 3); }, 1600);
     }
     if (who.isPlayer) CZ.tell(who, CZ.nm(by) + ' talks you down: your breathing slows', 'info');
+    CZ.fire('calmed', by, who, snap);
     return k;
   }
   CZ.calmDown = calmDown;
@@ -334,7 +341,7 @@
     if (home) CZ.S.survivors.push({ id: 's' + Date.now().toString(36), name: CZ.nm(a), skill: m.skill || 'scavenger', home, state: 'home', zone: CZ.Z.id, day: CZ.S.day });
     if (window.VOICE) VOICE.say(a, 'bye', ['Look after yourselves.', 'It was good knowing you.', "Don't come looking for me."], 3);
     HUD.toast(CZ.nm(a) + (home ? ' heads for ' + CZ.ZONES[home].name : ' leaves the squad'), 'info');
-    setTimeout(() => { if (a.rig) a.removeFrom(G.scene); const i = G.actors.indexOf(a); if (i >= 0) G.actors.splice(i, 1); }, 1500);
+    setTimeout(() => { if (a.rig) a.removeFrom(G.scene); const i = G.actors.indexOf(a); if (i >= 0) G.actors.splice(i, 1); if (AI.teams[CZ.TEAM]) AI.teams[CZ.TEAM].bots = AI.teams[CZ.TEAM].bots.filter(x => x !== a); }, 1500);
     CZ.S.story.log.push({ d: CZ.S.day, t: CZ.nm(a) + ' left the squad.' });
   };
 
@@ -370,6 +377,7 @@
   function reveal(a) {
     const p = CZ.P(a), m = a.cz.m, n = CZ.nm(a), S = CZ.S, kind = p.agenda.kind;
     p.agenda.shown = true;
+    CZ.fire('revealed', a, p.agenda.kind);
     const log = t => S.story.log.push({ d: S.day, t });
     if (kind === 'thief') {
       // gone with their pack and a share of the stash
@@ -567,7 +575,7 @@
       if (it.cat === 'quest') { const g = CZ.add(p.cz.m, id, n); CZ.take(m, id, g); if (g) got.push(CZ.itemName(id)); continue; }
       let give = n;
       if (q) {
-        const g = q.t.gen - q.stress / 250 - (q.flaws.includes('hoarder') ? 0.4 : 0);
+        const g = q.t.gen - q.stress / 250 - (q.flaws.includes('hoarder') ? 0.4 : 0) + (CZ.relOf ? CZ.relOf(t, p) / 250 : 0);
         const valued = it.cat === 'food' || it.cat === 'drink' || it.cat === 'med' || mine.has(id);
         if (valued) give = g > 0.75 ? n : g > 0.5 ? Math.ceil(n / 2) : g > 0.3 ? Math.floor(n / 2) : 0;
         if (mine.has(id)) give = Math.min(give, Math.max(0, n - ((t.w[0] && t.w[0].def.mag) || 20) * (g > 0.75 ? 1 : 2)));
@@ -577,6 +585,7 @@
       if (give > 0) { const g2 = CZ.add(p.cz.m, id, give); CZ.take(m, id, g2); if (g2) got.push((g2 > 1 ? g2 + ' × ' : '') + CZ.itemName(id)); if (g2 < n) kept.push(CZ.itemName(id)); }
       else kept.push(CZ.itemName(id));
     }
+    CZ.fire('asked', t, p, got.length, kept.length);
     if (window.VOICE && q) {
       const L = !got.length ? (q.flaws.includes('hoarder') ? ['Get your own.', "No. That's mine.", 'Find your own stuff.'] : ["I need what I've got.", "Sorry. I can't spare anything."])
         : kept.length ? ["Here. I'm keeping the rest.", 'That much. No more.', 'Take that. I need the rest.'] : ['Take whatever you need.', 'All yours.', "Here. I'll manage."];

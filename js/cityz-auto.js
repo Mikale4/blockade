@@ -24,7 +24,7 @@
   // things that might make you sick: only when there's nothing else, unless you know no better
   const RISKY = id => { const u = CZ.ITEMS[id] && CZ.ITEMS[id].use; return !!(u && u.sick > 0); };
   // who they are decides what they do (cityz-people.js); without it, they just do it
-  const decide = (a, kind, sev) => CZ.decide ? CZ.decide(a, kind, sev) : true;
+  const decide = (a, kind, sev, t) => CZ.decide ? CZ.decide(a, kind, sev, t) : true;
   const th = (a, k, d) => CZ.th ? CZ.th(a, k, d) : d;
   const P = a => CZ.P ? CZ.P(a) : null;
   const orderOf = a => CZ.orderOf ? CZ.orderOf(a) : CZ.S.order;
@@ -102,10 +102,14 @@
     if (!memo[k] || memo[k].until < G.time) {
       const sev = sevOf(t, need);
       let v = 0;
-      if (base > 0) v = decide(a, NEED[need] && NEED[need].treat ? 'help' : 'share', sev) ? 1 : 0;
+      if (base > 0) v = decide(a, NEED[need] && NEED[need].treat ? 'help' : 'share', sev, t) ? 1 : 0;
+      else if (CZ.relOf && CZ.relOf(a, t) < -30) v = 0;   // (nobody gives their last one to someone they can't stand)
       else if (need !== 'ammo' && need !== 'cold' && p.t.gen > 0.75 && !p.flaws.includes('hoarder') && Math.random() < (p.t.gen - 0.7) * 1.6 * (0.4 + sev)) v = 2;
       memo[k] = { v, until: G.time + 15 + Math.random() * 30 };
-      if (v === 0 && base > 0 && (t.isPlayer || Math.random() < 0.3)) say(a, 'refuse', p.flaws.includes('hoarder') || p.t.gen < 0.25 ? ["Not mine to give. Well. It is. And I'm keeping it.", 'Get your own.', 'Sorry. Need it more than you.'] : p.flaws.includes('squeamish') && NEED[need] && NEED[need].treat ? ["I can't. The blood. I'm sorry.", "Don't ask me to do that."] : ["Can't spare it right now.", 'Ask someone else.'], 2);
+      if (v === 0 && base > 0) CZ.fire('refused', a, t, need);
+      const rel = CZ.relOf ? CZ.relOf(a, t) : 0, gr = CZ.grudgeOf ? CZ.grudgeOf(a, t) : null;
+      if (v === 0 && base > 0 && rel < -40 && (t.isPlayer || Math.random() < 0.5)) say(a, 'refuse', ['Not you. Not after ' + (gr || 'everything') + '.', 'Ask someone who likes you.', 'You? Get it yourself.'], 3);
+      else if (v === 0 && base > 0 && (t.isPlayer || Math.random() < 0.3)) say(a, 'refuse', p.flaws.includes('hoarder') || p.t.gen < 0.25 ? ["Not mine to give. Well. It is. And I'm keeping it.", 'Get your own.', 'Sorry. Need it more than you.'] : p.flaws.includes('squeamish') && NEED[need] && NEED[need].treat ? ["I can't. The blood. I'm sorry.", "Don't ask me to do that."] : ["Can't spare it right now.", 'Ask someone else.'], 2);
       if (v === 2) say(a, 'give', ["Take mine. I'll manage.", "Here. Don't argue.", 'You need it more than me.'], 3);
     }
     const v = memo[k].v;
@@ -165,6 +169,7 @@
       const q = P(t); if (q) q.stress = Math.max(0, q.stress - 6 - (u.calm || 0));   // being looked after helps
       t.cz.m.hp = t.hp;
       CZ.tell(t, giver.op.name + ' used ' + it.name + ' on you', 'info');
+      CZ.fire('treated', giver, t, id);
     }, 2000);
     return true;
   };
@@ -180,6 +185,7 @@
     setTimeout(() => {
       if (t.state === 'dead' || giver.state === 'dead') return;
       const st = t.cz.m.st; st.bleed = 0;
+      if (t !== giver) CZ.fire('treated', giver, t, 'strip');
       CZ.tell(t, t === giver ? 'You tore a strip from your clothes and stopped the bleeding' : giver.op.name + ' pressed a torn strip on your wound', 'info');
     }, 2700);
     return true;
@@ -264,6 +270,7 @@
         a.czAskT = G.time + 35 + Math.random() * 40;
         const w = a.czNeed === 'ammo' ? CZ.itemName(calOf(a)) : NEED[a.czNeed].word, hot2 = p && p.t.temper > 0.65;
         say(a, 'ask', a.czNeed === 'ammo' ? ["I'm almost out. Need " + w + '.', 'Low on ammo!'] : a.czNeed === 'bleed' ? ["I'm bleeding, anyone got " + w + '?', 'Need a bandage here!'] : hot2 ? ['Is anyone going to get me ' + w + ' or what?', 'I need ' + w + '. Now.'] : p && p.t.nerve < 0.35 ? ['Sorry, does anyone have ' + w + '?', 'I... I need ' + w + '.'] : ['I need ' + w + '.', 'Anyone got ' + w + '?'], 3);
+        CZ.fire('askedFor', a, a.czNeed);
         const pl = G.player; if (pl && !pl.ghost && pl.cz) CZ.tell(pl, a.op.name + ' needs ' + w + (pl.state === 'alive' ? ' · give it from your pack (' + KEYS.name('czInv') + ')' : ''), 'warn');
       }
     }
@@ -275,14 +282,15 @@
         if (t === a || U.dist3(t.pos, a.pos) > 5 || !needsOf(t).includes('ammo')) continue;
         const c = calOf(t), n = willGive(a, t, 'ammo', spare(m, c, a, 'ammo', t)); if (!n) continue;
         const g = CZ.add(t.cz.m, c, n); CZ.take(m, c, g);
-        if (g) { a.czGiveT = G.time + 6; CZ.tell(t, a.op.name + ' tossed you ' + g + ' × ' + CZ.itemName(c), 'info'); say(a, 'give', ['Mag! Catch!', 'Ammo, here!', 'Take these rounds!'], 3); return; }
+        if (g) { a.czGiveT = G.time + 6; CZ.fire('gave', a, t, c, g, false); CZ.tell(t, a.op.name + ' tossed you ' + g + ' × ' + CZ.itemName(c), 'info'); say(a, 'give', ['Mag! Catch!', 'Ammo, here!', 'Take these rounds!'], 3); return; }
       }
       return;
     }
     // the worst off first (a deep wound, a bad infection, starving), so two helpers don't both go to
     // the first name on the list while someone else goes without
     const worst = t => { const st = t.cz.m.st; return st.bleed * 30 + Math.max(0, st.infection - 30) * 1.5 + Math.max(0, st.hunger - 60) + Math.max(0, st.thirst - 60) + (t.hp < 45 ? 40 : 0); };
-    for (const t of squad().sort((p2, q) => worst(q) - worst(p2))) {
+    const pri = t => worst(t) + (CZ.relOf ? CZ.relOf(a, t) * 0.25 : 0);   // a friend in need comes a little sooner
+    for (const t of squad().sort((p2, q) => pri(q) - pri(p2))) {
       // someone starving or bleeding badly is worth going further for
       const ts = t.cz.m.st, urgent = ts.hunger >= 80 || ts.thirst >= 80 || ts.bleed >= 2 || ts.infection >= 60;
       if (t === a || U.dist3(t.pos, a.pos) > (urgent ? 40 : 16) || t.czTendT > G.time || (t.busy > 0 && /IMPROVISING|TREATING/.test(t.busyLabel || ''))) continue;
@@ -309,7 +317,7 @@
           // still needed, now they're here? (someone else may have seen to it on the way)
           if (!needsOf(t).includes(need) || (id === 'antiviral' && need === 'infection' && t.cz.m.st.infection < 50 && (x.cz.m.inv.antiviral || 0) < 2)) return;
           if (NEED[need].treat && t.state !== 'dead') CZ.treat(x, t, id);
-          else { const g = CZ.add(t.cz.m, id, n); CZ.take(x.cz.m, id, g); if (g) CZ.tell(t, x.op.name + ' gave you ' + (g > 1 ? g + ' × ' : '') + CZ.itemName(id), 'info'); }
+          else { const g = CZ.add(t.cz.m, id, n); CZ.take(x.cz.m, id, g); if (g) { CZ.tell(t, x.op.name + ' gave you ' + (g > 1 ? g + ' × ' : '') + CZ.itemName(id), 'info'); CZ.fire('gave', x, t, id, g, !(x.cz.m.inv[id] > 0)); } }
           say(x, 'give', ['Here, take this.', 'Got you.', 'Catch.'], 2);
         } });
         return;

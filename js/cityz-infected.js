@@ -310,4 +310,7 @@
     HUD.banner('HORDE', 'A horde is coming in from the ' + ({ N: 'north', S: 'south', E: 'east', W: 'west' })[ex.side], 3, 'lose');
     return made;
   };
+  // the infected don't talk: no radio calls ("Contact!", "Man down!") from the dead, only their groans,
+  // so the squad's own voices come through. (Someone who turned on the squad is still a person.)
+  VOICE.mute = a => GAME.mode === 'cityz' && !!(a.cz && (a.cz.inf || (a.cz.opx && !a.czTurnedM)) || a.team === CZ.INF && GAME.mode === 'cityz');
 })();

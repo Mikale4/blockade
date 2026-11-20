@@ -317,7 +317,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   - **Deathmatch:** ten players, everyone for themselves, any operator. First to 20 kills, or
     the most after 6 minutes.
 - **City Z** (CITY Z · SURVIVAL on the home menu): a co-op survival campaign in one persistent,
-  quarantined city. You pick five operators; you play one and command the other four (and can take
+  quarantined city. You pick five operators (or RANDOM SQUAD, which also fills whatever places you
+  leave empty); you play one and command the other four (and can take
   over any of them; when you die you carry on as the next). Online, an ONLINE LOBBY room set to
   CITY Z (CO-OP) runs the host's city for up to five players: each guest takes over one of the
   squad (their own needs and pack, searching, eating, treating, throwing, crafting, swapping guns),
@@ -342,6 +343,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     dressing, one made from cloth, one from a teammate (who makes a rag if that's all they have), the
     safehouse stash, or, with nothing at all, a strip torn from their clothes and pressed on it, which
     stops the bleeding (once a minute; your treat key does the same when your pack is empty).
+    The infected don't talk (no radio calls from the dead), so the squad's voices come through.
   - **People, not robots:** none of that is automatic. Every member of the squad (the five you start
     with, and anyone who joins) is rolled fresh each campaign: one of eight kinds of person (the
     veteran, the rookie, the loner, the carer, the hothead, the scholar, the joker, the cynic), each
@@ -364,6 +366,18 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     pounding heartbeat, tunnel vision and loud breathing the infected can hear; for a teammate,
     freezing up, bolting, or charging in blind. Talk a teammate down (CALM ... DOWN, beside them);
     steady teammates do it for each other, and for you.
+  - **Relationships and grudges:** everyone has feelings about everyone else (you included), each
+    way and not always matching. They start from how well their natures fit (a veteran takes to a
+    rookie, a joker grates on a cynic, two short fuses clash) plus chance, and some of the starting crew
+    have history: old friends, or bad blood from years ago. Gifts (their own last one counts double),
+    dressing a wound, a calming word and shooting the thing on top of someone build it; refusing to
+    share, running off in a fight, eating more than their share, the noise, and you ignoring them when
+    they asked for something you had wear it down, and each bad turn is remembered by what it was. It
+    decides who shares with whom and who gets helped first, how far a calming word goes, whether your
+    orders are followed, and how hard a death hits. People who dislike each other argue (sometimes
+    clearing the air with an apology), a short fuse may shove, and someone who can't stand another any
+    more says it's them or me: patch it up within two minutes, part ways with one of them, or they
+    walk. The squad tab shows who gets on with whom, as far as you've seen.
   - **Recruits and hidden agendas:** survivors you meet (and strangers sometimes waiting in places)
     can join the squad, five at most including you; PART WAYS lets anyone go. You never know someone
     straight away: their kind of person at once, their traits after a day, their intentions only when
@@ -601,7 +615,7 @@ hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `ma
 `maps-xp1`, `maps-xp2` (the twelve machinery maps) · `cityz-data` (City Z's places, items, loot, recipes, infected) ·
 `cityz-zones` (building its places) · `cityz` (the persistent world, travel, the squad) · `cityz-infected` ·
 `cityz-survival` (needs, packs, searching, crafting, safehouses) · `cityz-ui` · `cityz-story` (campaign,
-people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, and watching) · `cityz-people` (who the squad are: personalities, nerves and panic, recruits, hidden agendas) · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
+people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, and watching) · `cityz-people` (who the squad are: personalities, nerves and panic, recruits, hidden agendas) · `cityz-bonds` (how they feel about each other: relationships, grudges, arguments) · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
 lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·

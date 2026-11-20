@@ -416,6 +416,8 @@ p.warn { color: var(--gold); }
 .cz-mate small.mood.scared, .cz-mate small.mood.angry, .cz-mate small.mood.uneasy { color: var(--gold); }
 .cz-mate small.mood.panicking, .cz-mate small.mood.furious { color: #e05a4a; }
 .cz-who { display: grid; gap: 2px; padding: 2px 0 4px; }
+.cz-randrow { display: flex; margin: 10px 0 4px; }
+.cz-randrow button { padding: 8px 16px; font-size: 13px; }
 .cz-who span, .cz-who small { font: 500 13px/1.35 'Rajdhani', 'Segoe UI', sans-serif; letter-spacing: 0.03em; text-transform: none; }
 .cz-who span { color: #e8eaed !important; font-weight: 700; }
 .cz-bar.nerves i { background: #c88ac8; }

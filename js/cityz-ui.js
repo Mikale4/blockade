@@ -145,7 +145,7 @@
       if (id === 'barricade' && !G2) acts.push(btn('BOARD UP', () => { UI.close(); setTimeout(() => CZ.boardUp(p), 50); }));
       if (id === 'firewood' && !G2) acts.push(btn('LIGHT A CAMPFIRE', () => { UI.close(); setTimeout(() => CZ.lightFire(p), 50); }));
       if (id === 'dirtywater') acts.push(CZ.canBoil(p) ? btn('BOIL IT ALL', () => { UI.close(); CZ.boil(p); }) : $('span', { class: 'muted' }, 'boil it by a campfire or at a workbench'));
-      for (const a of near) acts.push(btn('GIVE ' + a.op.name, () => { const n = CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo' ? Math.min(m.inv[id], 30) : 1; if (G2) { CZ.ask('give', { id, to: a.id, n }); UI.close(); return; } const t = CZ.add(a.cz.m, id, Math.min(n, m.inv[id])); CZ.take(m, id, t); if (!t) HUD.toast(a.op.name + ' can\'t carry it', 'warn'); UI.inventory('pack'); }, 'ghost'));
+      for (const a of near) acts.push(btn('GIVE ' + a.op.name, () => { const n = CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo' ? Math.min(m.inv[id], 30) : 1; if (G2) { CZ.ask('give', { id, to: a.id, n }); UI.close(); return; } const t = CZ.add(a.cz.m, id, Math.min(n, m.inv[id])); CZ.take(m, id, t); if (!t) HUD.toast(a.op.name + ' can\'t carry it', 'warn'); else CZ.fire('gave', p, a, id, t, !(m.inv[id] > 0)); UI.inventory('pack'); }, 'ghost'));
       acts.push(btn('DROP', () => { if (G2) { CZ.ask('drop', { id }); UI.close(); return; } const n = m.inv[id]; CZ.take(m, id, n); CZ.dropLoot(p.pos, [[id, n]], 'Dropped'); UI.inventory('pack'); }, 'ghost'));
       return acts;
     }));
@@ -177,6 +177,17 @@
         $('div', { class: 'cz-acts' }, locked ? $('span', { class: 'muted' }, 'LOCKED') : btn('MAKE', () => { CZ.craft(r.id); UI.inventory('craft'); }, ok ? '' : 'ghost'))));
     }
   }
+  /* how someone gets on with the rest, as far as you've seen */
+  function bondLines(a, me) {
+    const b = CZ.bondsOf && CZ.bondsOf(a); if (!b) return [];
+    const out = [];
+    if (b.ult) out.push($('small', { class: 'bad' }, b.ult));
+    if (b.hist.length) out.push($('small', {}, 'History: ' + b.hist.join(' · ')));
+    if (!me && b.you) out.push($('small', { class: b.you.r < -15 ? 'warn' : '' }, 'About you: ' + b.you.w + (b.you.why ? ' (' + b.you.why + ')' : '')));
+    if (b.likes.length) out.push($('small', {}, 'Gets on with: ' + b.likes.join(', ')));
+    if (b.dislikes.length) out.push($('small', { class: 'warn' }, 'Clashes with: ' + b.dislikes.join(', ')));
+    return out;
+  }
   function squadTab(body, p) {
     const full = CZ.squadCount ? CZ.squadCount() : 0;
     body.append($('p', { class: 'sub' }, 'The squad: ' + full + ' of ' + (CZ.MAX_SQUAD || 5) + '. You learn who people are by travelling with them: what they\'re like after a day, whether to trust them only when they show you.'));
@@ -185,7 +196,8 @@
       const who = k ? $('div', { class: 'cz-who' },
         $('span', {}, k.kind + (me ? '' : ' · ' + (CZ.inPanic(a) ? 'panicking' : k.mood)) + (k.words.length ? ' · ' + k.words.join(', ') : '')),
         $('small', {}, (k.perks.length ? 'Good at: ' + k.perks.join(', ') : '') + (k.flaws.length ? ' · Weak spots: ' + k.flaws.join(', ') : '')),
-        $('small', { class: 'muted' }, k.bio + (me ? '' : ' ' + k.trust))) : null;
+        $('small', { class: 'muted' }, k.bio + (me ? '' : ' ' + k.trust)),
+        ...(a.state === 'dead' ? [] : bondLines(a, me))) : null;
       const card = $('div', { class: 'cz-mcard' + (a === p ? ' me' : '') },
         $('b', {}, (m.recruit ? a.name : a.op.name + ' · ' + a.name) + (a === p ? ' (YOU)' : '')), who,
         $('span', {}, a.state === 'dead' ? 'DEAD' : 'Health ' + Math.round(a.hp) + ' · Food ' + Math.round(100 - st.hunger) + '% · Water ' + Math.round(100 - st.thirst) + '% · Rest ' + Math.round(100 - st.fatigue) + '%' + (st.infection > 0.5 && !(CZ.hidBite && CZ.hidBite(a)) ? ' · Infection ' + Math.round(st.infection) + '%' : '') + (st.bleed > 0 ? ' · bleeding' : '') + (st.fracture ? ' · broken bone' : '')),
@@ -453,12 +465,21 @@
       }
       status.textContent = pick.length < 5 ? 'Pick five operators. The first you pick is you; the others follow your orders (and you can take over any of them). Or send all five in and watch them play.' : 'Squad: ' + pick.map(id => DATA.OPMAP[id].name).join(', ');
       go.disabled = pick.length < 5; watchGo.disabled = pick.length < 5;
+      rand.textContent = pick.length > 0 && pick.length < 5 ? 'FILL THE REST AT RANDOM' : pick.length === 5 ? 'RANDOM AGAIN' : 'RANDOM SQUAD';
     };
+    // random: fills the empty places (or, with five already, picks a whole new five); who's "you" is
+    // whoever lands first
+    const rand = btn('RANDOM SQUAD', () => {
+      if (pick.length === 5) pick.length = 0;
+      const pool = DATA.OPS.map(o => o.id).filter(id => !pick.includes(id));
+      while (pick.length < 5 && pool.length) pick.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      SFX.ui(); draw();
+    }, 'ghost');
     const go = btn('GO INTO VARROW', () => { if (pick.length < 5) return; CZ.watching = false; CZ.newGame(pick.slice(), diff.v); if (CZ.storyIntro) CZ.storyIntro(() => CZ.enter(CZ.START, 'S')); else CZ.enter(CZ.START, 'S'); }, 'big');
     const watchGo = btn('SEND THEM IN AND WATCH', () => { if (pick.length < 5) return; CZ.watching = true; CZ.newGame(pick.slice(), diff.v); CZ.enter(CZ.START, 'S'); });
     const diffs = $('div', { class: 'seg' }, ...Object.entries(CZ.DIFF).map(([k, d]) => $('button', { class: diff.v === k ? 'on' : '', title: d.desc, onclick: ev => { diff.v = k; for (const b of diffs.children) b.className = ''; ev.target.className = 'on'; dd.textContent = d.desc; } }, d.name)));
     const dd = $('p', { class: 'muted' }, CZ.DIFF.survivor.desc);
-    s.append($('div', { class: 'panel cz-menu wide' }, $('h2', {}, 'YOUR SQUAD'), status, grid, $('h3', {}, 'DIFFICULTY'), diffs, dd,
+    s.append($('div', { class: 'panel cz-menu wide' }, $('h2', {}, 'YOUR SQUAD'), status, grid, $('div', { class: 'cz-randrow' }, rand), $('h3', {}, 'DIFFICULTY'), diffs, dd,
       $('div', { class: 'actions' }, btn('← BACK', CZ.menu, 'ghost'), watchGo, go)));
     draw();
   }
