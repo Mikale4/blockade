@@ -175,7 +175,7 @@ dynamic events, day and night and weather, and a story campaign in chapters with
 | City Z: squad orders and control (follow, hold, attack, scavenge, quiet; take over any member) | built · follow, hold and taking over on death tested |
 | City Z: vehicles (drive, fuel, damage, run over, refuel, repair, drive to the next place) | built · driving tested |
 | City Z: campaign (7 objectives, characters, choices, 3 endings, day-20 deadline), events (drops, hordes, distress, road), radio | built · every story place and the finale tested; a full play-through by hand not yet |
-| City Z: online co-op (five players in one city) | not built yet: City Z is single-player with four AI teammates |
+| City Z: online co-op (five players in one city) | built (`js/cityz-net.js`) · tested in two tabs over a real room: the guest took over a squad member, saw the place, the infected (a horde arriving after them too) and the pharmacist, got their needs, pack and objective, drank from their pack, searched a container into it, and followed the host to the next place with the pack intact. Limits: the host alone travels, runs safehouses and talks to people; a guest's magazines start full in each new place |
 | City Z: campaign length | honest note: seven objectives, a few hours with the scavenging between them, not 6-10 hours of authored missions |
 
 ## 6. Notes from testing

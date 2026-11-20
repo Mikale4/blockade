@@ -30,8 +30,8 @@
     const op = DATA.OPMAP[opId];
     const inv = {};
     const p = op.primaries[0], s = op.secondaries[0];
-    // two magazines' worth for each gun, a little food and water, a dressing
-    for (const id of [p, s]) { const c = CZ.calOf(id), w = DATA.WEAPONS[id]; inv[c] = (inv[c] || 0) + (w.mag || 10) * 2; }
+    // four magazines' worth for each gun, a little food and water, a dressing
+    for (const id of [p, s]) { const c = CZ.calOf(id), w = DATA.WEAPONS[id]; inv[c] = (inv[c] || 0) + (w.mag || 10) * 4; }
     Object.assign(inv, { water: 1, bar: 1, bandage: 1 });
     return { op: opId, name: op.name, hp: 100, alive: true, player: !!player, st: needs0(), inv, guns: [{ id: p, mag: -1 }, { id: s, mag: -1 }], gad: -1, ab: -1 };
   }
@@ -74,6 +74,7 @@
     for (let i = 0; i < v.length; i++) if (v[i] !== o[i]) { parts.push((i - last).toString(36) + '.' + v[i].toString(36)); last = i; if (++n >= 16000) break; }
     return parts.join(',');
   }
+  CZ.voxApply = (w, s) => voxApply(w, s);
   function voxApply(w, s) {
     if (!s) return 0;
     let i = 0, n = 0;
@@ -154,13 +155,15 @@
     if (st.vox) { voxApply(G.world, st.vox); G.world.computeSky(); G.world.remeshAll(); }
     NAV.build();
     G.mode = 'match'; GAME.mode = 'cityz'; GAME.active = true; GAME.phase = 'action'; GAME.timer = 1e9; GAME.round = 0; GAME.score = [0, 0];
-    GAME.net = false; GAME.client = false; GAME.myTeam = 0; GAME.spectator = false; GAME.ranked = false; GAME.sandbox = false;
+    if (!(window.NP && NP.active)) { GAME.net = false; GAME.client = false; }
+    GAME.myTeam = 0; GAME.spectator = false; GAME.ranked = false; GAME.sandbox = false;
     GAME.stats = new Map(); GAME.feed = []; GAME.obj = { rooms: [] }; GAME.siteNames = []; GAME.siteRooms = []; GAME.reinforced = []; GAME.pool = { 0: 0, 1: 0 }; GAME.startSide = 'atk'; GAME.blackout = null;
     KC.reset();
     const f = G.scene.fog; CZ.Z = { id: zid, def: Zd, st, fog0: { color: f.color.getHex(), near: f.near, far: f.far }, exits: G.map.exits, t: 0, saveT: 60 };
     lightKey = '';
-    // the squad
+    // the squad (online: guests take over members of it)
     spawnSquad(S.side);
+    if (CZ.netAssign) CZ.netAssign();
     // the place's things: loot, the infected, people, vehicles, safehouse fixtures, the story
     if (CZ.spawnLoot) CZ.spawnLoot(zid);
     if (CZ.populate) CZ.populate(zid, st);
@@ -180,6 +183,7 @@
     HUD.banner(Zd.name, Zd.area + ' · DAY ' + S.day + ' · ' + CZ.clock(), 3);
     MUSIC.play && MUSIC.play('range');
     CZ.save(true);
+    if (CZ.netStarted) CZ.netStarted(zid);
   }
 
   /* ================================================================ the squad */
@@ -290,7 +294,7 @@
   /* ================================================================ travel */
   /* a road end: walk up to it to leave for the place it leads to */
   OPS2.chain('interactions', function (a, out) {
-    if (!CZ.on() || !a.isPlayer || !CZ.Z) return;
+    if (!CZ.on() || !a.isPlayer || !CZ.Z || GAME.client) return;
     const ex = CZ.exitsOf(CZ.Z.id);
     for (const [to, side] of Object.entries(ex)) {
       const e = CZ.Z.exits.find(x => x.side === side); if (!e) continue;
@@ -320,6 +324,9 @@
   CZ.update = function (dt) {
     const S = CZ.S, Z = CZ.Z; if (!S || !Z) return;
     Z.t += dt;
+    // an online guest: the host keeps the city; here, the light, the HUD and our own guns
+    if (Z.guest) { lighting(); if (CZ.ui) CZ.ui.frame(dt); if (CZ.guestTick) CZ.guestTick(dt); return; }
+    if (CZ.netTick) CZ.netTick(dt);
     // the clock: a real second is a minute
     S.min += dt; if (S.min >= 1440) { S.min -= 1440; S.day++; newDay(); }
     weatherTick(dt); lighting();
@@ -350,7 +357,7 @@
   GAME.update = function (dt) {
     if (GAME.mode !== 'cityz') return oUpd.apply(this, arguments);
     if (!GAME.active) return;
-    for (const a of G.actors) GAME.updateInteract(a, dt);
+    if (!GAME.client) for (const a of G.actors) GAME.updateInteract(a, dt);
     CZ.update(dt);
   };
   const oQuit = GAME.quit;

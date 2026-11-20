@@ -157,7 +157,7 @@
 
   /* ---- what you can do at a car */
   OPS2.chain('interactions', function (a, out) {
-    if (!CZ.on() || !a.isPlayer) return;
+    if (!CZ.on() || !a.isPlayer || GAME.client) return;
     const car = a.czDriving;
     if (car) {
       // a road end close by: drive on

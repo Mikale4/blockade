@@ -22,6 +22,8 @@
   /* ================================================================ people */
   const CIV = { id: '_civ', armor: 1, speed: 2, look: { head: 'beanie', helmet: 0x6a5a4a, vest: 0x5a6a7a, cloth: 0x4a4a52, accent: 0xd8c8a8, skin: 0xd8a888, hair: 0x3a2a1a }, primaries: ['p10'], secondaries: ['p10'], gadgets: [] };
   const looks = [['beanie', 0x7a4a3a, 0x3a4a5a], ['cap', 0x3a5a3a, 0x5a5a62], ['hood', 0x6a6a72, 0x2a2a30], ['bandana', 0x8a6a4a, 0x4a3a2a], ['scarf', 0x4a4a7a, 0x6a6a6a]];
+  // the five civilian looks, known by id (an online guest builds people from the host's roster)
+  looks.forEach((L, k) => { DATA.OPMAP['_civ_' + k] = Object.assign({}, CIV, { id: '_civ_' + k, name: 'Survivor', look: Object.assign({}, CIV.look, { head: L[0], vest: L[1], cloth: L[2] }) }); });
   CZ.spawnPerson = function (o) {
     const k = Math.abs(String(o.name).split('').reduce((h, c) => h * 31 + c.charCodeAt(0) | 0, 7)) % looks.length, L = looks[k];
     const op = Object.assign({}, CIV, { id: '_civ_' + k, name: o.name, look: Object.assign({}, CIV.look, { head: o.head || L[0], vest: L[1], cloth: L[2], skin: o.skin || CIV.look.skin }) });
@@ -51,7 +53,7 @@
     }
   };
   OPS2.chain('interactions', function (a, out) {
-    if (!CZ.on() || !a.isPlayer) return;
+    if (!CZ.on() || !a.isPlayer || GAME.client) return;
     for (const t of G.actors) {
       const o = t.cz && t.cz.person; if (!o || t.state !== 'alive' || U.dist3(t.pos, a.pos) > 2.2) continue;
       out.push({ kind: 'talk', label: 'TALK TO ' + t.name.toUpperCase(), time: 0.3, ok: () => t.state === 'alive', run: () => o.talk ? o.talk(t) : survivorTalk(t) });
@@ -112,6 +114,7 @@
   CZ.STORY = STEPS;
   const step = () => STEPS[S().story.step];
   CZ.objective = function () {
+    if (CZ.isGuest && CZ.isGuest()) return CZ.guestObj || null;
     const s = S(); if (!s) return null;
     if (s.story.ending) return { title: 'VARROW', text: endingName(s.story.ending) + '. The city is yours to live in.', zone: null };
     const st = step(); if (!st) return null;
@@ -147,7 +150,7 @@
     advance();
   });
   OPS2.chain('interactions', function (a, out) {
-    if (!CZ.on() || !a.isPlayer) return;
+    if (!CZ.on() || !a.isPlayer || GAME.client) return;
     for (const e of G.ents) if (e.alive && e.czFix === 'uplink' && U.dist3(e.pos, a.pos.clone().setY(a.pos.y + 0.6)) < 1.8) { out.push({ kind: 'uplink', label: has('keycard') ? 'USE THE UPLINK' : 'THE UPLINK IS LOCKED (KEYCARD)', time: 1.2, ok: () => true, run: () => has('keycard') ? finale() : HUD.toast("The Commander's keycard opens it", 'warn') }); return; }
   });
 

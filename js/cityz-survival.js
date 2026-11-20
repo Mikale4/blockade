@@ -35,8 +35,8 @@
   };
   CZ.take = function (m, id, n) { const have = m.inv[id] || 0, t = Math.min(have, n); if (t > 0) { m.inv[id] = have - t; if (m.inv[id] <= 0) delete m.inv[id]; } return t; };
   // everything the squad can draw on here: your pack, the stash (at a safehouse), teammates near you
-  CZ.sources = function () {
-    const p = G.player, out = [];
+  CZ.sources = function (who) {
+    const p = who || G.player, out = [];
     if (p && p.cz) out.push(p.cz.m.inv);
     const S = CZ.S, z = CZ.Z && CZ.Z.id;
     if (z && CZ.isSafe(z) && atSafe(p)) out.push(S.stash[z] || (S.stash[z] = {}));
@@ -53,6 +53,7 @@
   /* a gun's reserve is the pack's rounds of its calibre: kept in step every frame (two guns of one
      calibre share them) */
   function ammoSync(a) {
+    if (a.net) return;   // an online guest's guns: they report what they fire (cityz-net.js)
     const m = a.cz.m, last = a.cz.res || (a.cz.res = []);
     for (let i = 0; i < a.w.length; i++) {
       const w = a.w[i], c = CZ.calOf(w.id);
@@ -142,6 +143,7 @@
   /* ================================================================ using things */
   const USE_T = { food: 2.2, drink: 1.6, med: 3 };
   CZ.use = function (a, id, quiet) {
+    if (CZ.isGuest && CZ.isGuest()) { CZ.ask('use', { id }); return true; }
     const m = a.cz && a.cz.m, it = CZ.ITEMS[id]; if (!m || !it || !it.use || !(m.inv[id] > 0) || a.state !== 'alive') return false;
     if (a.busy > 0) return false;
     const u = it.use, st = m.st;
@@ -161,20 +163,21 @@
       if (u.warmth) st.temp = Math.min(37.4, st.temp + u.warmth * 0.3);
       if (u.hp) a.heal(u.hp);
       m.hp = a.hp;
-      if (!quiet && a.isPlayer) HUD.toast('Used ' + it.name, 'info');
+      if (!quiet) CZ.tell(a, 'Used ' + it.name, 'info');
       if (a.isPlayer) SFX.ui(700);
     }, (USE_T[it.cat] || 2) * 900);
     return true;
   };
   /* the quick heal key: whatever helps most right now */
   CZ.quickHeal = function (a) {
+    if (CZ.isGuest && CZ.isGuest()) { CZ.ask('heal'); return true; }
     const m = a.cz.m, st = m.st, has = id => m.inv[id] > 0;
     let id = null;
     if (st.bleed > 0) id = has('bandage') ? 'bandage' : has('rag') ? 'rag' : has('medkit') ? 'medkit' : null;
     if (!id && st.fracture) id = has('splint') ? 'splint' : has('medkit') ? 'medkit' : has('painkillers') ? 'painkillers' : null;
     if (!id && a.hp < a.maxHp * 0.7) id = has('medkit') ? 'medkit' : has('painkillers') ? 'painkillers' : has('bandage') ? 'bandage' : null;
     if (!id && st.infection > 25) id = has('antiviral') ? 'antiviral' : has('antibiotics') ? 'antibiotics' : null;
-    if (!id) { HUD.toast(st.bleed || st.fracture || a.hp < a.maxHp * 0.7 ? 'Nothing to treat it with' : 'Nothing needs treating', 'warn'); return false; }
+    if (!id) { CZ.tell(a, st.bleed || st.fracture || a.hp < a.maxHp * 0.7 ? 'Nothing to treat it with' : 'Nothing needs treating', 'warn'); return false; }
     return CZ.use(a, id);
   };
   function botCare(a, dt) {
@@ -289,10 +292,10 @@
     const st = CZ.zoneState(CZ.Z.id);
     if (!Object.keys(e.items).length) { e.destroy('used'); if (!String(e.cid).startsWith('d')) st.looted.push(e.cid); delete (st.left || {})[e.cid]; CZ.S.stats.looted++; }
     else if (!String(e.cid).startsWith('d')) (st.left || (st.left = {}))[e.cid] = e.items;
-    if (a.isPlayer) {
-      if (got.length) HUD.toast('+ ' + got.join(', '), 'info'); else HUD.toast(Object.keys(e.items).length ? 'Too heavy to take any more' : 'Nothing useful', 'warn');
-      if (Object.keys(e.items).length && got.length) HUD.toast('Left: ' + CZ.itemsText(e.items), 'warn');
-      SFX.ui(520);
+    if (a.isPlayer || a.net) {
+      if (got.length) CZ.tell(a, '+ ' + got.join(', '), 'info'); else CZ.tell(a, Object.keys(e.items).length ? 'Too heavy to take any more' : 'Nothing useful', 'warn');
+      if (Object.keys(e.items).length && got.length) CZ.tell(a, 'Left: ' + CZ.itemsText(e.items), 'warn');
+      if (a.isPlayer) SFX.ui(520);
     }
     GAME.noise(a.pos, 6, a, 'step');
   };
@@ -317,16 +320,17 @@
   };
 
   /* ================================================================ crafting */
-  CZ.benchLevel = function () { const z = CZ.Z && CZ.Z.id; if (!z || !CZ.isSafe(z) || !atSafe(G.player)) return 0; const up = CZ.S.safe[z].up; return up.includes('bench2') ? 2 : up.includes('bench') ? 1 : 0; };
-  CZ.canCraft = r => (r.bench || 0) <= CZ.benchLevel() && (!r.fire || CZ.benchLevel() > 0 || nearFire(G.player)) && CZ.haveAll(r.needs);
-  CZ.craft = function (rid) {
-    const r = CZ.RECIPES.find(x => x.id === rid), p = G.player; if (!r || !p) return false;
-    if (!CZ.canCraft(r)) { HUD.toast('Missing something for that', 'warn'); return false; }
-    CZ.spend(r.needs);
+  CZ.benchLevel = function (who) { const z = CZ.Z && CZ.Z.id; if (!z || !CZ.isSafe(z) || !atSafe(who || G.player)) return 0; const up = CZ.S.safe[z].up; return up.includes('bench2') ? 2 : up.includes('bench') ? 1 : 0; };
+  CZ.canCraft = (r, who) => (r.bench || 0) <= CZ.benchLevel(who) && (!r.fire || CZ.benchLevel(who) > 0 || nearFire(who || G.player)) && CZ.haveAll(r.needs, CZ.sources(who));
+  CZ.craft = function (rid, who) {
+    const r = CZ.RECIPES.find(x => x.id === rid), p = who || G.player; if (!r || !p) return false;
+    if (CZ.isGuest && CZ.isGuest()) { CZ.ask('craft', { rid }); return true; }
+    if (!CZ.canCraft(r, p)) { CZ.tell(p, 'Missing something for that', 'warn'); return false; }
+    CZ.spend(r.needs, CZ.sources(p));
     const got = CZ.add(p.cz.m, r.makes[0], r.makes[1]);
     if (got < r.makes[1]) { const stash = CZ.isSafe(CZ.Z.id) ? (CZ.S.stash[CZ.Z.id] || (CZ.S.stash[CZ.Z.id] = {})) : null; if (stash) stash[r.makes[0]] = (stash[r.makes[0]] || 0) + r.makes[1] - got; else CZ.dropLoot(p.pos, [[r.makes[0], r.makes[1] - got]], 'Crafted'); }
     CZ.S.stats.crafted++; SFX.wood(p.pos); p.busy = 1.5; p.busyLabel = 'CRAFTING';
-    HUD.toast('Made ' + (r.makes[1] > 1 ? r.makes[1] + ' × ' : '') + CZ.itemName(r.makes[0]), 'info');
+    CZ.tell(p, 'Made ' + (r.makes[1] > 1 ? r.makes[1] + ' × ' : '') + CZ.itemName(r.makes[0]), 'info');
     return true;
   };
 
@@ -427,7 +431,7 @@
     for (const e of G.ents) {
       if (!e.alive || U.dist3(e.pos, eye) > 1.7) continue;
       if (e.type === 'czloot') { out.push({ kind: 'search', label: 'SEARCH · ' + String(e.label).toUpperCase(), time: e.items ? 0.6 : 1.4, ok: () => e.alive, run: () => CZ.loot(a, e) }); return; }
-      if (e.type === 'czfix' && a.isPlayer) {
+      if (e.type === 'czfix' && a.isPlayer && !GAME.client) {
         const z = CZ.Z.id;
         if (e.czFix === 'czbench' && !CZ.isSafe(z)) { const n = CZ.SAFE_UP[0].needs; out.push({ kind: 'safe', label: 'RESTORE THE SAFEHOUSE · ' + Object.entries(n).map(([k, v]) => v + ' ' + CZ.itemName(k)).join(', '), time: 3, ok: () => true, run: () => CZ.restore(z) }); return; }
         if (e.czFix === 'czstash') { out.push({ kind: 'safe', label: 'OPEN THE STASH', time: 0.3, ok: () => true, run: () => CZ.ui && CZ.ui.inventory('stash') }); return; }

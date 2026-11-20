@@ -315,9 +315,12 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     or the most kills after 7 minutes.
   - **Deathmatch:** ten players, everyone for themselves, any operator. First to 20 kills, or
     the most after 6 minutes.
-- **City Z** (CITY Z · SURVIVAL on the home menu): a single-player co-op survival campaign in one
-  persistent, quarantined city. You pick five operators; you play one and command the other four
-  (and can take over any of them; when you die you carry on as the next).
+- **City Z** (CITY Z · SURVIVAL on the home menu): a co-op survival campaign in one persistent,
+  quarantined city. You pick five operators; you play one and command the other four (and can take
+  over any of them; when you die you carry on as the next). Online, an ONLINE LOBBY room set to
+  CITY Z (CO-OP) runs the host's city for up to five players: each guest takes over one of the
+  squad (their own needs and pack, searching, eating, treating, throwing, crafting, swapping guns),
+  and the room follows the host from place to place. The host leads: travel, safehouses, the story.
   - **The city:** ten places joined by roads (a firehouse street, Main Street, a refugee school, a
     hospital, a mall, a metro station, an industrial estate, a farm, the army checkpoint and a
     ring-road truck stop), each a 90 m block of named, furnished buildings. Walk to a road end to
@@ -537,7 +540,7 @@ hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `ma
 `maps-xp1`, `maps-xp2` (the twelve machinery maps) · `cityz-data` (City Z's places, items, loot, recipes, infected) ·
 `cityz-zones` (building its places) · `cityz` (the persistent world, travel, the squad) · `cityz-infected` ·
 `cityz-survival` (needs, packs, searching, crafting, safehouses) · `cityz-ui` · `cityz-story` (campaign,
-people, events) · `cityz-vehicles` · `mapmech` (their machinery: lifts, moving platforms, trains,
+people, events) · `cityz-vehicles` · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
 lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·

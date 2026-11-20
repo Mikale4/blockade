@@ -83,7 +83,7 @@
     const M = DATA.MODES[o.mode] || {}, arc = !!M.arcade, ffa = !!M.ffa;
     const rounds = [[2, '2'], [3, '3'], [4, '4'], [5, '5']], sides = [['atk', 'Attack'], ['def', 'Defense'], ['random', 'Random']];
     const S = [
-      { id: 'match', title: 'MATCH', rows: [['MODE', 'mode', Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name])], ['MAP', 'map', OPT.maps(), 'select'],
+      { id: 'match', title: 'MATCH', rows: [['MODE', 'mode', Object.keys(DATA.MODES).map(k => [k, DATA.MODES[k].name]).concat([['cityz', 'CITY Z (CO-OP)']])], ['MAP', 'map', OPT.maps(), 'select'],
         !arc && ['FIRST TO', 'rounds', rounds], !arc && ['ROUND TIME', 'time', OPT.time], !arc && ['DRONE PHASE', 'prep', OPT.prep], !arc && ['BAN PHASE', 'bans', OPT.bans]],
         sum: [modeName(o.mode), mapName(o.map), !arc && 'first to ' + o.rounds, !arc && optName(OPT.time, o.time), !arc && 'drones ' + optName(OPT.prep, o.prep), !arc && o.bans && 'bans'] },
       { id: 'teams', title: 'TEAMS', rows: [[ffa ? 'PLAYERS' : 'TEAM SIZE', 'size', OPT.size(ffa)], !ffa && ['TEAM A STARTS', 'side', sides]],
@@ -121,7 +121,7 @@
     }
     return wrap;
   }
-  const modeName = id => (DATA.MODES[id] || { name: id }).name;
+  const modeName = id => id === 'cityz' ? 'CITY Z (CO-OP)' : (DATA.MODES[id] || { name: id }).name;
   Online.inRoom = () => !!(N && N.room && N.stage === 'room');
   Online.room = () => N && N.room;
   Online.myId = () => N && N.myId;

@@ -20,7 +20,10 @@
   const preyOf = () => G.actors.filter(a => a.state !== 'dead' && (a.team === CZ.TEAM || (a.cz && a.cz.person)) && !a.ghost && !a.czCar && !a.czDriving);
 
   /* ------------------------------------------------------------------ bodies */
-  const opOf = kind => { const d = CZ.INFECTED[kind]; return { id: '_inf_' + kind, name: d.name, armor: 1, speed: 2, look: d.look, primaries: ['p10'], secondaries: ['p10'], gadgets: [], unit: 'none' }; };
+  const OPS_INF = {};
+  const opOf = kind => OPS_INF[kind] || (OPS_INF[kind] = { id: '_inf_' + kind, name: CZ.INFECTED[kind].name, armor: 1, speed: 2, look: CZ.INFECTED[kind].look, primaries: ['p10'], secondaries: ['p10'], gadgets: [], unit: 'none' });
+  // known by id everywhere (an online guest builds them from the host's roster)
+  for (const k of Object.keys(CZ.INFECTED)) DATA.OPMAP['_inf_' + k] = opOf(k);
   CZ.spawnInfected = function (kind, pos) {
     if (kind === 'opx') return spawnOpx(pos);
     const d = CZ.INFECTED[kind], diff = CZ.diff();

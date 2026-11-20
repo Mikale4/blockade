@@ -44,7 +44,8 @@
     if ((hT -= dt) > 0 || !H) return; hT = 0.2;
     const S = CZ.S, p = G.player; if (!p || !p.cz) return;
     const m = p.cz.m, st = m.st;
-    H.place.innerHTML = '<b>' + CZ.ZONES[CZ.Z.id].name + '</b><span>DAY ' + S.day + ' · ' + CZ.clock() + ' · ' + S.weather.toUpperCase() + (CZ.isSafe(CZ.Z.id) ? ' · SAFEHOUSE' : '') + '</span>';
+    H.place.innerHTML = '<b>' + CZ.ZONES[CZ.Z.id].name + '</b><span>DAY ' + S.day + ' · ' + CZ.clock() + ' · ' + String(S.weather || '').toUpperCase() + (CZ.isSafe(CZ.Z.id) ? ' · SAFEHOUSE' : '') + '</span>';
+    if (!m || !m.st || st.stamina == null) return;
     const set = (k, v, bad) => { const b = H.bars[k]; b.fill.style.width = pct(v); b.row.classList.toggle('bad', !!bad); };
     set('hp', p.hp / p.maxHp * 100, p.hp < 35);
     set('stamina', st.stamina, st.stamina < 15);
@@ -63,7 +64,8 @@
     tags.push('<i class="' + (kg > cap ? 'warn' : '') + '">PACK ' + kg + ' / ' + cap + ' KG</i>');
     H.status.innerHTML = tags.join('');
     // the squad: names, health, order
-    H.squad.innerHTML = '<div class="cz-ord">ORDERS · ' + CZ.ORDERS[S.order].name + ' <kbd>Y</kbd></div>' + G.actors.filter(a => a.cz && a.cz.m).map(a => '<div class="cz-mate' + (a === p ? ' me' : '') + (a.state !== 'alive' ? ' ' + a.state : '') + '"><b>' + a.op.name + '</b><i style="width:' + pct(a.state === 'dead' ? 0 : a.hp / a.maxHp * 100) + '"></i>' + (a.cz.m.st.infection > 40 ? '<em>INFECTED</em>' : '') + '</div>').join('');
+    const sq = CZ.isGuest && CZ.isGuest() ? G.actors.filter(a => a.team === CZ.TEAM && a.op && !/^_/.test(a.op.id)).map(a => (a.cz || (a.cz = { m: { st: {} } }), a)) : G.actors.filter(a => a.cz && a.cz.m);
+    H.squad.innerHTML = '<div class="cz-ord">ORDERS · ' + CZ.ORDERS[S.order || 'follow'].name + ' <kbd>Y</kbd></div>' + sq.map(a => '<div class="cz-mate' + (a === p ? ' me' : '') + (a.state !== 'alive' ? ' ' + a.state : '') + '"><b>' + a.op.name + '</b><i style="width:' + pct(a.state === 'dead' ? 0 : a.hp / a.maxHp * 100) + '"></i>' + (a.cz.m.st.infection > 40 ? '<em>INFECTED</em>' : '') + '</div>').join('');
     // the story's current objective
     const o = CZ.objective ? CZ.objective() : null;
     H.obj.innerHTML = o ? '<b>' + o.title + '</b><span>' + o.text + '</span>' : '';
@@ -92,8 +94,9 @@
   UI.inventory = function (tab) {
     const p = G.player; if (!p || !p.cz) return;
     tab = tab || UI.lastTab || 'pack'; UI.lastTab = tab;
-    const S = CZ.S, z = CZ.Z.id, safe = CZ.isSafe(z) && CZ.atSafe(p);
-    const tabs = [['pack', 'PACK'], ['craft', 'CRAFT'], ['squad', 'SQUAD'], ...(safe ? [['stash', 'STASH'], ['safe', 'SAFEHOUSE']] : []), ['log', 'JOURNAL']];
+    const S = CZ.S, z = CZ.Z.id, safe = CZ.isSafe(z) && CZ.atSafe && CZ.atSafe(p);
+    const gst = CZ.isGuest && CZ.isGuest();
+    const tabs = [['pack', 'PACK'], ['craft', 'CRAFT'], ...(gst ? [] : [['squad', 'SQUAD']]), ...(safe && !gst ? [['stash', 'STASH'], ['safe', 'SAFEHOUSE']] : []), ['log', 'JOURNAL']];
     if (!tabs.some(t => t[0] === tab)) tab = 'pack';
     const body = $('div', { class: 'cz-tabbody' });
     const panel = $('div', { class: 'panel cz-panel' },
@@ -123,18 +126,20 @@
     const m = p.cz.m, kg = CZ.weight(m), cap = CZ.capacity(m);
     body.append($('div', { class: 'cz-sum' }, $('b', {}, p.op.name + ' · ' + p.name), $('span', {}, 'Pack ' + kg + ' / ' + cap + ' kg' + (kg > cap ? ' (slowed)' : ''))));
     body.append($('h3', {}, 'IN HAND'), $('div', { class: 'cz-guns' }, ...p.w.map((w, i) => $('div', { class: 'cz-gun' }, $('b', {}, (i ? 'SECONDARY · ' : 'PRIMARY · ') + w.def.name), $('span', {}, w.mag + ' in the magazine · ' + (m.inv[CZ.calOf(w.id)] || 0) + ' ' + CZ.itemName(CZ.calOf(w.id)))))));
-    const near = G.actors.filter(a => a !== p && a.cz && a.cz.m && a.state === 'alive' && U.dist3(a.pos, p.pos) < 6);
+    const near = CZ.isGuest && CZ.isGuest() ? G.actors.filter(a => a !== p && a.team === CZ.TEAM && a.op && !/^_/.test(a.op.id) && a.state === 'alive' && U.dist3(a.pos, p.pos) < 6) : G.actors.filter(a => a !== p && a.cz && a.cz.m && a.state === 'alive' && U.dist3(a.pos, p.pos) < 6);
     body.append(...itemRows(m.inv, id => {
       const it = CZ.ITEMS[id] || {}, acts = [];
+      const G2 = CZ.isGuest && CZ.isGuest();
       if (it.use) acts.push(btn('USE', () => { CZ.use(p, id); UI.close(); }));
-      if (id.startsWith('gun:')) { acts.push(btn('EQUIP PRIMARY', () => { equip(p, id.slice(4), 0); UI.inventory('pack'); })); acts.push(btn('EQUIP SECONDARY', () => { equip(p, id.slice(4), 1); UI.inventory('pack'); })); }
-      if (id === 'barricade') acts.push(btn('BOARD UP', () => { UI.close(); setTimeout(() => CZ.boardUp(p), 50); }));
-      for (const a of near) acts.push(btn('GIVE ' + a.op.name, () => { const n = id.startsWith('a') && CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo' ? Math.min(m.inv[id], 30) : 1; const t = CZ.add(a.cz.m, id, Math.min(n, m.inv[id])); CZ.take(m, id, t); if (!t) HUD.toast(a.op.name + ' can\'t carry it', 'warn'); UI.inventory('pack'); }, 'ghost'));
-      acts.push(btn('DROP', () => { const n = m.inv[id]; CZ.take(m, id, n); CZ.dropLoot(p.pos, [[id, n]], 'Dropped'); UI.inventory('pack'); }, 'ghost'));
+      if (id.startsWith('gun:')) for (const slot of [0, 1]) acts.push(btn(slot ? 'EQUIP SECONDARY' : 'EQUIP PRIMARY', () => { if (G2) { CZ.ask('equip', { id: id.slice(4), slot }); UI.close(); } else { equip(p, id.slice(4), slot); UI.inventory('pack'); } }));
+      if (id === 'barricade' && !G2) acts.push(btn('BOARD UP', () => { UI.close(); setTimeout(() => CZ.boardUp(p), 50); }));
+      for (const a of near) acts.push(btn('GIVE ' + a.op.name, () => { const n = CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo' ? Math.min(m.inv[id], 30) : 1; if (G2) { CZ.ask('give', { id, to: a.id, n }); UI.close(); return; } const t = CZ.add(a.cz.m, id, Math.min(n, m.inv[id])); CZ.take(m, id, t); if (!t) HUD.toast(a.op.name + ' can\'t carry it', 'warn'); UI.inventory('pack'); }, 'ghost'));
+      acts.push(btn('DROP', () => { if (G2) { CZ.ask('drop', { id }); UI.close(); return; } const n = m.inv[id]; CZ.take(m, id, n); CZ.dropLoot(p.pos, [[id, n]], 'Dropped'); UI.inventory('pack'); }, 'ghost'));
       return acts;
     }));
   }
   /* put a found gun in hand: the old one goes into the pack */
+  CZ.equip = (a, gid, slot) => equip(a, gid, slot);
   function equip(a, gid, slot) {
     const m = a.cz.m, old = a.w[slot];
     if (old && old.id === gid) return;
@@ -277,6 +282,7 @@
   /* ================================================================ throwing */
   CZ.throwables = ['molotov', 'pipebomb', 'noisemaker', 'flare'];
   CZ.throwItem = function (a) {
+    if (CZ.isGuest && CZ.isGuest()) { CZ.ask('throw'); return; }
     const m = a.cz.m, id = CZ.throwables.find(t => m.inv[t] > 0);
     if (!id) { HUD.toast('Nothing to throw', 'warn'); return; }
     if (a.busy > 0) return;
@@ -335,7 +341,7 @@
     const a = G.player;
     if (e.code === KEYS.map.czInv) { e.preventDefault(); UI.inventory('pack'); }
     else if (e.code === KEYS.map.czMap) { e.preventDefault(); UI.map(); }
-    else if (e.code === KEYS.map.czOrders) { orderT = G.time + 3; if (H) { H.orders.style.display = ''; H.orders.innerHTML = Object.entries(CZ.ORDERS).map(([k, o]) => '<div><kbd>' + o.key + '</kbd> ' + o.name + '</div>').join(''); } }
+    else if (e.code === KEYS.map.czOrders && !(CZ.isGuest && CZ.isGuest())) { orderT = G.time + 3; if (H) { H.orders.style.display = ''; H.orders.innerHTML = Object.entries(CZ.ORDERS).map(([k, o]) => '<div><kbd>' + o.key + '</kbd> ' + o.name + '</div>').join(''); } }
     else if (orderT > G.time && /^Digit[1-5]$/.test(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); const k = +e.code.slice(5), o = Object.entries(CZ.ORDERS).find(([, v]) => v.key === k); if (o) CZ.orders(o[0]); orderT = 0; if (H) H.orders.style.display = 'none'; }
     else if (e.code === KEYS.map.czHeal) { e.preventDefault(); CZ.quickHeal(a); }
     else if (e.code === KEYS.map.czThrow) { e.preventDefault(); CZ.throwItem(a); }
