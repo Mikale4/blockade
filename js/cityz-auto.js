@@ -41,7 +41,7 @@
     if (st.bleed > 0) out.push('bleed');
     if (st.fracture && !(st.pain > 0)) out.push('fracture');
     if (a.hp < 45) out.push('hurt');
-    if (st.infection > 45) out.push('infection');
+    if (st.infection > 30) out.push('infection');   // from 30 it grows by itself: treat it then
     if (st.thirst > 60) out.push('thirst');
     if (st.hunger > 65) out.push('hunger');
     // rounds for the main gun (in the pack and in the magazines): short at under two magazines' worth,
@@ -54,6 +54,7 @@
   /* the item in a pack that answers a need (the last resorts only when it is bad) */
   function itemIn(m, need, a) {
     if (need === 'ammo') { const c = calOf(a); return (m.inv[c] || 0) > 0 ? c : null; }
+    if (need === 'infection') { const inf = a && a.cz ? a.cz.m.st.infection : 50, order = inf >= 60 ? ['antiviral', 'antibiotics'] : ['antibiotics', 'antiviral']; return order.find(id => (m.inv[id] || 0) > 0) || null; }
     const st = m.st;
     return NEED[need].ids.find(id => (m.inv[id] || 0) > 0 && !(id === 'dirtywater' && st.thirst < 88) && !(id === 'dogfood' && st.hunger < 85) && !(id === 'painkillers' && need === 'fracture' && (m.inv.splint || 0) > 0));
   }
@@ -63,6 +64,13 @@
   CZ.calRounds = calRounds;
   function spare(m, id, giver, need, t) {
     const n = m.inv[id] || 0; if (!n) return 0;
+    // medicine against the infection: a spare dose goes freely; the last one goes to someone 15 or
+    // more ahead of the giver, or to anyone at 50 or more (unless the giver is as far gone)
+    if (need === 'infection') {
+      if (n > 1) return 1;
+      const gi = giver.cz.m.st.infection || 0, ti = t && t.cz ? t.cz.m.st.infection || 0 : 0;
+      return (ti >= 50 && gi < ti) || ti - gi >= 15 ? 1 : 0;
+    }
     // food and water: one to spare goes freely; the last one goes to someone clearly worse off, or to
     // anyone close to starving (unless the giver is just as close)
     if (need === 'hunger' || need === 'thirst') {
@@ -178,12 +186,18 @@
       }
       return;
     }
-    for (const t of squad()) {
+    // the worst off first (a deep wound, a bad infection, starving), so two helpers don't both go to
+    // the first name on the list while someone else goes without
+    const worst = t => { const st = t.cz.m.st; return st.bleed * 30 + Math.max(0, st.infection - 30) * 1.5 + Math.max(0, st.hunger - 60) + Math.max(0, st.thirst - 60) + (t.hp < 45 ? 40 : 0); };
+    for (const t of squad().sort((p, q) => worst(q) - worst(p))) {
       // someone starving or bleeding badly is worth going further for
-      const ts = t.cz.m.st, urgent = ts.hunger >= 80 || ts.thirst >= 80 || ts.bleed >= 2;
+      const ts = t.cz.m.st, urgent = ts.hunger >= 80 || ts.thirst >= 80 || ts.bleed >= 2 || ts.infection >= 60;
       if (t === a || U.dist3(t.pos, a.pos) > (urgent ? 40 : 16) || t.czTendT > G.time || (t.busy > 0 && /IMPROVISING|TREATING/.test(t.busyLabel || ''))) continue;
       for (const need of needsOf(t)) {
+        if (t.czClaim && t.czClaim[need] && t.czClaim[need].t > G.time && t.czClaim[need].by !== a) continue;   // someone's already bringing it
         let id = need === 'ammo' ? calOf(t) : itemIn(m, need, t);
+        // the antiviral is scarce: it only goes to someone whose infection is serious
+        if (id === 'antiviral' && need === 'infection' && t !== a && (t.cz.m.st.infection || 0) < 50 && (m.inv.antiviral || 0) < 2) id = null;
         if (!id && need === 'bleed' && craftOwn(a, 'rag')) id = 'rag';
         if (!id && need === 'bleed' && (t.cz.m.st.bleed >= 2 || t.hp < 55) && CZ.canImprovise(a) && !(t.bot && CZ.canImprovise(t))) {
           a.czGiveT = G.time + 6;
@@ -194,8 +208,12 @@
         const n = spare(m, id, a, need, t);
         if (!n) continue;
         a.czGiveT = G.time + 8;
+        (t.czClaim || (t.czClaim = {}))[need] = { by: a, t: G.time + 12 };
         a.bot.tasks.unshift({ at: t.pos.clone(), time: 0.6, run: x => {
+          if (t.czClaim && t.czClaim[need] && t.czClaim[need].by === x) t.czClaim[need].t = G.time + 3;   // a moment for it to take effect
           if (t.state === 'dead' || U.dist3(t.pos, x.pos) > 4) return;
+          // still needed, now they're here? (someone else may have seen to it on the way)
+          if (!needsOf(t).includes(need) || (id === 'antiviral' && need === 'infection' && t.cz.m.st.infection < 50 && (x.cz.m.inv.antiviral || 0) < 2)) return;
           if (NEED[need].treat && t.state !== 'dead') CZ.treat(x, t, id);
           else { const g = CZ.add(t.cz.m, id, n); CZ.take(x.cz.m, id, g); if (g) CZ.tell(t, x.op.name + ' gave you ' + (g > 1 ? g + ' × ' : '') + CZ.itemName(id), 'info'); }
           say(x, 'give', ['Here, take this.', 'Got you.', 'Catch.'], 2);
@@ -229,7 +247,7 @@
   }
   /* in the follow order: go and find what is missing, or pick over what is close when it is quiet */
   CZ.forageGoal = function (a) {
-    if (fighting(a) || CZ.S.order === 'quiet' || CZ.S.order === 'hold') return null;
+    if (!CZ.S || fighting(a) || CZ.S.order === 'quiet' || CZ.S.order === 'hold') return null;
     if (a.bot.loot && a.bot.loot.alive) return lootGoal(a, a.bot.loot);
     const lead = CZ.leader(); if (!lead || lead === a) return null;
     const calm = !G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 18);
@@ -245,7 +263,7 @@
   const oGoal = CZ.squadGoal;
   CZ.squadGoal = function (a) {
     const lead = CZ.leader();
-    if (a !== lead && CZ.S.order === 'follow') { const g = CZ.forageGoal(a); if (g) return g; }
+    if (a !== lead && CZ.S && CZ.S.order === 'follow') { const g = CZ.forageGoal(a); if (g) return g; }
     return oGoal.apply(this, arguments);
   };
 
