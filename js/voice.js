@@ -15,6 +15,10 @@
 (function () {
   'use strict';
   const VOICE = window.VOICE = { LINES: {}, GENERIC: {} };
+  // who is a man and who a woman (tools/voices/cast.py: from the bios, else the operators' full names),
+  // for the browser's speech and the recorded voices alike
+  VOICE.SEX = { kiln: 'f', torque: 'm', rivet: 'f', glare: 'm', crag: 'm', marlow: 'f', halcyon: 'f', vesper: 'm', static: 'm', quill: 'f', pike: 'm', brace: 'f', haze: 'f', wraith: 'f', gaff: 'm', splice: 'f', tusk: 'm', dynamo: 'f', triad: 'm', rust: 'f', skid: 'm', grit: 'm', span: 'm', rung: 'm', phantom: 'f', loop: 'm', tremor: 'm', kite: 'f', murmur: 'f', pivot: 'm', bound: 'f', plummet: 'f', stain: 'f', glance: 'f', feint: 'm', sutler: 'm', caster: 'm', hound: 'f', archive: 'm', lodestone: 'f', earshot: 'm', anvil: 'm', okafor: 'm', brick: 'f', tamsin: 'f', sable: 'f', kestrel: 'f', morrow: 'm', juno: 'f', hollis: 'm', rhea: 'f', lark: 'm', seam: 'm', lumen: 'm', nox: 'm', moor: 'f', warden: 'm', ferro: 'f', mimic: 'f', veil: 'f', grout: 'f', drench: 'm', jolt: 'f', ferret: 'm', babel: 'f', relay: 'm', sink: 'f', latch: 'f', mirage: 'f', harbor: 'f', perch: 'm', winch: 'f', strain: 'm', glint: 'f', chaff: 'f', bluff: 'm', tether: 'm', drag: 'f', magpie: 'f', gust: 'm', canary: 'f', carom: 'm' };
+  VOICE.sexOf = op => (op && op.voice && op.voice.g) || (op && VOICE.SEX[op.id]) || 'm';
   VOICE.add = (id, lines) => { VOICE.LINES[id] = Object.assign(VOICE.LINES[id] || {}, lines); };
   const PRIO = { down: 5, kill: 3, lost: 4, spot: 3, intel: 3, ability: 2, move: 2, hurt: 2, win: 4, lose: 4, round: 1, reload: 1, pick: 5 };
   const EVCD = { reload: 14, hurt: 10, spot: 8, round: 30, kill: 3, ability: 4, intel: 5, move: 6 };
@@ -116,7 +120,7 @@
     if (voiceCache.has(op.id)) return voiceCache.get(op.id);
     const all = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
     if (!all.length) return null;
-    const pv = op.voice || {}, want = pv.lang || ['en-US', 'en-GB'], g = pv.g || 'm';
+    const pv = op.voice || {}, want = pv.lang || ['en-US', 'en-GB'], g = VOICE.sexOf(op);
     const gender = v => FEM.test(v.name) ? 'f' : MALE.test(v.name) ? 'm' : '?';
     let pool = [];
     for (const l of want) { pool = all.filter(v => v.lang.replace('_', '-').toLowerCase().startsWith(l.toLowerCase()) && gender(v) === g); if (pool.length) break; }
@@ -184,9 +188,55 @@
     const mine = a === me, team = !spect && a.team === me.team, near = U.dist3(a.pos, me.pos) < 14;
     if (!mine && !team && !near && !spect) return;
     if (G.settings.voiceLines !== false) show(a, text, !mine && !team && !spect);
-    if (G.settings.voiceSpeech !== false && window.speechSynthesis && (pr >= 2 || !speechSynthesis.speaking)) speak(a, text, mine || team || spect ? 1 : 0.55);
+    if (G.settings.voiceSpeech === false) return;
+    const vol = mine || team || spect ? 1 : 0.55;
+    // a recorded line if there is one (voices/), the browser's speech if not
+    const rec = playRec(a, text, vol, pr);
+    if (rec === false && window.speechSynthesis && (pr >= 2 || !speechSynthesis.speaking)) speak(a, text, vol);
   }
   VOICE.deliver = deliver;
+
+  /* ------------------------------------------------------------ recorded lines */
+  /* voices/index.json (made by tools/voices/elevenlabs.py): the voice each operator speaks with, and
+     the lines recorded in each voice (by a hash of the text). A recorded line is played instead of the
+     browser's speech, one at a time (a more urgent one can cut in); everything else is still spoken.
+     Anyone without a voice of their own (a recruit, a survivor) gets one of the cast, from their name */
+  let REC = null;
+  const recBuf = new Map(), recLoading = new Set();
+  let recSrc = null, recUntil = 0, recPri = 0;
+  try { fetch('voices/index.json').then(r => r.ok ? r.json() : null).then(j => { if (j && j.files) REC = j; }).catch(() => { }); } catch (e) { }
+  const fnv = t => { let x = 0x811c9dc5; t = String(t).trim(); for (let i = 0; i < t.length; i++) { x ^= t.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; } return ('0000000' + x.toString(16)).slice(-8); };
+  VOICE.hash = fnv;
+  function recVoice(a) {
+    if (!REC || !a.op) return null;
+    if (REC.ops[a.op.id]) return REC.ops[a.op.id];
+    const vs = Object.keys(REC.voices || {}); if (!vs.length) return null;
+    let h = 0; for (const c of String(a.name || a.op.id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return vs[h % vs.length];
+  }
+  VOICE.recVoice = recVoice;
+  /* true: played (or on its way); null: recorded but skipped (someone else is mid-sentence); false: no recording */
+  function playRec(a, text, vol, pr) {
+    const slug = recVoice(a), k = fnv(text);
+    if (!slug || !(REC.files[slug] && REC.files[slug][k]) || !window.SFX || !SFX.ctx) return false;
+    const now = SFX.ctx.currentTime;
+    if (now < recUntil && (pr || 1) <= recPri) return null;
+    const key = slug + '/' + k;
+    const go = buf => {
+      const t = SFX.ctx.currentTime; if (t < recUntil && (pr || 1) <= recPri) return;
+      if (recSrc) { try { recSrc.stop(); } catch (e) { } }
+      const d = SFX.synth.chain(null, 1, (G.settings.voiceVol == null ? 0.85 : G.settings.voiceVol) * vol); if (!d) return;
+      const src = SFX.ctx.createBufferSource(); src.buffer = buf; src.connect(d); src.start();
+      recSrc = src; recUntil = t + buf.duration; recPri = pr || 1;
+    };
+    const b = recBuf.get(key); if (b) { go(b); return true; }
+    if (!recLoading.has(key)) {
+      recLoading.add(key);
+      fetch('voices/' + key + '.mp3').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(x => SFX.ctx.decodeAudioData(x)).then(buf => { recBuf.set(key, buf); recLoading.delete(key); go(buf); }).catch(() => recLoading.delete(key));
+    }
+    return true;
+  }
+  VOICE.playRec = playRec;
   function show(a, text, enemy) {
     if (!el) { el = document.createElement('div'); el.id = 'vo'; document.body.appendChild(el); }
     const u = DATA.UNITS[a.op.unit], col = u ? u.color : '#ddd';

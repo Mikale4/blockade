@@ -201,6 +201,11 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   operators have their own lines and introduce themselves on the select screen; the others use short
   callouts. Your team's lines come over the radio; an enemy's only when they are close. Settings turn
   the subtitles or the speech off and set the voice volume.
+  **Recorded voices:** lines recorded with ElevenLabs (`voices/`, made by the tools in
+  `tools/voices/`) play instead of the browser's speech: the radio calls in ten voices (six men, four
+  women), the seasons 15-18 operators' own lines in their voice, City Z's fixed lines; each operator
+  speaks as a man or a woman (from their bios, else their full names), recorded or spoken. Anything not
+  recorded yet (and lines with a teammate's name in them) is still spoken by the browser.
 - **Weapon attachments:** every gun has up to four slots: **optic** (iron sights, reflex, red
   dot, holographic, 2.5x telescopic, a 1.5-3x variable you switch with the firemode key while
   aiming, a 4x marksman scope), **barrel** (suppressor, compensator, muzzle brake, flash hider,
@@ -631,7 +636,7 @@ people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, 
 lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·
-`ops3-a`, `ops3-b`, `ops3-c`, `ops3-d` (the seasons 15-18 operators, on the same registry) · `voice` (operator voice lines) ·
+`ops3-a`, `ops3-b`, `ops3-c`, `ops3-d` (the seasons 15-18 operators, on the same registry) · `voice` (operator voice lines; recorded ones from `voices/`) ·
 `game` (rounds, modes, objectives) · `player` (input, camera, viewmodel) · `hud` · `menu` ·
 `range` (range and training) · `killcam` (replays) · `names` (bot names) · `arcade` (Deathmatch and
 Team Deathmatch) · `shop` (cosmetics, credits) · `ranked` (ranks, matchmaking) · `main` · online: `ui` (toasts, modals, top bar) · `auth`

@@ -1,0 +1,242 @@
+[
+ {
+  "id": "CwhRBWXzGAHq8TQ4Fs17",
+  "name": "Roger - Laid-Back, Casual, Resonant",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": "classy",
+  "use": "conversational"
+ },
+ {
+  "id": "EXAVITQu4vr4xnSDxMaL",
+  "name": "Sarah - Mature, Reassuring, Confident",
+  "category": "premade",
+  "gender": "female",
+  "accent": "american",
+  "age": "young",
+  "desc": "professional",
+  "use": "entertainment_tv"
+ },
+ {
+  "id": "FGY2WhTYpPnrIDTdsKH5",
+  "name": "Laura - Enthusiast, Quirky Attitude",
+  "category": "premade",
+  "gender": "female",
+  "accent": "american",
+  "age": "young",
+  "desc": "sassy",
+  "use": "social_media"
+ },
+ {
+  "id": "IKne3meq5aSn9XLyUdCD",
+  "name": "Charlie - Deep, Confident, Energetic",
+  "category": "premade",
+  "gender": "male",
+  "accent": "australian",
+  "age": "young",
+  "desc": "hyped",
+  "use": "conversational"
+ },
+ {
+  "id": "JBFqnCBsd6RMkjVDRZzb",
+  "name": "George - Warm, Captivating Storyteller",
+  "category": "premade",
+  "gender": "male",
+  "accent": "british",
+  "age": "middle_aged",
+  "desc": "mature",
+  "use": "narrative_story"
+ },
+ {
+  "id": "N2lVS1w4EtoT3dr4eOWO",
+  "name": "Callum - Husky Trickster",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": null,
+  "use": "characters_animation"
+ },
+ {
+  "id": "SAz9YHcvj6GT2YYXdXww",
+  "name": "River - Relaxed, Neutral, Informative",
+  "category": "premade",
+  "gender": "neutral",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": "calm",
+  "use": "conversational"
+ },
+ {
+  "id": "SOYHLrjzK2X1ezoPC6cr",
+  "name": "Harry - Fierce Warrior",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "young",
+  "desc": "rough",
+  "use": "characters_animation"
+ },
+ {
+  "id": "TX3LPaxmHKxFdv7VOQHJ",
+  "name": "Liam - Energetic, Social Media Creator",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "young",
+  "desc": "confident",
+  "use": "social_media"
+ },
+ {
+  "id": "Xb7hH8MSUJpSbSDYk0k2",
+  "name": "Alice - Clear, Engaging Educator",
+  "category": "premade",
+  "gender": "female",
+  "accent": "british",
+  "age": "middle_aged",
+  "desc": "professional",
+  "use": "informative_educational"
+ },
+ {
+  "id": "XrExE9yKIg1WjnnlVkGX",
+  "name": "Matilda - Knowledgable, Professional",
+  "category": "premade",
+  "gender": "female",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": "upbeat",
+  "use": "informative_educational"
+ },
+ {
+  "id": "bIHbv24MWmeRgasZH58o",
+  "name": "Will - Relaxed Optimist",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "young",
+  "desc": "chill",
+  "use": "conversational"
+ },
+ {
+  "id": "cgSgspJ2msm6clMCkdW9",
+  "name": "Jessica - Playful, Bright, Warm",
+  "category": "premade",
+  "gender": "female",
+  "accent": "american",
+  "age": "young",
+  "desc": "cute",
+  "use": "conversational"
+ },
+ {
+  "id": "cjVigY5qzO86Huf0OWal",
+  "name": "Eric - Smooth, Trustworthy",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": "classy",
+  "use": "conversational"
+ },
+ {
+  "id": "hpp4J3VqNfWAUOO0d1Us",
+  "name": "Bella - Professional, Bright, Warm",
+  "category": "premade",
+  "gender": "female",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": "professional",
+  "use": "informative_educational"
+ },
+ {
+  "id": "iP95p4xoKVk53GoZ742B",
+  "name": "Chris - Charming, Down-to-Earth",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": "casual",
+  "use": "conversational"
+ },
+ {
+  "id": "nPczCjzI2devNBz1zQrb",
+  "name": "Brian - Deep, Resonant and Comforting",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": "classy",
+  "use": "social_media"
+ },
+ {
+  "id": "onwK4e9ZLuTAKqWW03F9",
+  "name": "Daniel - Steady Broadcaster",
+  "category": "premade",
+  "gender": "male",
+  "accent": "british",
+  "age": "middle_aged",
+  "desc": "formal",
+  "use": "informative_educational"
+ },
+ {
+  "id": "pFZP5JQG7iQjIQuC4Bku",
+  "name": "Lily - Velvety Actress",
+  "category": "premade",
+  "gender": "female",
+  "accent": "british",
+  "age": "middle_aged",
+  "desc": "confident",
+  "use": "informative_educational"
+ },
+ {
+  "id": "pNInz6obpgDQGcFmaJgB",
+  "name": "Adam - Dominant, Firm",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "middle_aged",
+  "desc": null,
+  "use": "social_media"
+ },
+ {
+  "id": "pqHfZKP75CvOlQylNhV4",
+  "name": "Bill - Wise, Mature, Balanced",
+  "category": "premade",
+  "gender": "male",
+  "accent": "american",
+  "age": "old",
+  "desc": "crisp",
+  "use": "advertisement"
+ },
+ {
+  "id": "ILqI22HjOfgHwbXQass7",
+  "name": "BSR Combat Computer C",
+  "category": "generated",
+  "gender": null,
+  "accent": null,
+  "age": null,
+  "desc": null,
+  "use": null
+ },
+ {
+  "id": "4gYKUmr7Lmv9mUqSd3ki",
+  "name": "BSR Combat Computer",
+  "category": "generated",
+  "gender": null,
+  "accent": null,
+  "age": null,
+  "desc": null,
+  "use": null
+ },
+ {
+  "id": "ibHhxyUqkunHeFupWHYc",
+  "name": "BSR Combat Computer B",
+  "category": "generated",
+  "gender": null,
+  "accent": null,
+  "age": null,
+  "desc": null,
+  "use": null
+ }
+]
