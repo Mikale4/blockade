@@ -332,8 +332,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     needs when nobody has it (shown on the squad list), scavenges nearby rooms of the right kind for
     it, and throws molotovs and pipe bombs into packs of infected. A wound is never left: its own
     dressing, one made from cloth, one from a teammate (who makes a rag if that's all they have), the
-    safehouse stash, or, with nothing at all, a strip torn from their clothes and pressed on it (once
-    a minute; your treat key does the same when your pack is empty).
+    safehouse stash, or, with nothing at all, a strip torn from their clothes and pressed on it, which
+    stops the bleeding (once a minute; your treat key does the same when your pack is empty).
   - **Objective markers** show where to go: the things and people the current objective needs, or
     the road toward the place it is in.
   - **The city:** ten places joined by roads (a firehouse street, Main Street, a refugee school, a

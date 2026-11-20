@@ -81,7 +81,7 @@
     return true;
   };
   /* the last resort for a wound with nothing to dress it: a strip torn from your clothes and pressed
-     on it. It stops up to two levels of bleeding, takes longer than a bandage, and can't be done again
+     on it. It stops the bleeding altogether (no light bleed left over), takes longer than a bandage, and can't be done again
      by the same hands for a minute */
   CZ.IMPROV_CD = 60;
   CZ.canImprovise = giver => G.time > (giver.czImprovT || 0);
@@ -91,7 +91,7 @@
     giver.czImprovT = G.time + CZ.IMPROV_CD; giver.busy = 3; giver.busyLabel = 'IMPROVISING A DRESSING'; t.czTendT = G.time + 3.5;
     setTimeout(() => {
       if (t.state === 'dead' || giver.state === 'dead') return;
-      const st = t.cz.m.st; st.bleed = Math.max(0, st.bleed - 2);
+      const st = t.cz.m.st; st.bleed = 0;
       CZ.tell(t, t === giver ? 'You tore a strip from your clothes and stopped the bleeding' : giver.op.name + ' pressed a torn strip on your wound', 'info');
     }, 2700);
     return true;
