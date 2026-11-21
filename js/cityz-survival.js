@@ -70,7 +70,7 @@
   CZ.sheltered = a => !outdoors(a);   // under a roof, out of the rain (a doorway in a building's outline doesn't count)
   function warmth(m) { let w = 0; if (m.inv.jacket) w += 2; if (m.inv.raincoat) w += CZ.S.weather === 'rain' ? 1.5 : 0.5; return w; }
   function nearFire(a) { return G.ents.some(e => e.alive && e.type === 'fire' && U.dist3(e.pos, a.pos) < 4); }
-  CZ.nearFire = nearFire;
+  CZ.nearFire = a => nearFire(a) || !!(CZ.nearBarrel && CZ.nearBarrel(a));   // (a trash-can fire counts)
   /* a campfire from firewood, a step ahead on the floor: three minutes of warmth for anyone within 4 m.
      It's the lighter's fire, so it doesn't burn the squad (no friendly fire); the infected it does */
   CZ.lightFire = function (a) {
@@ -89,8 +89,9 @@
       ammoSync(a);
       if (a.state !== 'alive') continue;
       // hunger, thirst, tiredness
-      st.hunger = Math.min(100, st.hunger + RATE.hunger * diff.need * dt);
-      st.thirst = Math.min(100, st.thirst + RATE.thirst * diff.need * dt * (st.sick > 0 ? 1.6 : 1));
+      const perk = m.perk, hib = perk === 'hibernation' ? 0.6 : 1;   // (cityz-kit.js: Hibernation)
+      st.hunger = Math.min(100, st.hunger + RATE.hunger * diff.need * dt * hib);
+      st.thirst = Math.min(100, st.thirst + RATE.thirst * diff.need * dt * (st.sick > 0 ? 1.6 : 1) * hib);
       st.fatigue = Math.min(100, st.fatigue + RATE.fatigue * diff.need * dt * (a.sprint && a.moving > 0.5 ? 2.2 : 1));
       // a rest: still, with no infected within 15 m, tiredness comes back down (crouched or lying
       // faster, indoors faster), but only sleep takes it below 40. A nap on a safehouse bed goes all
@@ -103,8 +104,9 @@
       }
       // stamina: sprinting spends it; you get it back walking, slower when hungry, thirsty or exhausted
       const smax = Math.min(st.fatigue >= 95 ? 45 : st.fatigue > 80 ? 75 : 100, st.sick > 30 ? 70 : 100);
-      if (a.sprint && a.moving > 0.5) st.stamina = Math.max(0, st.stamina - 13 * dt);
-      else st.stamina = Math.min(smax, st.stamina + 15 * dt * (st.hunger > 75 || st.thirst > 75 ? 0.5 : 1));
+      const mara = perk === 'marathon';   // (Marathon: a slower drain, a quicker second wind)
+      if (a.sprint && a.moving > 0.5) st.stamina = Math.max(0, st.stamina - 13 * dt * (mara ? 0.55 : 1));
+      else st.stamina = Math.min(smax, st.stamina + 15 * dt * (st.hunger > 75 || st.thirst > 75 ? 0.5 : 1) * (mara ? 1.4 : 1));
       if (st.stamina <= 0) a.czWinded = G.time + 2.5;
       // wounds: bleeding drains health until dressed
       if (st.bleed > 0) { a.czBleedAcc = (a.czBleedAcc || 0) + dt * st.bleed * 0.55; if (a.czBleedAcc >= 1) { const n = Math.floor(a.czBleedAcc); a.czBleedAcc -= n; a.hurt(n, { kind: 'bleed' }); if (Math.random() < 0.3) FX.blood && FX.blood(a.center(V()), 0, -1, 0); } }
@@ -135,8 +137,10 @@
       // body heat
       const out = outdoors(a), dark = CZ.dark(), wet = S.weather === 'rain' && out;
       const cold = (out ? 0.8 + dark * 1.4 : 0.2 + dark * 0.3) + (wet ? 1.4 : 0) + (S.weather === 'fog' && out ? 0.3 : 0);
-      const target = nearFire(a) ? 37.6 : 37 - Math.max(0, cold - warmth(m)) * 0.9;
-      st.temp += (target - st.temp) * Math.min(1, dt * 0.012) + (nearFire(a) ? 0.02 * dt : 0);
+      // a campfire warms; a trash-can fire (cityz-kit.js) warms fast
+      const fire = nearFire(a), drum = CZ.nearBarrel && CZ.nearBarrel(a);
+      const target = fire || drum ? 37.6 : 37 - Math.max(0, cold - warmth(m)) * 0.9;
+      st.temp += (target - st.temp) * Math.min(1, dt * (drum ? 0.05 : 0.012)) + (drum ? 0.06 * dt : fire ? 0.02 * dt : 0);
       if (st.temp < 35.5) a.hurt((st.temp < 34 ? 0.5 : 0.15) * dt, { kind: 'cold' });
       // pace: a broken bone limps, a heavy pack drags, being winded or worn out stops the sprint
       const kg = CZ.weight(m), cap = CZ.capacity(m);
@@ -144,6 +148,7 @@
       if (st.fracture && !(st.pain > 0)) k *= 0.72;
       if (kg > cap) k *= kg > cap * 1.2 ? 0.62 : 0.82;
       if (st.fatigue >= 95) k *= 0.88;
+      if (perk === 'marathon') k *= 1.12;
       a.czMul = k === 1 ? 0 : k;
       if ((a.czWinded > G.time) || (st.fracture && !(st.pain > 0)) || kg > cap * 1.2) a.sprint = false;
       m.hp = a.hp;
@@ -156,7 +161,7 @@
   function turn(a) {
     const m = a.cz.m;
     HUD.banner(a.name + ' HAS TURNED', 'The infection took them', 3, 'lose');
-    const pos = a.pos.clone(); a.die(null, false); m.alive = false;
+    const pos = a.pos.clone(); a.die(null, false); m.alive = false; m.lostTo = 'infection';
     if (CZ.dropPack) CZ.dropPack(a);
     setTimeout(() => { if (CZ.on() && CZ.spawnInfected) { const z = CZ.spawnInfected('runner', pos); z.name = 'Turned ' + m.name; } }, 2500);
   }
@@ -168,8 +173,9 @@
     for (const m of S.squad) {
       if (!m.alive) continue;
       const st = m.st, h = minutes / 60;
-      st.hunger = Math.min(100, st.hunger + RATE.hunger * diff.need * minutes * (sleep ? 0.6 : 1));
-      st.thirst = Math.min(100, st.thirst + RATE.thirst * diff.need * minutes * (sleep ? 0.6 : 1));
+      const hib = m.perk === 'hibernation' ? 0.6 : 1;
+      st.hunger = Math.min(100, st.hunger + RATE.hunger * diff.need * minutes * (sleep ? 0.6 : 1) * hib);
+      st.thirst = Math.min(100, st.thirst + RATE.thirst * diff.need * minutes * (sleep ? 0.6 : 1) * hib);
       if (sleep) { st.fatigue = Math.max(0, st.fatigue - 14 * h); st.stamina = 100; m.hp = Math.min(100, m.hp + (inf ? 16 : 7) * h * (medic ? 2 : 1)); if (inf) st.infection = Math.max(0, st.infection - 4 * h); st.temp = 37; if (inf && st.fracture && h >= 6) st.fracture = false; }
       else { st.fatigue = Math.min(100, st.fatigue + RATE.fatigue * diff.need * minutes * 1.3); }
       if (st.infection > 30) st.infection = Math.min(99, st.infection + 0.018 * minutes * diff.infect);

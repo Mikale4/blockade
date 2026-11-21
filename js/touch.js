@@ -48,7 +48,7 @@
   for (const [act, label, cls] of BTN) { const b = el('button', 'tc-btn ' + cls, label); b.dataset.act = act; root.append(b); buttons[act] = b; }
   // City Z
   const cz = el('div', 'tc-cz');
-  for (const [act, label] of [['czInv', 'PACK'], ['czMap', 'MAP'], ['czOrders', 'ORDERS'], ['czHeal', 'TREAT'], ['czThrow', 'THROW']]) { const b = el('button', 'tc-btn tc-small', label); b.dataset.key = act; cz.append(b); }
+  for (const [act, label] of [['czInv', 'PACK'], ['czMap', 'MAP'], ['czOrders', 'ORDERS'], ['czHeal', 'TREAT'], ['czThrow', 'THROW'], ['czCare', 'CARE']]) { const b = el('button', 'tc-btn tc-small', label); b.dataset.key = act; cz.append(b); }
   const orders = el('div', 'tc-orders'); root.append(cz, orders);
   // spectating
   const spec = el('div', 'tc-spec');

@@ -375,7 +375,7 @@
     if (a.isPlayer) PLAYER.onMelee();
     if (bash) { a.shBash = 0.3; a.vel.x += f.x * 4; a.vel.z += f.z * 4; SFX.metal(e); }
     // bodies
-    let best = null, bd = bash ? 2.1 : 1.7;
+    let best = null, bd = bash ? 2.1 : (a.meleeReach || 1.7);   // (City Z's Iron Mike reaches further)
     for (const b of G.actors) {
       if (b === a || b.state === 'dead') continue;
       const c = b.center(new THREE.Vector3()); const to = c.clone().sub(e); const dist = to.length();

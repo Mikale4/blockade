@@ -302,7 +302,7 @@
   CZ.onKillInf = function (v) {
     if (!CZ.Z) return;
     const st = CZ.zoneState(CZ.Z.id); st.pop = Math.max(0, st.pop - 1);
-    if (st.pop === 0 && !st.cleared) { st.cleared = true; HUD.banner('CLEARED', CZ.Z.def.name + ' is quiet, for now', 3, 'win'); }
+    if (st.pop === 0 && !st.cleared) { st.cleared = true; HUD.banner('CLEARED', CZ.Z.def.name + ' is quiet, for now', 3, 'win'); CZ.fire('cleared', CZ.Z.id); }
     // what they carried
     if (CZ.dropLoot) {
       if (v.cz.opx && !v.czTurnedM) CZ.dropLoot(v.pos, gearOf(v), 'Gear of ' + v.name);

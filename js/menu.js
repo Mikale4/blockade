@@ -333,6 +333,7 @@
 
   /* --------------------------------------------------------- operator card */
   function pips(n, max) { return $('span', { class: 'pips' }, ...Array.from({ length: max }, (_, i) => $('i', { class: i < n ? 'on' : '' }))); }
+  MENU.opDetail = (op, lo, onChange) => opDetail(op, lo, onChange);
   function opDetail(op, lo, onChange) {
     const u = UNITS[op.unit];
     const d = $('div', { class: 'op-detail' });

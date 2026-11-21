@@ -69,6 +69,7 @@
     if (st.temp < 35.5) tags.push('<i class="bad">HYPOTHERMIA</i>');
     else if (st.temp < 36.2) tags.push('<i class="warn">COLD · GET INSIDE, BY A FIRE OR INTO A JACKET</i>');
     if (CZ.nearFire && CZ.nearFire(p)) tags.push('<i>BY THE FIRE</i>');
+    if (m.careN > 0 && CZ.CARE_KINDS) tags.push('<i class="ok">' + CZ.CARE_KINDS[m.care || 'ammo'].name + ' READY · ' + KEYS.name('czCare') + '</i>');
     const kg = CZ.weight(m), cap = CZ.capacity(m);
     tags.push('<i class="' + (kg > cap ? 'warn' : '') + '">PACK ' + kg + ' / ' + cap + ' KG</i>');
     H.status.innerHTML = tags.join('');
@@ -201,6 +202,7 @@
       const card = $('div', { class: 'cz-mcard' + (a === p ? ' me' : '') },
         $('b', {}, (m.recruit ? a.name : a.op.name + ' · ' + a.name) + (a === p ? ' (YOU)' : '')), who,
         $('span', {}, a.state === 'dead' ? 'DEAD' : 'Health ' + Math.round(a.hp) + ' · Food ' + Math.round(100 - st.hunger) + '% · Water ' + Math.round(100 - st.thirst) + '% · Rest ' + Math.round(100 - st.fatigue) + '%' + (st.infection > 0.5 && !(CZ.hidBite && CZ.hidBite(a)) ? ' · Infection ' + Math.round(st.infection) + '%' : '') + (st.bleed > 0 ? ' · bleeding' : '') + (st.fracture ? ' · broken bone' : '')),
+        CZ.OP_PERKS && m.perk ? $('small', {}, 'Perk: ' + CZ.OP_PERKS[m.perk].name + ' · Care package: ' + CZ.CARE_KINDS[m.care || 'ammo'].name + (m.careN ? ' (' + m.careN + ' to call in)' : '')) : null,
         $('small', {}, 'Pack ' + CZ.weight(m) + ' / ' + CZ.capacity(m) + ' kg: ' + (CZ.itemsText(m.inv) || 'empty')),
         a !== p && a.state === 'alive' ? $('div', { class: 'cz-acts' },
           btn('PLAY AS ' + a.op.name, () => { UI.close(); CZ.takeControl(a); }),
@@ -315,7 +317,7 @@
       const iv = setInterval(() => {
         if (!box.isConnected) return clearInterval(iv);
         if (i < lines.length - 1) { i++; draw(); return; }
-        clearInterval(iv); const c = choices.find(x => x.fn) || choices[0]; UI.close(true); open = null; G.paused = false; if (c.fn) setTimeout(c.fn, 30);
+        clearInterval(iv); const c = choices.find(x => x.recruit && x.fn) || choices.find(x => x.fn) || choices[0]; UI.close(true); open = null; G.paused = false; if (c.fn) setTimeout(c.fn, 30);
       }, 3500);
     }
   };
@@ -422,12 +424,13 @@
     else if (orderT > G.time && /^Digit[1-5]$/.test(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); const k = +e.code.slice(5), o = Object.entries(CZ.ORDERS).find(([, v]) => v.key === k); if (o) CZ.orders(o[0]); orderT = 0; if (H) H.orders.style.display = 'none'; }
     else if (e.code === KEYS.map.czHeal) { e.preventDefault(); CZ.quickHeal(a); }
     else if (e.code === KEYS.map.czThrow) { e.preventDefault(); CZ.throwItem(a); }
+    else if (e.code === KEYS.map.czCare && CZ.callCare) { e.preventDefault(); CZ.callCare(a); }
   }, true);
   setInterval(() => { if (H && orderT && G.time > orderT) { orderT = 0; H.orders.style.display = 'none'; } }, 500);
   // the keys, rebindable like the rest
-  Object.assign(KEYS.defaults, { czInv: 'KeyI', czMap: 'KeyM', czOrders: 'KeyY', czHeal: 'Digit4', czThrow: 'Digit3' });
-  for (const k of ['czInv', 'czMap', 'czOrders', 'czHeal', 'czThrow']) if (!KEYS.map[k]) KEYS.map[k] = KEYS.defaults[k];
-  KEYS.groups.push(['CITY Z', [['czInv', 'Pack, crafting, squad, stash'], ['czMap', 'Region map'], ['czOrders', 'Squad orders (then 1-5)'], ['czHeal', 'Treat yourself'], ['czThrow', 'Throw (molotov, pipe bomb, noisemaker, flare)']]]);
+  Object.assign(KEYS.defaults, { czInv: 'KeyI', czMap: 'KeyM', czOrders: 'KeyY', czHeal: 'Digit4', czThrow: 'Digit3', czCare: 'KeyP' });
+  for (const k of ['czInv', 'czMap', 'czOrders', 'czHeal', 'czThrow', 'czCare']) if (!KEYS.map[k]) KEYS.map[k] = KEYS.defaults[k];
+  KEYS.groups.push(['CITY Z', [['czInv', 'Pack, crafting, squad, stash'], ['czMap', 'Region map'], ['czOrders', 'Squad orders (then 1-5)'], ['czHeal', 'Treat yourself'], ['czThrow', 'Throw (molotov, pipe bomb, noisemaker, flare)'], ['czCare', 'Call in your care package']]]);
 
   /* ================================================================ menus */
   /* City Z from the home menu: continue, or a new squad */
@@ -451,9 +454,9 @@
     const box = $('div', { class: 'panel cz-small' }, $('h2', {}, 'ARE YOU SURE?'), $('p', {}, text), $('div', { class: 'actions' }, btn('YES', () => { yes(); }, 'big'), btn('NO', () => { s.innerHTML = ''; if (old) s.append(old); }, 'ghost')));
     s.innerHTML = ''; s.append(box);
   };
-  function newSquad() {
+  function newSquad(initial) {
     const s = U.$('screens'); s.innerHTML = '';
-    const pick = [], diff = { v: 'survivor' };
+    const pick = (initial || []).slice(), diff = { v: (initial && initial.diff) || 'survivor' };
     const grid = $('div', { class: 'cz-opgrid' });
     const status = $('p', { class: 'sub' });
     const draw = () => {
@@ -475,7 +478,7 @@
       while (pick.length < 5 && pool.length) pick.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       SFX.ui(); draw();
     }, 'ghost');
-    const go = btn('GO INTO VARROW', () => { if (pick.length < 5) return; CZ.watching = false; CZ.newGame(pick.slice(), diff.v); if (CZ.storyIntro) CZ.storyIntro(() => CZ.enter(CZ.START, 'S')); else CZ.enter(CZ.START, 'S'); }, 'big');
+    const go = btn('NEXT: YOUR OPERATOR', () => { if (pick.length < 5) return; setup(pick.slice(), diff.v, kit => { CZ.watching = false; CZ.newGame(pick.slice(), diff.v, kit); if (CZ.storyIntro) CZ.storyIntro(() => CZ.enter(CZ.START, 'S')); else CZ.enter(CZ.START, 'S'); }); }, 'big');
     const watchGo = btn('SEND THEM IN AND WATCH', () => { if (pick.length < 5) return; CZ.watching = true; CZ.newGame(pick.slice(), diff.v); CZ.enter(CZ.START, 'S'); });
     const diffs = $('div', { class: 'seg' }, ...Object.entries(CZ.DIFF).map(([k, d]) => $('button', { class: diff.v === k ? 'on' : '', title: d.desc, onclick: ev => { diff.v = k; for (const b of diffs.children) b.className = ''; ev.target.className = 'on'; dd.textContent = d.desc; } }, d.name)));
     const dd = $('p', { class: 'muted' }, CZ.DIFF.survivor.desc);
@@ -483,6 +486,34 @@
       $('div', { class: 'actions' }, btn('← BACK', CZ.menu, 'ghost'), watchGo, go)));
     draw();
   }
+  /* your operator for the campaign, set up as in any match: the guns and the gadget (with their
+     attachments, saved for each gun as everywhere else), with the operator's bust; and City Z's own
+     two: the perk and the care package. The rest of the squad choose their own (cityz-kit.js) */
+  function setup(pick, diff, go) {
+    const s = U.$('screens'); s.innerHTML = '';
+    const op = DATA.OPMAP[pick[0]];
+    const lo = Object.assign({ primary: op.primaries[0], secondary: op.secondaries[0], gadget: op.gadgets[0] }, U.store.get('lo_' + op.id, {}));
+    const pref = U.store.get('czKit', {});
+    let perk = CZ.OP_PERKS[pref.perk] ? pref.perk : 'gunplay', care = CZ.CARE_KINDS[pref.care] ? pref.care : 'ammo';
+    const wrap = $('div', { class: 'panel cz-menu wide cz-setup' });
+    const cards = (list, cur, set) => $('div', { class: 'czs-cards' }, ...Object.entries(list).map(([k, v]) => $('button', { class: 'czs-card' + (cur === k ? ' on' : ''), onclick: () => { set(k); SFX.ui(); render(); } }, $('b', {}, v.name), $('small', {}, v.desc))));
+    const render = () => {
+      wrap.innerHTML = '';
+      const left = MENU.opDetail ? MENU.opDetail(op, lo, render) : $('div', {}, op.name);
+      const mates = $('div', { class: 'czs-mates' }, ...pick.slice(1).map(id => { const o = DATA.OPMAP[id]; return $('div', { class: 'czs-mate' }, MENU.bust(o, 44), $('b', {}, o.name), $('small', {}, 'picks their own')); }));
+      wrap.append($('h2', {}, 'YOUR OPERATOR'),
+        $('p', { class: 'sub' }, 'Your guns, gadget and attachments, your perk, and the care package a helicopter drops for you each time the squad clears a place. The rest of the squad choose their own.'),
+        $('div', { class: 'czs-body' }, left,
+          $('div', { class: 'czs-right' },
+            $('h3', {}, 'PERK'), cards(CZ.OP_PERKS, perk, k => { perk = k; }),
+            $('h3', {}, 'CARE PACKAGE'), $('p', { class: 'muted' }, 'One for every place the squad clears, called in with ' + KEYS.name('czCare') + ' (outside, where the pilot can see you).'), cards(CZ.CARE_KINDS, care, k => { care = k; }),
+            $('h3', {}, 'THE REST OF THE SQUAD'), mates)),
+        $('div', { class: 'actions' }, btn('← BACK', () => { const p2 = pick.slice(); p2.diff = diff; newSquad(p2); }, 'ghost'),
+          btn('GO INTO VARROW', () => { U.store.set('lo_' + op.id, lo); U.store.set('czKit', { perk, care }); go({ lo: MENU.withAttachments(lo), perk, care }); }, 'big')));
+    };
+    s.append(wrap); render();
+  }
+  CZ.setupScreen = setup;
   /* everyone dead: a new squad, the same city */
   CZ.wiped = function () {
     const S = CZ.S, home = Object.keys(S.safe).find(z => CZ.isSafe(z)) || CZ.START;

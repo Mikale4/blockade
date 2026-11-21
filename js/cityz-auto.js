@@ -429,7 +429,7 @@
     if (hot || a.busy > 0) return false;
     if ((m.inv.stew || 0) > 0 && st.temp < 35.9 && decide(a, 'eat', 0.6)) { CZ.use(a, 'stew', true); return true; }
     const calm = !G.actors.some(t => t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive' && U.dist3(t.pos, a.pos) < 18);
-    if (calm && !fireNear(a.pos, 12) && G.time > (CZ.Z.fireT || 0) && (CZ.night() || CZ.S.weather === 'rain' || st.temp < 35.9) && decide(a, 'fire', sevOf(a, 'cold'))) {
+    if (calm && !fireNear(a.pos, 12) && !(CZ.barrels && CZ.barrels().some(e => U.dist3(e.pos, a.pos) < 60)) && G.time > (CZ.Z.fireT || 0) && (CZ.night() || CZ.S.weather === 'rain' || st.temp < 35.9) && decide(a, 'fire', sevOf(a, 'cold'))) {
       if (!(m.inv.firewood > 0) && (m.inv.planks || 0) >= 2) { CZ.take(m, 'planks', 2); m.inv.firewood = (m.inv.firewood || 0) + 1; }
       if (m.inv.firewood > 0 && CZ.lightFire(a)) { CZ.Z.fireT = G.time + 150; say(a, 'fire', ['Getting a fire going.', "Freezing. I'm lighting a fire."], 3); return true; }
     }
@@ -444,6 +444,14 @@
   CZ.warmGoal = function (a) {
     if (!a.czColdWant || fighting(a)) return null;
     const lead = CZ.leader(), near = lead && lead !== a ? lead.pos : a.pos;
+    // a trash-can fire, out in the open (no doorways), the warmest place there is: the nearest within
+    // reach of the squad, a place round it of their own
+    const drums = CZ.barrels ? CZ.barrels().filter(e => U.dist3(e.pos, a.pos) < 80 && U.dist3(e.pos, near) < 80) : [];
+    if (drums.length) {
+      const dr = drums.sort((p2, q) => U.dist3(p2.pos, a.pos) - U.dist3(q.pos, a.pos))[0];
+      if (!a.czDrumSpot || a.czDrumSpot.e !== dr) { const ang = (a.id * 2.1) % 6.283, n = NAV.nearest(dr.pos.clone().add(V().set(Math.cos(ang) * 1.5, 0, Math.sin(ang) * 1.5)), 3); a.czDrumSpot = { e: dr, p: n >= 0 ? NAV.nodePos(n) : dr.pos.clone() }; }
+      return { pos: a.czDrumSpot.p.clone(), kind: 'warm', r: 1.2, look: dr.pos.clone().setY(dr.pos.y + 0.8) };
+    }
     const f = fireNear(a.pos, 25);
     if (f) {
       // a place round the fire (each their own side of it), never in a doorway

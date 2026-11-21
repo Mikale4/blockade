@@ -216,7 +216,8 @@
   CZ.spawnMember = function (m, p, yaw) {
     let op = DATA.OPMAP[m.op];
     if (m.recruit) op = Object.assign({}, op, { name: m.name, look: Object.assign({}, op.look, m.look || {}) });
-    const lo = { primary: m.guns[0] ? m.guns[0].id : op.primaries[0], secondary: m.guns[1] ? m.guns[1].id : op.secondaries[0], gadget: (op.gadgets || [])[0] || null, cos: {} };
+    const lo = { primary: m.guns[0] ? m.guns[0].id : op.primaries[0], secondary: m.guns[1] ? m.guns[1].id : op.secondaries[0], gadget: m.gadget || (op.gadgets || [])[0] || null, cos: {} };
+    if (m.att) lo.att = m.att;   // (the attachments chosen on the squad screen)
     const a = new Actor({ name: m.name, team: CZ.TEAM, side: 'atk', op, loadout: lo, isPlayer: m.player && !CZ.watching });
     a.drones = 0; a.cz = { m };
     a.hp = Math.max(1, Math.min(a.maxHp, m.hp));

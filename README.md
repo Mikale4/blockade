@@ -390,6 +390,19 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     pounding heartbeat, tunnel vision and loud breathing the infected can hear; for a teammate,
     freezing up, bolting, or charging in blind. Talk a teammate down (CALM ... DOWN, beside them);
     steady teammates do it for each other, and for you.
+  - **Your operator, a perk and a care package:** after picking the squad, you set up your own
+    operator as in any match (the bust, primary, secondary, gadget and attachments) and choose a perk
+    and a care package; the rest of the squad (and recruits) choose their own, by who they are.
+    Perks: GUNPLAY (swap and reload faster, tighter hip-fire, quicker to aim), MARATHON (faster, more
+    stamina), HIBERNATION (more in every search, slower hunger and thirst), IRON MIKE (a melee blow
+    kills any infected, from further off), FIELD MEDIC (bring a fallen teammate back with two first-aid
+    kits and two medicines). Care packages: an AMMO BOX (both guns full), a HEALTH KIT (full health),
+    RATIONS (hunger and thirst gone) or PRESCRIPTION MEDS (nerves, sickness, pain, some infection):
+    one for each member every time the squad clears a place, called in (P, or the CARE button) out in
+    the open: a helicopter flies over and the crate comes down on a parachute. Teammates call theirs
+    when they need what's in it.
+  - **Trash-can fires:** a few burning drums in the streets of every place, the warmest spot in the
+    city; cold teammates head for one rather than crowding a doorway to get under a roof.
   - **Relationships and grudges:** everyone has feelings about everyone else (you included), each
     way and not always matching. They start from how well their natures fit (a veteran takes to a
     rookie, a joker grates on a cynic, two short fuses clash) plus chance, and some of the starting crew
@@ -403,7 +416,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     more says it's them or me: patch it up within two minutes, part ways with one of them, or they
     walk. The squad tab shows who gets on with whom, as far as you've seen.
   - **Recruits and hidden agendas:** survivors you meet (and strangers sometimes waiting in places)
-    can join the squad, ten at most including you (a campaign starts with five); PART WAYS lets anyone go. You never know someone
+    can join the squad, ten at most including you (a campaign starts with five); so can the pharmacist
+    and Mina. Watching, the leader always takes them on. PART WAYS lets anyone go. You never know someone
     straight away: their kind of person at once, their traits after a day, their intentions only when
     they show them. Most are what they seem. Some are thieves who vanish in the night with half the
     stash, plants who turn their gun on the squad in a fight, quitters who walk off when it gets bad,
@@ -639,7 +653,7 @@ hatches and furniture from a room plan) · `maps-new-*`, `maps-rework-*` and `ma
 `maps-xp1`, `maps-xp2` (the twelve machinery maps) · `cityz-data` (City Z's places, items, loot, recipes, infected) ·
 `cityz-zones` (building its places) · `cityz` (the persistent world, travel, the squad) · `cityz-infected` ·
 `cityz-survival` (needs, packs, searching, crafting, safehouses) · `cityz-ui` · `cityz-story` (campaign,
-people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, and watching) · `cityz-people` (who the squad are: personalities, nerves and panic, recruits, hidden agendas) · `cityz-bonds` (how they feel about each other: relationships, grudges, arguments) · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
+people, events) · `cityz-vehicles` · `cityz-auto` (the squad's own judgement, and watching) · `cityz-people` (who the squad are: personalities, nerves and panic, recruits, hidden agendas) · `cityz-bonds` (how they feel about each other: relationships, grudges, arguments) · `cityz-kit` (perks, care packages and the helicopter, field medic revives, trash-can fires) · `cityz-net` (City Z online) · `mapmech` (their machinery: lifts, moving platforms, trains,
 lifting bridges, grilles, lights, conveyors, floods, gas, ceiling props, sliding flats, sawdust fire) · `models` (voxel rigs, guns, gadgets) · `audio` / `music` · `fx` ·
 `actor` (movement, stances, damage) · `weapons` · `attach` (weapon attachments) · `gadgets` · `nav` (pathfinding) · `ai` · `persona` (bot playstyles and their kit) ·
 `ops2`, `ops2-b`, `ops2-c`, `ops2-d` (the seasons 10-14 operators: their abilities, how bots use them, and what guests see) ·
