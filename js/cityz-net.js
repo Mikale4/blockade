@@ -145,7 +145,7 @@
   function guestRound() {
     const f = G.scene.fog;
     CZ.Z = { id: CZ.netVox.zone, def: CZ.ZONES[CZ.netVox.zone], st: {}, fog0: { color: f.color.getHex(), near: f.near, far: f.far }, exits: G.map.exits, t: 0, guest: true };
-    CZ.guestM = CZ.guestM || { name: '', st: { hunger: 0, thirst: 0, fatigue: 0, stamina: 100, infection: 0, bleed: 0, fracture: false, temp: 37, sick: 0, pain: 0 }, inv: {}, guns: [] };
+    CZ.guestM = CZ.guestM || { name: '', st: { hunger: 0, thirst: 0, fatigue: 0, stamina: 100, infection: 0, bleed: 0, fracture: false, sick: 0, pain: 0 }, inv: {}, guns: [] };
     if (G.player && !G.player.ghost) { G.player.cz = { m: CZ.guestM, res: [] }; G.player.drones = 0; }
     for (const a of G.actors) dress(a);
     document.body.classList.add('cz'); CZ.ui.enter();

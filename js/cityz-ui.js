@@ -32,7 +32,7 @@
       H.orders = $('div', { class: 'cz-orders' });
       H.mini = $('canvas', { class: 'cz-mini', width: 320, height: 320 });
       H.bars = {};
-      for (const [k, label] of [['hp', 'HEALTH'], ['stamina', 'STAMINA'], ['hunger', 'FOOD'], ['thirst', 'WATER'], ['fatigue', 'REST'], ['infection', 'INFECTION'], ['temp', 'WARMTH'], ['nerves', 'NERVES']]) {
+      for (const [k, label] of [['hp', 'HEALTH'], ['stamina', 'STAMINA'], ['hunger', 'FOOD'], ['thirst', 'WATER'], ['fatigue', 'REST'], ['infection', 'INFECTION'], ['nerves', 'NERVES']]) {
         const fill = $('i'), row = $('div', { class: 'cz-bar ' + k }, $('span', {}, label), $('b', {}, fill));
         H.bars[k] = { row, fill }; H.needs.append(row);
       }
@@ -56,7 +56,6 @@
     set('thirst', 100 - st.thirst, st.thirst > 75);
     set('fatigue', 100 - st.fatigue, st.fatigue > 80);
     set('infection', st.infection, st.infection > 50); H.bars.infection.row.style.display = st.infection > 0.5 && !(CZ.hidBite && CZ.hidBite(p) && p !== G.player) ? '' : 'none';
-    set('temp', (st.temp - 33) / 4.4 * 100, st.temp < 35.5);
     const pp = CZ.P && CZ.P(p);
     set('nerves', pp ? 100 - pp.stress : 100, pp && pp.stress > 70); H.bars.nerves.row.style.display = pp ? '' : 'none';
     const tags = [];
@@ -68,9 +67,7 @@
     if (st.pain > 0) tags.push('<i>PAINKILLERS</i>');
     if (p.czResting) tags.push('<i>RESTING</i>');
     else if (st.fatigue >= 80) tags.push('<i class="' + (st.fatigue >= 95 ? 'bad' : 'warn') + '">' + (st.fatigue >= 95 ? 'EXHAUSTED' : 'TIRED') + ' · REST OR SLEEP</i>');
-    if (st.temp < 35.5) tags.push('<i class="bad">HYPOTHERMIA</i>');
-    else if (st.temp < 36.2) tags.push('<i class="warn">COLD · GET INSIDE, BY A FIRE OR INTO A JACKET</i>');
-    if (CZ.nearFire && CZ.nearFire(p)) tags.push('<i>BY THE FIRE</i>');
+    if (CZ.atCampfire && CZ.atCampfire(p)) tags.push('<i>BY THE FIRE · COOK OR BOIL WATER</i>');
     if (m.careN > 0 && CZ.CARE_KINDS) tags.push('<i class="ok">' + CZ.CARE_KINDS[m.care || 'ammo'].name + ' READY · ' + KEYS.name('czCare') + '</i>');
     const kg = CZ.weight(m), cap = CZ.capacity(m);
     tags.push('<i class="' + (kg > cap ? 'warn' : '') + '">PACK ' + kg + ' / ' + cap + ' KG</i>');

@@ -108,7 +108,7 @@
   };
 
   /* ================================================================ what moves it */
-  const WORD = { thirst: 'water', hunger: 'food', bleed: 'dressing', hurt: 'medicine', infection: 'medicine', sick: 'medicine', ammo: 'ammo', fracture: 'splint', cold: 'jacket', fatigue: 'coffee' };
+  const WORD = { thirst: 'water', hunger: 'food', bleed: 'dressing', hurt: 'medicine', infection: 'medicine', sick: 'medicine', ammo: 'ammo', fracture: 'splint', fatigue: 'coffee' };
   // a gift: the taker warms to the giver (more for someone's own last one)
   CZ.listen('gave', (giver, taker, id, n, last) => {
     if (!giver || !taker || giver === taker) return;

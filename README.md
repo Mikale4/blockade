@@ -350,7 +350,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     with every gun dry it rushes someone close and lets a far one go to find rounds. In City Z who
     swings at the infected rather than shooting is down to their temper, nerve and rounds left (never
     at a brute). Infected operators drop both guns, rounds, what their gadgets come to and sometimes a
-    pack or a jacket; teammates swap to a better gun when they have rounds for it.
+    pack; teammates swap to a better gun when they have rounds for it.
   - **The squad looks after itself** (playing or watching): each AI teammate treats its own wounds,
     eats, drinks and re-arms, makes a dressing or splint when it has the cloth or planks, hands
     spares (dressings, food, water, rounds) to whoever needs them, you included (its last food or water
@@ -362,9 +362,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     anyone at 50 or more, the worst off first and never two helpers to one person),
     rests when it's tired and things are quiet (crouched, until it's back under 45%), naps on a
     safehouse bed when there is one, and says when it needs to sleep,
-    keeps warm (shelter under a real roof near the squad, a campfire from firewood or two planks on a
-    cold or wet night, a hot meal; spare jackets go to whoever has none) well before hypothermia, calls out what it
-    needs when nobody has it (shown on the squad list), scavenges nearby rooms of the right kind for
+    calls out what it needs when nobody has it (shown on the squad list), scavenges nearby rooms of the right kind for
     it, and throws molotovs and pipe bombs into packs of infected. A wound is never left: its own
     dressing, one made from cloth, one from a teammate (who makes a rag if that's all they have), the
     safehouse stash, or, with nothing at all, a strip torn from their clothes and pressed on it, which
@@ -376,7 +374,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     with their own generosity, nerve, know-how, discipline, appetite and temper, one or two strengths
     (medic, scrounger, pack mule, iron stomach, night owl, sharpshooter, handy, calm, tough) and one or
     two flaws (clumsy, glutton, insomniac, squeamish, coward, short fuse, scatterbrain, hoarder, bad
-    back, anxious). When hunger, thirst, a wound, tiredness or the cold becomes something they act on
+    back, anxious). When hunger, thirst, a wound or tiredness becomes something they act on
     is their own, and shifts a little each day; and each time they think about it they roll whether to
     act now. So one eats at the first pang and another waits until they're shaking; one hands over
     their last can and a hoarder won't share at all ("Get your own"); the squeamish can't dress your
@@ -384,7 +382,7 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     won't go off scavenging, least of all at night; orders are argued with, obeyed late, or refused for
     a while. Asking a teammate for their supplies gets you what they're willing to part with.
   - **Nerves:** everyone (you too) carries stress, shown as your NERVES bar and each teammate's mood
-    on the squad list. Wounds, hunger, the cold, sickness, the infected close, being alone or out in
+    on the squad list. Wounds, hunger, sickness, the infected close, being alone or out in
     the dark, a friend dying or panicking beside you all push it up; a safehouse, a fire, rest,
     crouching still, comfort food (chocolate, stew, crisps), a steady teammate nearby and sleep bring it
     down. It shakes your aim and sways your view, slows your hands with dressings and food, makes bad
@@ -406,8 +404,9 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   - **The minimap** (top right, north up, about 45 m either way): the buildings, the squad (you as an
     arrow), the story's markers, the trash-can fires, care package crates (a parachute while one comes
     down) and the helicopter bringing one, on the rim pointing the way while it's still further off.
-  - **Trash-can fires:** a few burning drums in the streets of every place, the warmest spot in the
-    city; cold teammates head for one rather than crowding a doorway to get under a roof.
+  - **Trash-can fires:** a few burning drums in the streets of every place, for the look of the city
+    at night (standing by one counts as by a fire for your nerves). There's no body heat to keep up:
+    the rain and the dark are for atmosphere (and the dark still sets nerves on edge).
   - **Relationships and grudges:** everyone has feelings about everyone else (you included), each
     way and not always matching. They start from how well their natures fit (a veteran takes to a
     rookie, a joker grates on a cynic, two short fuses clash) plus chance, and some of the starting crew
@@ -440,13 +439,12 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     travel; time passes on the way. The save keeps everything: every room searched, every wall broken
     and board nailed up, how many infected are left in each place, stashes, safehouses, survivors,
     cars, the clock and the story. One real second is one minute; days and nights, rain and fog.
-  - **Warmth:** firewood (found in sheds and farms, or made from two planks) lights a campfire that
-    warms anyone within 4 m for three minutes; the HUD warns COLD from 36.2 degrees, well before
-    hypothermia at 35.5.
+  - **Campfires:** firewood (found in sheds and farms, or made from two planks) lights a campfire,
+    three minutes to cook or boil water at.
   - **Rest:** standing still (crouched or lying is quicker, indoors quicker still) with no infected
     within 15 m brings tiredness down to 40%; only sleep, or a nap on a safehouse bed, goes lower.
-  - **Staying alive:** hunger, thirst, tiredness, stamina, bleeding, broken bones, body heat,
-    sickness and the infection, each with its effects; a pack with a weight limit; ammunition that is
+  - **Staying alive:** hunger, thirst, tiredness, stamina, bleeding, broken bones, sickness and
+    the infection, each with its effects; a pack with a weight limit; ammunition that is
     your guns' reserve, where any rounds fit any gun (whatever you pick up or are handed goes to the
     gun shortest of rounds, and a gun that runs dry draws on the rounds you carry for the other one);
     found guns to swap in. Rooms are searched for what that kind

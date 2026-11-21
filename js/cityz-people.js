@@ -6,9 +6,9 @@
                         generosity, nerve, know-how, discipline, appetite, care for wounds, temper
      strengths, flaws   one or two of each: a medic, a scrounger, a pack mule, an iron stomach ...
                         a glutton, a coward, squeamish, a hoarder, a scatterbrain ...
-     a mood             stress that rises with wounds, hunger, cold, the dead and the infected close,
-                        and falls with food, rest, warmth and safety; scared people make worse choices
-     their own limits   when hunger, thirst, a wound or the cold becomes something they act on is theirs,
+     a mood             stress that rises with wounds, hunger, the dead and the infected close,
+                        and falls with food, rest, a fire's company and safety; scared people make worse choices
+     their own limits   when hunger, thirst, a wound or tiredness becomes something they act on is theirs,
                         and moves a little from day to day
      a hidden agenda    most are what they seem; some are thieves, plants, deserters, hiding a bite, or
                         working for Command. You learn who someone is by travelling with them: their
@@ -104,7 +104,6 @@
       hurt: Math.round(35 + t.care * 30 + R(-6, 6) - (scat ? 10 : 0)),
       infection: Math.round(30 + (1 - t.smarts) * 20 + R(-4, 6)),
       fatigue: Math.round(65 + (t.nerve * 10) + R(-6, 8)),
-      cold: 36.2 + (t.care - 0.5) * 0.3 + R(-0.1, 0.1),
     };
   }
   CZ.listen('day', () => { for (const m of CZ.S.squad) if (m.p && m.alive) rollThresholds(m.p); });
@@ -141,8 +140,6 @@
       case 'help': c = 0.15 + t.gen * 0.4 + sev * 0.4 + (K('medic') ? 0.25 : 0) - (F('squeamish') ? 0.45 : 0) - st * 0.2; break;
       case 'forage': c = 0.2 + t.nerve * 0.5 + sev * 0.3 - st * 0.35 - (CZ.night() ? (1 - t.nerve) * 0.4 : 0); break;
       case 'rest': c = 0.2 + sev * 0.6 - t.nerve * 0.15 + st * 0.1; break;
-      case 'warm': c = 0.25 + sev * 0.6 + t.care * 0.15; break;
-      case 'fire': if (t.smarts < 0.35 && !K('handy')) return false; c = 0.3 + sev * 0.4 + t.smarts * 0.2; break;
       case 'ask': c = 0.15 + sev * 0.5 + (1 - t.nerve) * 0.15 + (t.temper > 0.6 ? 0.1 : 0); break;
       case 'throw': c = 0.15 + t.temper * 0.35 + t.nerve * 0.2 + sev * 0.3; break;
       case 'risky': c = 0.05 + sev * 0.6 + (1 - t.smarts) * 0.3 + (F('glutton') ? 0.15 : 0); break;   // eat or drink something that might make them sick
@@ -181,7 +178,7 @@
 
   /* ================================================================ nerves: stress, anxiety, panic */
   /* Everyone in the squad (you too) carries stress, 0-100. It climbs with wounds, hunger and thirst,
-     the cold, exhaustion, sickness, the infected close, being alone or out in the dark, a friend dying
+     exhaustion, sickness, the infected close, being alone or out in the dark, a friend dying
      and a friend panicking beside them; it eases at a safehouse, by a fire, resting, crouched and still,
      with something comforting to eat, with a steady head nearby, after sleep, or when someone talks them
      down. How fast is theirs: low nerve feels it more, Calm halves it, Anxious adds half again.
@@ -216,7 +213,6 @@
     if (st.bleed > 0) up += 0.8 + st.bleed * 0.3;
     if (a.hp < 50) up += (50 - a.hp) / 50;
     if (st.hunger > 80 || st.thirst > 80) up += 0.4;
-    if (st.temp < 36) up += 0.4;
     if (st.fatigue > 85) up += 0.3;
     if (st.sick > 20) up += 0.3;
     if (st.infection > 50) up += 0.5;
@@ -311,7 +307,7 @@
     if (CZ.squadCount() >= CZ.MAX_SQUAD) { HUD.toast('The squad is full (' + CZ.MAX_SQUAD + ' at most): part ways with someone first', 'warn'); return null; }
     const k = Math.floor(Math.random() * 5), op = '_civ_' + k;
     const m = { op, name: name || 'Stranger', recruit: true, hp: 100, alive: true, player: false,
-      st: { hunger: R(30, 60), thirst: R(30, 60), fatigue: R(20, 60), stamina: 100, infection: 0, bleed: 0, fracture: false, temp: 36.8, sick: 0, pain: 0 },
+      st: { hunger: R(30, 60), thirst: R(30, 60), fatigue: R(20, 60), stamina: 100, infection: 0, bleed: 0, fracture: false, sick: 0, pain: 0 },
       inv: { a9: 30, cloth: 1 }, guns: [{ id: 'p10', mag: -1 }, { id: 'p10', mag: -1 }], gad: -1, ab: -1, joined: CZ.S.day, skill,
       look: personActor && personActor.op && personActor.op.look ? { head: personActor.op.look.head, vest: personActor.op.look.vest, cloth: personActor.op.look.cloth, skin: personActor.op.look.skin } : null };
     if (personActor && personActor.op && /^_civ_\d$/.test(personActor.op.id)) m.op = personActor.op.id;

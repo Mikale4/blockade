@@ -294,7 +294,6 @@
     for (const w of v.w) { if (!w || !DATA.WEAPONS[w.id]) continue; out.push(['gun:' + w.id, 1]); out.push([CZ.calOf(w.id), Math.max(0, w.mag || 0) + 8 + Math.floor(Math.random() * 18)]); }
     const g = v.gadget && GADGET_ITEM[v.gadget.id]; if (g && (v.gadget.count == null || v.gadget.count > 0)) out.push([g, 1]);
     if (Math.random() < 0.25) out.push(['pack_s', 1]);
-    if (Math.random() < 0.18) out.push(['jacket', 1]);
     if (Math.random() < 0.4) out.push(['bandage', 1]);
     if (Math.random() < 0.15) out.push(['torch', 1]);
     return out;

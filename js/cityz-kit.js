@@ -16,8 +16,8 @@
                     The player calls theirs with a key (or the CARE button); teammates call theirs when
                     they need what's in it, out in the open and when it's quiet.
 
-   And the trash-can fires: a few burning drums out in the streets of every place, the warmest spot in
-   the city. Cold teammates head for one (instead of crowding a doorway to get under a roof). */
+   And the trash-can fires: a few burning drums out in the streets of every place, for the look of
+   the city (standing by one settles the nerves a little, like any fire). */
 (function () {
   'use strict';
   const CZ = window.CZ;
@@ -351,9 +351,8 @@
   };
 
   /* ================================================================ trash-can fires */
-  /* three to five burning drums out in the streets of every place (the same ones each visit), the
-     warmest spot in the city: anyone within 3.2 m warms fast (cityz-survival.js), and cold teammates
-     go to one before looking for a roof */
+  /* three to five burning drums out in the streets of every place (the same ones each visit): flames,
+     the crackle, a glow on the minimap; standing within 3.2 m counts as by a fire for the nerves */
   class Barrel extends GAD.Ent {
     constructor(p) {
       super('czbarrel', null, p, { model: 'czbarrel', upright: true, hp: 999, hitR: 0, melee: false, team: -1 });

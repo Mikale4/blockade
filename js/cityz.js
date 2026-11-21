@@ -33,7 +33,7 @@
   CZ.KEY = 'cityz';
 
   /* ================================================================ the save */
-  const needs0 = () => ({ hunger: 10, thirst: 10, fatigue: 5, stamina: 100, infection: 0, bleed: 0, fracture: false, temp: 37, sick: 0, pain: 0 });
+  const needs0 = () => ({ hunger: 10, thirst: 10, fatigue: 5, stamina: 100, infection: 0, bleed: 0, fracture: false, sick: 0, pain: 0 });
   function member(opId, player) {
     const op = DATA.OPMAP[opId];
     const inv = {};
