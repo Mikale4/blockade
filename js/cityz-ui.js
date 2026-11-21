@@ -30,18 +30,20 @@
       H.squad = $('div', { class: 'cz-squad' });
       H.obj = $('div', { class: 'cz-obj' });
       H.orders = $('div', { class: 'cz-orders' });
+      H.mini = $('canvas', { class: 'cz-mini', width: 320, height: 320 });
       H.bars = {};
       for (const [k, label] of [['hp', 'HEALTH'], ['stamina', 'STAMINA'], ['hunger', 'FOOD'], ['thirst', 'WATER'], ['fatigue', 'REST'], ['infection', 'INFECTION'], ['temp', 'WARMTH'], ['nerves', 'NERVES']]) {
         const fill = $('i'), row = $('div', { class: 'cz-bar ' + k }, $('span', {}, label), $('b', {}, fill));
         H.bars[k] = { row, fill }; H.needs.append(row);
       }
     }
-    hud.append(H.box, H.squad, H.obj, H.orders);
+    hud.append(H.box, H.squad, H.obj, H.orders, H.mini); miniBase = null;
     H.orders.style.display = 'none';
   };
-  UI.leave = function () { if (UI.wpHide) UI.wpHide(); const n = U.$('czNight'); if (n) n.style.display = 'none'; if (H) for (const e of [H.box, H.squad, H.obj, H.orders]) e.remove(); UI.close(); };
+  UI.leave = function () { if (UI.wpHide) UI.wpHide(); const n = U.$('czNight'); if (n) n.style.display = 'none'; if (H) for (const e of [H.box, H.squad, H.obj, H.orders, H.mini]) e.remove(); UI.close(); };
   UI.frame = function (dt) {
     if (H) wpFrame();
+    if (H && (miniT -= dt) <= 0) { miniT = 0.08; try { drawMini(); } catch (e) { } }
     if ((hT -= dt) > 0 || !H) return; hT = 0.2;
     const S = CZ.S, p = CZ.viewed ? CZ.viewed() : G.player; if (!p || !p.cz) return;
     const m = p.cz.m, st = m.st;
@@ -335,6 +337,65 @@
   /* where to go: a diamond on screen over each thing the current objective points at (or the road
      toward its place), with the distance; at the screen's edge when it is off to the side or behind */
   const WP = [];
+  /* ================================================================ the minimap */
+  /* North up, centred on you (or whoever you're watching), about 45 m either way: the buildings, the
+     squad (you as an arrow), the story's markers, the trash-can fires, care package crates (a parachute
+     while one comes down) and the helicopter bringing one; anything worth knowing that's further off
+     sits on the edge, pointing the way */
+  let miniT = 0, miniBase = null, miniZone = null;
+  const MS = 2;   // px per metre in the drawing of the whole place
+  function base() {
+    const W = G.world.W * 0.25, D = G.world.D * 0.25, c = document.createElement('canvas');
+    c.width = Math.ceil(W * MS); c.height = Math.ceil(D * MS);
+    const g = c.getContext('2d');
+    g.fillStyle = '#2b2f2a'; g.fillRect(0, 0, c.width, c.height);
+    for (const b of G.map.buildings || []) {
+      const x = b.x0 / 4 * MS, z = b.z0 / 4 * MS, w = (b.x1 - b.x0 + 1) / 4 * MS, h = (b.z1 - b.z0 + 1) / 4 * MS;
+      g.fillStyle = '#585e68'; g.fillRect(x, z, w, h); g.strokeStyle = '#8a909a'; g.lineWidth = 1; g.strokeRect(x + 0.5, z + 0.5, w - 1, h - 1);
+    }
+    for (const e of G.map.exits || []) { g.fillStyle = '#d8c060'; g.fillRect(e.x * MS - 3, e.z * MS - 3, 6, 6); }
+    return c;
+  }
+  function drawMini() {
+    const cv = H.mini; if (!cv || !cv.isConnected || !G.world || !CZ.Z) return;
+    if (!miniBase || miniZone !== CZ.Z) { miniBase = base(); miniZone = CZ.Z; }
+    const g = cv.getContext('2d'), N = cv.width, half = N / 2, k = N / 90;   // ~45 m each side
+    const me = (CZ.viewed && CZ.viewed()) || G.player, at = me && !me.ghost ? me.pos : G.camera.position;
+    const sx = x => half + (x - at.x) * k, sz = z => half + (z - at.z) * k;
+    g.save(); g.clearRect(0, 0, N, N);
+    g.beginPath(); g.arc(half, half, half - 2, 0, 6.2832); g.clip();
+    g.fillStyle = '#1e211d'; g.fillRect(0, 0, N, N);
+    g.drawImage(miniBase, half - at.x * MS * (k / MS), half - at.z * MS * (k / MS), miniBase.width * (k / MS), miniBase.height * (k / MS));
+    // on the rim if it's further off than the map shows
+    const pin = (x, z, draw) => { let px = sx(x), pz = sz(z); const dx = px - half, dz = pz - half, d = Math.hypot(dx, dz), R = half - 9; let edge = false; if (d > R) { px = half + dx / d * R; pz = half + dz / d * R; edge = true; } draw(px, pz, edge, Math.atan2(dz, dx)); };
+    // trash-can fires
+    for (const e of G.ents) if (e.alive && e.type === 'czbarrel') { const x = sx(e.pos.x), z = sz(e.pos.z); g.fillStyle = '#ff8a2a'; g.beginPath(); g.arc(x, z, 4, 0, 6.2832); g.fill(); }
+    // the story's markers
+    for (const t of (CZ.targets ? CZ.targets() : [])) if (t.p) pin(t.p.x, t.p.z, (x, z) => { g.fillStyle = '#f2c14e'; g.beginPath(); g.moveTo(x, z - 6); g.lineTo(x + 6, z); g.lineTo(x, z + 6); g.lineTo(x - 6, z); g.closePath(); g.fill(); });
+    // care package crates, and one coming down
+    for (const e of G.ents) if (e.alive && e.type === 'czcare') pin(e.pos.x, e.pos.z, (x, z) => {
+      g.fillStyle = '#5a7a3a'; g.fillRect(x - 6, z - 6, 12, 12); g.fillStyle = '#fff'; g.fillRect(x - 1.5, z - 5, 3, 10); g.fillRect(x - 5, z - 1.5, 10, 3);
+      if (!e.landed) { g.strokeStyle = '#e8e8e8'; g.lineWidth = 2; g.beginPath(); g.arc(x, z - 9, 7, Math.PI, 0); g.stroke(); }
+    });
+    // the squad
+    for (const a of G.actors) {
+      if (!a.cz || !a.cz.m || a.state === 'dead' || a === me) continue;
+      g.fillStyle = a.state === 'dbno' ? '#d84a3a' : '#5ab0ff'; g.beginPath(); g.arc(sx(a.pos.x), sz(a.pos.z), 4, 0, 6.2832); g.fill();
+    }
+    // the helicopter: its body and a spinning rotor, or an arrow on the rim while it's still coming
+    for (const e of G.ents) if (e.alive && e.type === 'czheli') pin(e.pos.x, e.pos.z, (x, z, edge, ang) => {
+      if (edge) { g.save(); g.translate(x, z); g.rotate(ang); g.fillStyle = '#9ad86a'; g.beginPath(); g.moveTo(8, 0); g.lineTo(-6, -6); g.lineTo(-6, 6); g.closePath(); g.fill(); g.restore(); }
+      g.fillStyle = '#9ad86a'; g.fillRect(x - 4, z - 6, 8, 12); g.fillRect(x - 1.5, z + 4, 3, 9);
+      const r = G.time * 14; g.strokeStyle = 'rgba(220,240,200,0.9)'; g.lineWidth = 2; g.beginPath(); g.moveTo(x + Math.cos(r) * 10, z + Math.sin(r) * 10); g.lineTo(x - Math.cos(r) * 10, z - Math.sin(r) * 10); g.moveTo(x + Math.cos(r + 1.57) * 10, z + Math.sin(r + 1.57) * 10); g.lineTo(x - Math.cos(r + 1.57) * 10, z - Math.sin(r + 1.57) * 10); g.stroke();
+    });
+    // you: an arrow the way you face
+    const yaw = me && !me.ghost ? me.yaw : (G.camera.rotation.y || 0);
+    g.save(); g.translate(half, half); g.rotate(-yaw); g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(0, -9); g.lineTo(6, 7); g.lineTo(0, 3); g.lineTo(-6, 7); g.closePath(); g.fill(); g.restore();
+    g.restore();
+    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 3; g.beginPath(); g.arc(half, half, half - 2, 0, 6.2832); g.stroke();
+    g.fillStyle = '#e8eaed'; g.font = '700 20px sans-serif'; g.textAlign = 'center'; g.fillText('N', half, 22);
+  }
+  UI.drawMini = drawMini;
   function wpFrame() {
     const ts = CZ.targets ? CZ.targets() : [], hud = U.$('hud'), cam = G.camera, me = CZ.viewed && CZ.viewed();
     while (WP.length < ts.length) { const e = $('div', { class: 'cz-wp' }, $('i'), $('b'), $('span')); hud.append(e); WP.push(e); }

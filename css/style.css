@@ -356,7 +356,8 @@ body.cz #hud .h-top, body.cz #hud .h-obj, body.cz #hud .h-board, body.cz #hud .h
 .cz-mate.me { border-color: var(--atk); } .cz-mate.dead { opacity: 0.35; text-decoration: line-through; } .cz-mate.dbno { background: rgba(140,30,30,0.7); }
 .cz-mate i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--ok); }
 .cz-mate em { color: #8ac83a; font-style: normal; margin-left: 6px; }
-.cz-obj { position: absolute; right: 16px; top: 120px; width: 280px; background: rgba(10,12,16,0.72); border-left: 3px solid var(--gold); padding: 6px 10px; font: 500 13px var(--f2); }
+.cz-mini { position: absolute; right: 16px; top: 16px; width: 160px; height: 160px; pointer-events: none; }
+.cz-obj { position: absolute; right: 16px; top: 190px; width: 280px; background: rgba(10,12,16,0.72); border-left: 3px solid var(--gold); padding: 6px 10px; font: 500 13px var(--f2); }
 .cz-obj b { display: block; font: 800 13px var(--f); letter-spacing: 0.16em; color: var(--gold); }
 .cz-orders { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); background: rgba(10,12,16,0.85); padding: 8px 14px; font: 700 14px var(--f); letter-spacing: 0.1em; display: grid; gap: 4px; }
 #czui { position: fixed; inset: 0; z-index: 40; display: none; place-items: center; background: rgba(0,0,0,0.55); }
@@ -477,7 +478,9 @@ html.touch canvas { touch-action: none; }
 #touchUI.upright .tc-rotate { display: flex; }
 /* the gun and its ammo up top, out from under the fire button; the key list is the buttons now */
 html.touch .h-wpn { bottom: auto !important; top: 80px; right: auto; left: 50%; transform: translateX(-50%); text-align: center; }
-html.touch .cz-obj { top: 80px; right: 16px; max-width: 300px; }
+html.touch .cz-obj { top: 172px; right: 16px; max-width: 300px; max-height: 74px; overflow: hidden; }
+html.touch .cz-mini { top: 12px; right: 96px; width: 140px; height: 140px; }
+#touchUI.cz .b-score { display: none; }
 html.touch .w-slots { display: none; }
 /* a phone held sideways: a smaller HUD so the thumbs have room */
 @media (max-height: 500px) { html.touch #hud { zoom: 0.62; } html.touch #vo { zoom: 0.75; } }

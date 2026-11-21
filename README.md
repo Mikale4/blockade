@@ -401,6 +401,9 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     one for each member every time the squad clears a place, called in (P, or the CARE button) out in
     the open: a helicopter flies over and the crate comes down on a parachute. Teammates call theirs
     when they need what's in it.
+  - **The minimap** (top right, north up, about 45 m either way): the buildings, the squad (you as an
+    arrow), the story's markers, the trash-can fires, care package crates (a parachute while one comes
+    down) and the helicopter bringing one, on the rim pointing the way while it's still further off.
   - **Trash-can fires:** a few burning drums in the streets of every place, the warmest spot in the
     city; cold teammates head for one rather than crowding a doorway to get under a roof.
   - **Relationships and grudges:** everyone has feelings about everyone else (you included), each
