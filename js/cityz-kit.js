@@ -88,7 +88,7 @@
     return S;
   };
   const oLoad = CZ.load;
-  CZ.load = function () { const S = oLoad.apply(this, arguments); if (S) for (const m of S.squad) { if (!m.perk) m.perk = CZ.choosePerk(m); if (!m.care) m.care = CZ.chooseCare(m); if (m.careN == null) m.careN = 0; } return S; };
+  CZ.load = function () { const S = oLoad.apply(this, arguments); if (S) for (const m of S.squad) { if (CZ.unifyAmmo) CZ.unifyAmmo(m); if (!m.perk) m.perk = CZ.choosePerk(m); if (!m.care) m.care = CZ.chooseCare(m); if (m.careN == null) m.careN = 0; } return S; };
   const oRec = CZ.recruit;
   CZ.recruit = function () { const m = oRec.apply(this, arguments); if (m) { m.perk = CZ.choosePerk(m); m.care = CZ.chooseCare(m); m.careN = 0; } return m; };
 
@@ -105,7 +105,7 @@
   CZ.applyPerk = applyPerk;
   const oSpawn = CZ.spawnMember;
   CZ.spawnMember = function () { const a = oSpawn.apply(this, arguments); applyPerk(a); return a; };
-  if (CZ.equip) { const oEq = CZ.equip; CZ.equip = function (a) { const r = oEq.apply(this, arguments); applyPerk(a); return r; }; }
+  if (CZ.equip) { const oEq = CZ.equip; CZ.equip = function (a) { const r = oEq.apply(this, arguments); applyPerk(a); if (a && a.cz && CZ.unifyAmmo) CZ.unifyAmmo(a.cz.m); return r; }; }
   const oSwap = WPN.swap;
   WPN.swap = function (a) { const r = oSwap.apply(this, arguments); if (CZ.on && CZ.on() && a && a.cz && a.cz.m && CZ.perkOf(a) === 'gunplay' && a.swap > 0) a.swap *= 0.5; return r; };
   // Iron Mike: one blow, any infected
@@ -301,6 +301,7 @@
     return false;
   });
   /* the squad's goals: a crate that's theirs (or anyone's, if it's just lying there), a fallen teammate a field medic can bring back */
+  const hasAmmo = e => !!e.items && Object.keys(e.items).some(k => e.items[k] > 0 && CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo');
   const oGoal = CZ.squadGoal;
   CZ.squadGoal = function (a) {
     if (a.cz && a.cz.m && !fighting(a)) {
@@ -310,6 +311,41 @@
         const b = G.actors.find(x => revivable(x) && U.dist3(x.pos, a.pos) < 40);
         if (b) { const n = NAV.nearest(b.pos, 3); return { pos: n >= 0 ? NAV.nodePos(n) : b.pos.clone(), kind: 'revive', r: 1.8, look: b.pos.clone(), act: x => { if (x.busy <= 0) CZ.revive(x, b); } }; }
       }
+      // rounds lying about (a dropped pack, an infected operator's gear, a fallen teammate's bag): anyone
+      // passing within 18 m picks them up, short of ammo or not (any rounds fit any gun), as long as it
+      // doesn't take them off from the squad (and they haven't been told to hold)
+      const held = CZ.orderOf && a !== CZ.leader() && CZ.orderOf(a) === 'hold';
+      if (held && a.czAmmoGrab) { if (a.bot && a.bot.loot === a.czAmmoGrab) a.bot.loot = null; a.czAmmoGrab = null; }
+      if (a.bot && !held && G.time > (a.czAmmoGrabT || 0) && CZ.lootGoal) {
+        a.czAmmoGrabT = G.time + 0.8;
+        const m = a.cz.m, kg = CZ.weight(m), lead = CZ.leader();
+        const skip = a.czAmmoSkip || (a.czAmmoSkip = {});
+        // one they're already on the way to stays theirs (the way round a wall can be longer than 18 m),
+        // unless it's taking too long: then it's left for a minute
+        let cur = a.czAmmoGrab;
+        if (cur && (!cur.alive || !hasAmmo(cur) || U.dist3(cur.pos, a.pos) > 45 || (lead && lead !== a && U.dist3(cur.pos, lead.pos) > 45))) cur = null;
+        if (cur && G.time - (a.czAmmoGrabSince || G.time) > 30) { skip[cur.cid] = G.time + 60; cur = null; }
+        if (kg < CZ.capacity(m) * 1.25) {
+          let best = cur, bd = cur ? Math.min(18, U.dist3(cur.pos, a.pos) - 3) : 18;
+          for (const e of G.ents) {
+            if (e === cur || !e.alive || e.type !== 'czloot' || !hasAmmo(e) || skip[e.cid] > G.time) continue;
+            if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
+            if (G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
+            const d = U.dist3(e.pos, a.pos); if (d > bd || Math.abs(e.pos.y - a.pos.y) > 2.5) continue;
+            if (lead && lead !== a && U.dist3(e.pos, lead.pos) > 30) continue;
+            bd = d; best = e;
+          }
+          if (best !== a.czAmmoGrab) {
+            if (a.czAmmoGrab && a.bot.loot === a.czAmmoGrab) a.bot.loot = null;
+            if (best) { a.czAmmoGrabSince = G.time; if (Math.random() < 0.4) say(a, 'grab', ['Ammo here, grabbing it.', 'Rounds. Mine now.', "Somebody's leftovers. Thanks."], 1); }
+            a.czAmmoGrab = best;
+          }
+        } else if (a.czAmmoGrab) { if (a.bot.loot === a.czAmmoGrab) a.bot.loot = null; a.czAmmoGrab = null; }
+      }
+      const g = a.czAmmoGrab;
+      if (a.bot && g && g.alive && hasAmmo(g)) return CZ.lootGoal(a, g, x => { x.czAmmoGrab = null; });
+      if (g && a.bot && a.bot.loot === g) a.bot.loot = null;
+      a.czAmmoGrab = null;
     }
     return oGoal.apply(this, arguments);
   };

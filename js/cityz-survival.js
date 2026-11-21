@@ -26,8 +26,26 @@
     return c;
   };
   CZ.count = (m, id) => m.inv[id] || 0;
+  /* In City Z any rounds work in any gun: rounds going into someone's pack (picked up, handed over,
+     made at the bench) become rounds for the guns they carry, the one shortest of them for its
+     magazine. A stash keeps them as they are */
+  function ammoFor(m) {
+    const a = G.actors.find(x => x.cz && x.cz.m === m);
+    const guns = (a && a.w && a.w.length ? a.w.map(w => w.id) : (m.guns || []).map(g => g && g.id)).filter(id => id && DATA.WEAPONS[id]);
+    let best = null, br = 1e9;
+    for (const id of guns) { const c = CZ.calOf(id), r = (m.inv[c] || 0) / (DATA.WEAPONS[id].mag || 10); if (r < br) { br = r; best = c; } }
+    return best;
+  }
+  CZ.ammoFor = ammoFor;
+  /* rounds already in a pack that no gun of theirs takes (a gun swapped, an old save): theirs now */
+  CZ.unifyAmmo = function (m) {
+    if (!m || !m.inv || !m.guns) return;
+    const a = G.actors.find(x => x.cz && x.cz.m === m), uses = new Set((a && a.w ? a.w.map(w => w.id) : m.guns.map(g => g && g.id)).filter(Boolean).map(id => CZ.calOf(id)));
+    for (const [k, n] of Object.entries(m.inv)) { if (!(CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo') || uses.has(k) || !(n > 0)) continue; const c = ammoFor(m); if (!c) return; delete m.inv[k]; m.inv[c] = (m.inv[c] || 0) + n; }
+  };
   CZ.add = function (m, id, n) {
     if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'quest') { m.inv[id] = (m.inv[id] || 0) + n; return n; }   // the story's things always go in
+    if (m.guns && CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo') { const c = ammoFor(m); if (c) id = c; }   // (any rounds, any gun)
     const kg = id.startsWith('gun:') ? CZ.itemKg(id.slice(4)) : CZ.itemKg(id);
     const room = CZ.capacity(m) * 1.3 - CZ.weight(m);            // over the limit you are slow; 30% over, no more
     const fit = kg > 0 ? Math.max(0, Math.min(n, Math.floor(room / kg + 1e-6))) : n;
@@ -59,6 +77,20 @@
     for (let i = 0; i < a.w.length; i++) {
       const w = a.w[i], c = CZ.calOf(w.id);
       if (last[i] != null && w.reserve < last[i]) CZ.take(m, c, last[i] - w.reserve);
+    }
+    // any rounds fit any gun: the pack's rounds are one pool, shared out between the guns in step with
+    // their magazines whenever one runs short of its share or rounds of another calibre are in there
+    const mag = {}; for (const w of a.w) if (DATA.WEAPONS[w.id]) { const c = CZ.calOf(w.id); mag[c] = Math.max(mag[c] || 0, w.def.mag || 10); }
+    const cals = Object.keys(mag);
+    if (cals.length) {
+      let P = 0, off = false;
+      for (const [k, n] of Object.entries(m.inv)) if (CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo' && n > 0) { P += n; if (!mag[k]) off = true; }
+      const M = cals.reduce((s, c) => s + mag[c], 0);
+      const short = cals.length > 1 && cals.some(c => (m.inv[c] || 0) < Math.min(mag[c], Math.floor(P * mag[c] / M)));
+      if (P > 0 && (off || short)) {
+        for (const k of Object.keys(m.inv)) if (CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo') delete m.inv[k];
+        let left = P; cals.forEach((c, i) => { const n = i === cals.length - 1 ? left : Math.floor(P * mag[c] / M); left -= n; if (n > 0) m.inv[c] = n; });
+      }
     }
     for (let i = 0; i < a.w.length; i++) { const w = a.w[i]; w.reserve = m.inv[CZ.calOf(w.id)] || 0; last[i] = w.reserve; }
   }

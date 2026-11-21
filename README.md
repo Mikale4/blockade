@@ -355,7 +355,9 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     eats, drinks and re-arms, makes a dressing or splint when it has the cloth or planks, hands
     spares (dressings, food, water, rounds) to whoever needs them, you included (its last food or water
     too, to anyone close to starving or clearly worse off than itself; rounds as soon as someone is
-    under two magazines, split evenly, all of a calibre it doesn't use, tossed across mid-fight;
+    under two magazines, split evenly, tossed across mid-fight; and any rounds lying within about
+    18 m (a dropped pack, an infected operator's gear, a fallen teammate's bag) it goes and picks up,
+    low or not, as long as that doesn't take it away from the squad;
     medicine once an infection passes 30, antibiotics while it's mild and the scarce antiviral kept for
     anyone at 50 or more, the worst off first and never two helpers to one person),
     rests when it's tired and things are quiet (crouched, until it's back under 45%), naps on a
@@ -444,8 +446,10 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   - **Rest:** standing still (crouched or lying is quicker, indoors quicker still) with no infected
     within 15 m brings tiredness down to 40%; only sleep, or a nap on a safehouse bed, goes lower.
   - **Staying alive:** hunger, thirst, tiredness, stamina, bleeding, broken bones, body heat,
-    sickness and the infection, each with its effects; a pack with a weight limit; ammunition by
-    calibre that is your guns' reserve; found guns to swap in. Rooms are searched for what that kind
+    sickness and the infection, each with its effects; a pack with a weight limit; ammunition that is
+    your guns' reserve, where any rounds fit any gun (whatever you pick up or are handed goes to the
+    gun shortest of rounds, and a gun that runs dry draws on the rounds you carry for the other one);
+    found guns to swap in. Rooms are searched for what that kind
     of room holds. Crafting by hand and at a workbench (dressings, splints, molotovs, pipe bombs,
     noisemakers, barricade kits, ammunition, meals).
   - **The infected:** walkers, runners, armoured brutes, screamers that call the rest, spitters

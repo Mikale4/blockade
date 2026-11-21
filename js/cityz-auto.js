@@ -87,10 +87,16 @@
   CZ.sevOf = sevOf;
   /* the item in a pack that answers a need (the last resorts only when it is bad) */
   function itemIn(m, need, a) {
-    if (need === 'ammo') { const c = calOf(a); return (m.inv[c] || 0) > 0 ? c : null; }
+    if (need === 'ammo') return anyAmmo(m, a);
     if (need === 'infection') { const inf = a && a.cz ? a.cz.m.st.infection : 50, order = inf >= 60 ? ['antiviral', 'antibiotics'] : ['antibiotics', 'antiviral']; return order.find(id => (m.inv[id] || 0) > 0) || null; }
     const iron = a && CZ.has && CZ.has(a, 'ironstomach');
     return NEED[need].ids.find(id => (m.inv[id] || 0) > 0 && (iron || !RISKY(id)) && !(id === 'painkillers' && need === 'fracture' && (m.inv.splint || 0) > 0));
+  }
+  /* rounds in a pack for someone short (any rounds work in any gun): theirs first, else the biggest stack */
+  function anyAmmo(m, t) {
+    const c = t ? calOf(t) : null; if (c && (m.inv[c] || 0) > 0) return c;
+    let best = null, bn = 0; for (const [k, n] of Object.entries(m.inv)) if (CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo' && n > bn) { bn = n; best = k; }
+    return best;
   }
   /* the last resort for hunger or thirst: something that might make them ill */
   const riskyIn = (m, need) => (NEED[need].ids || []).find(id => RISKY(id) && (m.inv[id] || 0) > 0) || null;
@@ -147,7 +153,7 @@
       const uses = giver.w.some(w => CZ.calOf(w.id) === id);
       if (!uses) return Math.min(n, 150);
       const gm = (giver.w.find(w => CZ.calOf(w.id) === id) || {}).def, keep = (gm && gm.mag) || 20;
-      const give = Math.floor((calRounds(giver, id) - (t ? calRounds(t, id) : 0)) / 2);
+      const give = Math.floor((calRounds(giver, id) - (t ? calRounds(t, calOf(t)) : 0)) / 2);
       return give >= 5 ? Math.max(0, Math.min(give, n - keep)) : 0;
     }
     return n > 1 || !needsOf(giver).length ? 1 : 0;
@@ -281,7 +287,7 @@
       // in a fight nobody walks over, but rounds get tossed to someone right beside you
       for (const t of squad()) {
         if (t === a || U.dist3(t.pos, a.pos) > 5 || !needsOf(t).includes('ammo')) continue;
-        const c = calOf(t), n = willGive(a, t, 'ammo', spare(m, c, a, 'ammo', t)); if (!n) continue;
+        const c = anyAmmo(m, t); if (!c) continue; const n = willGive(a, t, 'ammo', spare(m, c, a, 'ammo', t)); if (!n) continue;
         const g = CZ.add(t.cz.m, c, n); CZ.take(m, c, g);
         if (g) { a.czGiveT = G.time + 6; CZ.fire('gave', a, t, c, g, false); CZ.tell(t, a.op.name + ' tossed you ' + g + ' × ' + CZ.itemName(c), 'info'); say(a, 'give', ['Mag! Catch!', 'Ammo, here!', 'Take these rounds!'], 3); return; }
       }
@@ -303,7 +309,7 @@
       for (const need of needsOf(t)) {
         if (t.czClaim && t.czClaim[need] && t.czClaim[need].t > G.time && t.czClaim[need].by !== a) continue;   // someone's already bringing it
         if (need === 'infection' && CZ.hidBite && CZ.hidBite(t)) continue;   // they're hiding it
-        let id = need === 'ammo' ? calOf(t) : itemIn(m, need, t);
+        let id = need === 'ammo' ? anyAmmo(m, t) : itemIn(m, need, t);
         // the antiviral is scarce: it only goes to someone whose infection is serious
         if (id === 'antiviral' && need === 'infection' && t !== a && (t.cz.m.st.infection || 0) < 50 && (m.inv.antiviral || 0) < 2) id = null;
         if (!id && need === 'bleed' && decide(a, 'craft', sevOf(t, need)) && craftOwn(a, 'rag')) id = 'rag';
@@ -366,6 +372,7 @@
     return false;
   }
   CZ.betterGun = betterGun;
+  CZ.lootGoal = (a, e, then) => lootGoal(a, e, then);
   // where the squad came in from (so a search for materials doesn't go straight back)
   CZ.listen('enter', zid => { const S = CZ.S; if (!CZ.Z || !S) return; const e = Object.entries(CZ.exitsOf(zid) || {}).find(([, sd]) => sd === S.side); CZ.Z.from = e ? e[0] : null; });
   /* the squad and melee: up close to the infected, who swings instead of shooting is theirs to decide
@@ -386,7 +393,7 @@
       if (!e.alive || e.type !== 'czloot') continue;
       if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
       if (skipped('loot:' + e.cid) || G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
-      const good = e.items ? Object.keys(e.items).some(k => cals.has(k) || k.startsWith('gun:')) : AMMO_TABLES.includes(e.table);
+      const good = e.items ? Object.keys(e.items).some(k => (CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo') || k.startsWith('gun:')) : AMMO_TABLES.includes(e.table);   // (any rounds will do)
       if (!good) continue;
       const d = U.dist3(e.pos, a.pos) + (e.items ? 0 : 10) + Math.abs(e.pos.y - a.pos.y) * 2;   // a known find before a maybe
       if (d < bd) { bd = d; best = e; }
@@ -517,7 +524,8 @@
   /* a container to go through: near the leader, not someone else's, of a kind that has what is needed */
   /* what's in a container that someone wants: a need (its table, or what's known to be inside), a list
      of materials. strict: only containers that might have it */
-  const wantedIds = (a, need) => need === 'ammo' ? [calOf(a)] : need && NEED[need] && NEED[need].ids ? NEED[need].ids : [];
+  const AMMO_IDS = Object.keys(CZ.ITEMS).filter(k => CZ.ITEMS[k].cat === 'ammo');
+  const wantedIds = (a, need) => need === 'ammo' ? AMMO_IDS : need && NEED[need] && NEED[need].ids ? NEED[need].ids : [];
   function pickContainer(a, need, range, strict, mats) {
     const lead = CZ.leader() || a, want = need && NEED[need] ? NEED[need].tables : null, ids = wantedIds(a, need);
     const matTables = mats ? Object.keys(CZ.LOOT).filter(t => CZ.LOOT[t].some(r => mats.includes(r[0]))) : null;
