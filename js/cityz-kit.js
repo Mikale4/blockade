@@ -330,7 +330,7 @@
         if (kg < CZ.capacity(m) * 1.25) {
           let best = cur, bd = cur ? Math.min(18, U.dist3(cur.pos, a.pos) - 3) : 18;
           for (const e of G.ents) {
-            if (e === cur || !e.alive || e.type !== 'czloot' || !worth(a, e) || skip[e.cid] > G.time) continue;
+            if (e === cur || !e.alive || e.type !== 'czloot' || !worth(a, e) || skip[e.cid] > G.time || (CZ.Z.skip && CZ.Z.skip['loot:' + e.cid] > G.time)) continue;
             if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
             if (G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
             const d = U.dist3(e.pos, a.pos); if (d > bd || Math.abs(e.pos.y - a.pos.y) > 2.5) continue;

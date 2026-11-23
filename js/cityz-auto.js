@@ -492,8 +492,23 @@
   const skipped = key => !!(CZ.Z && CZ.Z.skip && CZ.Z.skip[key] > G.time);
   function lootGoal(a, e, then) {
     a.bot.loot = e;
-    // (searching takes 1.2 s on the game's clock, then it's done: no timer left running behind)
-    return { key: 'loot:' + e.cid, pos: e.pos.clone(), kind: 'loot', r: 1.1, look: e.pos.clone().setY(e.pos.y + 0.5), act: x => {
+    // a container they can't get to (behind a counter, on a floor with no way up, someone in the way):
+    // no closer after 15 s of trying and it's left alone for two minutes, by everyone, whoever sent them
+    // (running out of rounds, a need, the story, a pile spotted on the way). They used to stand there
+    // looking at it for good
+    const pr = a.czLootProg, d = U.dist3(a.pos, e.pos);
+    if (!pr || pr.e !== e || G.time - pr.seen > 3) a.czLootProg = { e, best: d, t: G.time, seen: G.time };
+    else {
+      pr.seen = G.time;
+      if (d < pr.best - 0.4) { pr.best = d; pr.t = G.time; }
+      else if (d > 1.7 && G.time - pr.t > 15 && !(a.busy > 0) && CZ.Z) {
+        (CZ.Z.skip || (CZ.Z.skip = {}))['loot:' + e.cid] = G.time + 120;
+        a.bot.loot = null; a.czLootProg = null; a.czAmmoSrc = null; if (a.czAmmoGrab === e) a.czAmmoGrab = null;
+      }
+    }
+    // (searching takes 1.2 s on the game's clock, then it's done: no timer left running behind; within
+    // 1.5 m, the reach a player has)
+    return { key: 'loot:' + e.cid, pos: e.pos.clone(), kind: 'loot', r: 1.5, look: e.pos.clone().setY(e.pos.y + 0.5), act: x => {
       if (!e.alive) { x.bot.loot = null; x.czSearch = null; return; }
       const s = x.czSearch;
       if (s && s.e === e && G.time - s.t < 4) {
@@ -581,6 +596,8 @@
     let needs = null;
     if (st.id === 'restore' && !CZ.isSafe('firehouse')) needs = CZ.SAFE_UP[0].needs;
     if (st.id === 'radio') needs = Object.assign({}, CZ.SAFE_UP.find(u => u.id === 'radio').needs);
+    // a step done at a safehouse with none standing: what restoring one takes as well
+    if (st.anySafe && !Object.keys(S.safe).some(z => CZ.isSafe(z))) { needs = needs || {}; for (const [k, n] of Object.entries(CZ.SAFE_UP[0].needs)) needs[k] = (needs[k] || 0) + n; }
     if (!needs) return null;
     const out = {};
     for (const [k, n] of Object.entries(needs)) {
@@ -612,8 +629,11 @@
   CZ.autoGoal = function (a) {
     const g = plan(a); if (!g || !CZ.Z || !g.pos) return g;
     const Z = CZ.Z, key = g.key || (g.kind + ':' + Math.round(g.pos.x) + ',' + Math.round(g.pos.z)), d = U.dist3(a.pos, g.pos);
-    if (Z.gk !== key) { Z.gk = key; Z.gkBest = d; Z.gkT = G.time; }
+    // (only the time spent going for it counts: a fight in between, which takes them away from it, used
+    // to count too, and the gym's own fight had the leader give up on Mina and walk out of the school)
+    if (Z.gk !== key || G.time - (Z.gkSeen || 0) > 2) { Z.gk = key; Z.gkBest = d; Z.gkT = G.time; }
     else if (d < Z.gkBest - 0.75) { Z.gkBest = d; Z.gkT = G.time; }
+    Z.gkSeen = G.time;
     if (d > (g.r || 1.5) + 1 && G.time - Z.gkT > 25 && !(a.busy > 0) && !(CZ.ui && CZ.ui.isOpen()) && g.kind !== 'hold') {
       (Z.skip || (Z.skip = {}))[key] = G.time + 90; Z.gk = null;
       if (a.bot && a.bot.loot) a.bot.loot = null;
@@ -628,7 +648,9 @@
     if (fighting(a)) return null;   // the bot's own fighting first
     if (CZ.isSafe(here) && G.time > (Z.unloadT || 0)) { Z.unloadT = G.time + 5; unload(); }
     // its own needs first: a few searches for them where they might be (not the whole place)
-    if (a.czNeed && (Z.needN || 0) < 5 && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a))) { const e = pickContainer(a, a.czNeed, 40, true); if (e) return lootGoal(a, e, () => { Z.needN = (Z.needN || 0) + 1; }); }
+    // (five containers tried per place, reached or not: counting only the ones searched had it try a few
+    // it couldn't get to over and over)
+    if (a.czNeed && (Z.needN || 0) < 5 && !squad().some(t => t !== a && itemIn(t.cz.m, a.czNeed, a))) { const e = pickContainer(a, a.czNeed, 40, true); if (e) { if (Z.needE !== e) { Z.needE = e; Z.needN = (Z.needN || 0) + 1; } return lootGoal(a, e); } }
     // a dangerous place (the hospital, the checkpoint, the overpass): first hold together in the open by
     // the road in and let what's there come to the squad, until it's been quiet for a while (two minutes
     // at most); then go in. A squad that walks straight into the buildings gets surrounded in them
@@ -642,6 +664,8 @@
       }
       Z.entryDone = true;
     }
+    // holding the gym: stay by Mina (the fighting is the bots' own), however long it takes
+    if (Z.gym && Z.gym.t && Z.gym.t.state === 'alive') { const mp = Z.gym.t.pos, n = NAV.nearest(mp.clone().add(V().set(Math.cos(a.id) * 2.5, 0, Math.sin(a.id) * 2.5)), 3); return { pos: n >= 0 ? NAV.nodePos(n) : mp.clone(), kind: 'hold', r: 3, look: mp.clone().setY(mp.y + 1.5) }; }
     // someone here waiting for help (a distress call, a stranger): go and talk to them
     const sv = G.actors.filter(x => x.cz && x.cz.person && x.cz.person.sid && !x.cz.person.talked && !x.cz.person.leaving && x.state === 'alive' && U.dist3(x.pos, a.pos) < 60 && !skipped('talk:' + x.id)).sort((p2, q) => U.dist3(p2.pos, a.pos) - U.dist3(q.pos, a.pos))[0];
     const storyP = (() => { const t0 = inPlace(); return t0 && G.actors.find(x => x.pos === t0.p && x.cz && x.cz.person); })();
@@ -695,6 +719,13 @@
       const score = z => (S.visited.includes(z) ? 0 : 3) + ((CZ.zoneState(z).looted || []).length < 12 ? 1 : 0) + Math.random();
       next = ns.sort((p2, q) => score(q) - score(p2))[0] || Object.keys(CZ.ZONES[here].links)[0];
     } else if (goal && goal !== here) next = CZ.routeTo(here, goal);
+    else if (goal === here && !t) {
+      // the objective is in this place but what it needs was set aside a moment ago (couldn't get to it):
+      // wait near it until it's tried again, rather than off down a road at random (that left the school
+      // mid-mission, and the gym's hold with it)
+      const all = (CZ.targets ? CZ.targets() : []).filter(x => x.p && !x.road).sort((p2, q) => U.dist3(p2.p, a.pos) - U.dist3(q.p, a.pos));
+      if (all.length) { const n = NAV.nearest(all[0].p, 6); return { pos: n >= 0 ? NAV.nodePos(n) : all[0].p.clone(), kind: 'hold', r: 4 }; }
+    }
     if (!next || skipped('road:' + next)) { const ns = Object.keys(CZ.ZONES[here].links).filter(z => !skipped('road:' + z)); next = ns.find(z => !S.visited.includes(z)) || ns[Math.floor(Math.random() * ns.length)] || next; }
     return roadGoal(a, next);
   }

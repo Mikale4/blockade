@@ -188,6 +188,7 @@
   }
   CZ.storyTick = function (dt) {
     const Z = CZ.Z; if ((Z.storyT = (Z.storyT || 0) - dt) > 0) return; Z.storyT = 1;
+    gymTick();
     advance();
     // the deadline
     const s = S();
@@ -229,7 +230,8 @@
   }
   function mina(t) {
     const s = S();
-    if (s.story.flags.gymHold === 'on') { HUD.toast('Hold the gym!', 'warn'); return; }
+    if (s.story.flags.gymHold === 'on' && CZ.Z.gym) { HUD.toast('Hold the gym!', 'warn'); return; }
+    if (s.story.flags.gymHold === 'on') s.story.flags.gymHold = null;   // (not running: start it again)
     if (s.story.flags.gymHold === 'won') return minaAfter(t);
     say([{ who: 'Mina Hale', t: "Stop right there. ...You're not infected. Fine. I'm Mina, I run what's left of this place. Eleven of us in the gym." },
       { who: 'Mina Hale', t: "The doctor? He was here. Left the way he came, toward the hospital. But we have a problem first. The noise you made coming in. Listen." }],
@@ -242,13 +244,22 @@
     // of five on Survivor (it was sixteen and two sixes, which a squad of bots rarely lived through)
     const k = CZ.diff().inf * (0.6 + 0.08 * Math.max(1, CZ.squadCount ? CZ.squadCount() : 5));
     CZ.horde(Math.round(11 * k), t.pos.clone());
-    let left = 90; const Z = CZ.Z;
-    const iv = setInterval(() => {
-      if (!CZ.on() || CZ.Z !== Z) { clearInterval(iv); if (s.story.flags.gymHold === 'on') s.story.flags.gymHold = null; return; }
-      if (G.paused) return;
-      left--; if (left % 30 === 0 && left > 0) { CZ.horde(Math.round(4 * k), t.pos.clone()); HUD.toast(left + ' seconds', 'warn'); }
-      if (left <= 0) { clearInterval(iv); s.story.flags.gymHold = 'won'; HUD.banner('THE GYM HELD', t.state === 'alive' ? 'Mina wants a word' : 'Mina didn\'t make it', 3, 'win'); if (t.state !== 'alive') { s.story.flags.school = 'lost'; CZ.add(me().cz.m, 'radiopart', 1); log('We held the gym, but Mina Hale died. We found a radio valve set in her things.'); advance(); } }
-    }, 1000);
+    // the 90 seconds run on the game's clock (gymTick, from the story's tick), and only while the squad
+    // is here: it was a timer of its own that a reload lost, with the save still saying the hold was on,
+    // and Mina only ever said "Hold the gym!" after that
+    CZ.Z.gym = { t, k, left: 90, last: G.time, wave: 60 };
+  }
+  function gymTick() {
+    const s = S(), Z = CZ.Z, H = Z && Z.gym;
+    if (s.story.flags.gymHold !== 'on') return;
+    if (!H) { s.story.flags.gymHold = null; return; }   // a hold that isn't running here (left the place, a reload, a wipe): it starts over
+    H.left -= Math.max(0, G.time - H.last); H.last = G.time;
+    if (H.left <= H.wave && H.wave > 0) { CZ.horde(Math.round(4 * H.k), H.t.pos.clone()); HUD.toast(H.wave + ' seconds', 'warn'); H.wave -= 30; }
+    if (H.left > 0) return;
+    Z.gym = null; s.story.flags.gymHold = 'won'; const t = H.t;
+    if (Z.skip) for (const k of Object.keys(Z.skip)) if (k.startsWith('talk:')) delete Z.skip[k];   // (Mina wants a word: whoever leads goes to her now)
+    HUD.banner('THE GYM HELD', t.state === 'alive' ? 'Mina wants a word' : "Mina didn't make it", 3, 'win');
+    if (t.state !== 'alive') { s.story.flags.school = 'lost'; CZ.add(me().cz.m, 'radiopart', 1); log('We held the gym, but Mina Hale died. We found a radio valve set in her things.'); advance(); }
   }
   function minaAfter(t) {
     const homes = Object.keys(S().safe).filter(z => CZ.isSafe(z));
