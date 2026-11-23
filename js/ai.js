@@ -834,6 +834,10 @@
     else if (a.rappel) a.ropeLetGo();
     // utility & abilities
     AI.useKit(a, dt);
+    // nothing to shoot with and rounds lying close (City Z): get them first, the fight can wait. (It used
+    // to drop the target, take a step toward the rounds, see the next one and turn to fight it, and so
+    // bob about by the bag without ever stopping to search it)
+    if (b.target && AI.grabFirst && AI.grabFirst(a, b.target)) { b.target = null; b.engTgt = null; a.trigger = false; }
     // fight
     if (b.target && (b.target.isActor ? b.target.state !== 'dead' : b.target.alive)) {
       if (b.task && b.task.critical && b.taskT > 0) { /* finish planting etc. */ }

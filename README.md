@@ -350,9 +350,10 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     with every gun dry it rushes someone close and lets a far one go to find rounds. In City Z who
     swings at the infected rather than shooting is down to their temper, nerve and rounds left (never
     at a brute). Infected operators, like fallen teammates, drop both guns and their rounds: each gun
-    lies on the floor as itself (pick it up, or swap to it from your pack), the rounds and the rest
-    (what their gadgets come to, sometimes a pack) in a bag beside them; teammates walk over for a gun
-    that beats the one they hold and swap to it.
+    lies on the floor as itself with a magazine's worth of its rounds (pick it up, or swap to it from
+    your pack), the other rounds and the rest (what their gadgets come to, sometimes a pack) in a bag
+    beside them; teammates take the rounds, walk over for a gun that beats the one they hold and swap
+    to it, and leave the guns they wouldn't use.
   - **The squad looks after itself** (playing or watching): each AI teammate treats its own wounds,
     eats, drinks and re-arms, makes a dressing or splint when it has the cloth or planks, hands
     spares (dressings, food, water, rounds) to whoever needs them, you included (its last food or water
@@ -360,7 +361,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     under two magazines, split evenly, tossed across mid-fight; and any rounds lying within about
     18 m (a dropped pack, an infected operator's gear, a fallen teammate's bag) it goes and picks up,
     low or not, as long as that doesn't take it away from the squad, then goes back to its main gun
-    and fills the magazine when things are quiet;
+    and fills the magazine when things are quiet (an empty one at once). Out of rounds with some lying
+    close, it goes for them before fighting, hitting anything that gets on top of it on the way;
     medicine once an infection passes 30, antibiotics while it's mild and the scarce antiviral kept for
     anyone at 50 or more, the worst off first and never two helpers to one person),
     rests when it's tired and things are quiet (crouched, until it's back under 45%), naps on a

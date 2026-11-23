@@ -112,9 +112,11 @@
   };
   CZ.survivalTick = function (dt) {
     const diff = CZ.diff(), S = CZ.S;
-    for (const a of squadActors()) {
+    // everyone's guns first: the rounds in their packs are their reserve (and nothing that goes wrong
+    // with one person's needs below can leave anyone's gun short of what they picked up)
+    for (const a of squadActors()) { try { ammoSync(a); } catch (e) { report(a, e); } }
+    for (const a of squadActors()) try {
       const m = a.cz.m, st = m.st;
-      ammoSync(a);
       if (a.state !== 'alive') continue;
       // hunger, thirst, tiredness
       const perk = m.perk, hib = perk === 'hibernation' ? 0.6 : 1;   // (cityz-kit.js: Hibernation)
@@ -174,8 +176,10 @@
       m.hp = a.hp;
       // bots look after themselves out of their own packs
       if (a.bot) botCare(a, dt);
-    }
+    } catch (e) { report(a, e); }
   };
+  const reported = new Set();
+  function report(a, e) { const k = (a && a.name) + ':' + (e && e.message); if (reported.has(k)) return; reported.add(k); console.error('City Z: ' + (a && a.name), e); }
   // a sprint key held while winded: the game's own movement reads a.sprint; stop it there too
   OPS2.chain('physics', function (a) { if (a.cz && a.cz.m && ((a.czWinded > G.time) || (a.cz.m.st.fracture && !(a.cz.m.st.pain > 0)))) a.sprint = false; return false; });
   function turn(a) {
@@ -328,7 +332,7 @@
   }
   CZ.rollLoot = rollLoot;
   /* a container holding one gun and nothing else is that gun, lying on the floor */
-  const loneGun = items => { if (!items) return null; const ks = Object.keys(items).filter(k => items[k] > 0); return ks.length === 1 && ks[0].startsWith('gun:') && DATA.WEAPONS[ks[0].slice(4)] ? ks[0].slice(4) : null; };
+  const loneGun = items => { if (!items) return null; const ks = Object.keys(items).filter(k => items[k] > 0), g = ks.filter(k => k.startsWith('gun:')); return g.length === 1 && DATA.WEAPONS[g[0].slice(4)] && ks.every(k => k === g[0] || isAmmo(k)) ? g[0].slice(4) : null; };
   function makeContainer(pos, id, label, model, items, table) {
     const gun = model === 'czbag' && loneGun(items); if (gun) model = 'gun:' + gun;
     const e = new GAD.Ent('czloot', null, pos, { model, upright: true, yaw: Math.random() * 6.28, hp: 999, hitR: 0, melee: false, team: -1 });
@@ -364,7 +368,10 @@
     guns.forEach((id, k) => {
       const ang = Math.random() * 6.283 + k * 2.1, q = p.clone().add(V().set(Math.cos(ang) * (0.7 + k * 0.25), 0, Math.sin(ang) * (0.7 + k * 0.25)));
       const nn = NAV.nearest(q, 2), at = nn >= 0 && Math.abs(NAV.nodePos(nn).y - p.y) < 0.6 ? NAV.nodePos(nn) : p.clone();
-      const e = makeContainer(at, 'd' + Math.floor(Math.random() * 1e9), DATA.WEAPONS[id.slice(4)].name + (whose ? ' (' + whose + ')' : ''), 'czbag', { [id]: 1 });
+      // a magazine's worth of its own rounds stays with it, so whoever picks it up can shoot it
+      const W = DATA.WEAPONS[id.slice(4)], c = CZ.calOf(id.slice(4)), own = Math.min(items[c] || 0, W.mag || 10), with_ = { [id]: 1 };
+      if (own > 0) { with_[c] = own; items[c] -= own; if (items[c] <= 0) delete items[c]; }
+      const e = makeContainer(at, 'd' + Math.floor(Math.random() * 1e9), W.name + (whose ? ' (' + whose + ')' : ''), 'czbag', with_);
       first = first || e;
     });
     if (!Object.keys(items).length) return first;
@@ -389,6 +396,8 @@
     if (!e.items) e.items = rollLoot(e.table);
     const m = a.cz.m, got = [];
     for (const [id, n] of Object.entries(e.items)) {
+      // (a teammate leaves a gun it wouldn't swap to: the rounds yes, the dead weight no)
+      if (!a.isPlayer && !a.net && id.startsWith('gun:') && CZ.wantsGun && !CZ.wantsGun(a, id.slice(4))) continue;
       const t = CZ.add(m, id, n);
       if (t > 0) { got.push((t > 1 ? t + ' × ' : '') + CZ.itemName(id.startsWith('gun:') ? id.slice(4) : id)); e.items[id] -= t; if (e.items[id] <= 0) delete e.items[id]; }
     }

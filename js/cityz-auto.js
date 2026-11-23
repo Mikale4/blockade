@@ -216,11 +216,16 @@
     a.czCareT = 1.2 + Math.random() * 2.3 + (p && p.flaws.includes('scatterbrain') ? 2 : 0);
     if (a.busy > 0 || a.state !== 'alive') return;
     if (CZ.inPanic && CZ.inPanic(a)) return;   // nobody sorts out their pack mid-panic
-    const m = a.cz.m, needs = needsOf(a), hot = fighting(a);
+    // (infected close count as a fight even when it isn't shooting at them: a teammate with empty guns
+    // going for rounds isn't, and stopped to dress a wound with walkers on it)
+    const close = nearInf(a), m = a.cz.m, needs = needsOf(a), hot = fighting(a) || close < 6;
+    // an empty magazine and rounds in the pack: load it, fight or no fight
+    { const w = a.w[a.cur]; if (w && !w.def.heat && w.mag <= 0 && w.reserve > 0 && !(w.reload > 0)) WPN.reload(a); }
     // a dry gun: the other one
     if (a.w[a.cur] && a.w[a.cur].mag <= 0 && a.w[a.cur].reserve <= 0) { const o = a.w.findIndex((w, i) => i !== a.cur && (w.mag > 0 || w.reserve > 0)); if (o >= 0) WPN.swap(a, o); }
     // quiet: back to the main gun, and a full magazine
     else if (!hot) topUp(a);
+    if (close < 2.5) return;   // something on top of them: nothing that has them stand still
     a.czNeed = null;
     if (!hot && G.time > (a.czGunT || 0)) { a.czGunT = G.time + 6; if (betterGun(a)) return; }
     restTick(a, hot);
@@ -399,7 +404,9 @@
       if (!e.alive || e.type !== 'czloot') continue;
       if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
       if (skipped('loot:' + e.cid) || G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
-      const good = e.items ? Object.keys(e.items).some(k => (CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo') || k.startsWith('gun:')) : AMMO_TABLES.includes(e.table);   // (any rounds will do)
+      // (any rounds will do; a gun with none in it is no help to someone with empty guns, unless it's
+      // one they'd swap to)
+      const good = e.items ? Object.keys(e.items).some(k => e.items[k] > 0 && ((CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo') || (k.startsWith('gun:') && CZ.wantsGun && CZ.wantsGun(a, k.slice(4))))) : AMMO_TABLES.includes(e.table);
       if (!good) continue;
       const d = U.dist3(e.pos, a.pos) + (e.items ? 0 : 10) + Math.abs(e.pos.y - a.pos.y) * 2;   // a known find before a maybe
       if (d < bd) { bd = d; best = e; }
@@ -408,9 +415,22 @@
     return best;
   }
   CZ.ammoSource = ammoSource;
+  /* how close the nearest infected is */
+  function nearInf(a) { let d = 99; for (const t of G.actors) if (t.cz && (t.cz.inf || t.cz.opx) && t.state === 'alive') { const x = U.dist3(t.pos, a.pos); if (x < d) d = x; } return d; }
+  /* out of rounds with some lying within 12 m: go and get them before fighting, unless something is on
+     top of them (then a blow first); at the bag itself, search whatever's close */
+  AI.grabFirst = function (a, t) {
+    if (!CZ.on() || !a.cz || !a.cz.m || hasRounds(a)) return false;
+    const e = ammoSource(a); if (!e || !e.items) return false;
+    const de = U.dist3(e.pos, a.pos); if (de > 12) return false;
+    // (the nearest one, not the one it was aiming at)
+    return de < 2.5 || nearInf(a) > 1.8;
+  };
   AI.dryRush = function (a, t, dist) {
     if (!CZ.on() || !a.cz || !a.cz.m) return dist < 9;
-    return !ammoSource(a) && dist < 9;   // nowhere left to look: then, and only then, hand to hand
+    // nowhere left to look: then hand to hand; and one that's on them (within about 2 m) gets hit
+    // whatever, or it blocks the way to the rounds and chews on them while they try to get past
+    return (!ammoSource(a) && dist < 9) || dist < 2.2;
   };
   AI.meleeWanted = function (a, t) {
     if (!CZ.on() || !a.cz || !a.cz.m || !t.cz || !t.cz.inf) return false;
@@ -422,7 +442,7 @@
     if (!CZ.on() || !a.cz || !a.cz.m || !a.bot || hasRounds(a)) { a.czDry = false; return null; }
     const e = ammoSource(a); if (!e) return null;
     if (!a.czDry) { a.czDry = true; say(a, 'dry', ["I'm out. Finding ammo.", 'Dry! Going to look for rounds.', 'No rounds left. Searching.'], 3); }
-    return lootGoal(a, e);
+    const g = lootGoal(a, e); g.sprint = true; return g;   // (at a run)
   };
 
   /* ================================================================ rest and sleep */
@@ -511,15 +531,19 @@
     return { key: 'loot:' + e.cid, pos: e.pos.clone(), kind: 'loot', r: 1.5, look: e.pos.clone().setY(e.pos.y + 0.5), act: x => {
       if (!e.alive) { x.bot.loot = null; x.czSearch = null; return; }
       const s = x.czSearch;
+      const took = e.items ? 0.6 : 1.2;   // (a bag that's been opened, a dropped pack: quicker, as for a player)
       if (s && s.e === e && G.time - s.t < 4) {
-        if (G.time - s.t < 1.2) return;
+        if (G.time - s.t < took) return;
         x.czSearch = null;
         if (x.state === 'alive' && CZ.on()) { CZ.loot(x, e); if (e.alive) (e.czFullFor || (e.czFullFor = {}))[x.id] = CZ.weight(x.cz.m); }
-        if (x.bot) x.bot.loot = null; x.czCareT = 0; x.czGunT = 0; topUp(x); if (then) then(x);
+        if (x.bot) x.bot.loot = null; x.czCareT = 0; x.czGunT = 0;
+        if (CZ.ammoSync) CZ.ammoSync(x);
+        { const w = x.w[x.cur]; if (w && !w.def.heat && w.mag <= 0 && w.reserve > 0) { x.busy = 0; WPN.reload(x); } else topUp(x); }
+        if (then) then(x);
         return;
       }
       if (x.busy > 0) return;
-      x.busy = 1.3; x.busyLabel = 'SEARCHING'; x.czSearch = { e, t: G.time };
+      x.busy = took + 0.1; x.busyLabel = 'SEARCHING'; x.czSearch = { e, t: G.time };
     } };
   }
   /* in the follow order: go and find what is missing, or pick over what is close when it is quiet */
