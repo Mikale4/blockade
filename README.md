@@ -349,15 +349,18 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
   - **Melee and guns:** every bot (in every mode) melees up close when its gun is empty or reloading;
     with every gun dry it rushes someone close and lets a far one go to find rounds. In City Z who
     swings at the infected rather than shooting is down to their temper, nerve and rounds left (never
-    at a brute). Infected operators drop both guns, rounds, what their gadgets come to and sometimes a
-    pack; teammates swap to a better gun when they have rounds for it.
+    at a brute). Infected operators, like fallen teammates, drop both guns and their rounds: each gun
+    lies on the floor as itself (pick it up, or swap to it from your pack), the rounds and the rest
+    (what their gadgets come to, sometimes a pack) in a bag beside them; teammates walk over for a gun
+    that beats the one they hold and swap to it.
   - **The squad looks after itself** (playing or watching): each AI teammate treats its own wounds,
     eats, drinks and re-arms, makes a dressing or splint when it has the cloth or planks, hands
     spares (dressings, food, water, rounds) to whoever needs them, you included (its last food or water
     too, to anyone close to starving or clearly worse off than itself; rounds as soon as someone is
     under two magazines, split evenly, tossed across mid-fight; and any rounds lying within about
     18 m (a dropped pack, an infected operator's gear, a fallen teammate's bag) it goes and picks up,
-    low or not, as long as that doesn't take it away from the squad;
+    low or not, as long as that doesn't take it away from the squad, then goes back to its main gun
+    and fills the magazine when things are quiet;
     medicine once an infection passes 30, antibiotics while it's mild and the scarce antiviral kept for
     anyone at 50 or more, the worst off first and never two helpers to one person),
     rests when it's tired and things are quiet (crouched, until it's back under 45%), naps on a
@@ -445,9 +448,8 @@ being downed instead of killed, and Bomb, Secure Area and Hostage.
     within 15 m brings tiredness down to 40%; only sleep, or a nap on a safehouse bed, goes lower.
   - **Staying alive:** hunger, thirst, tiredness, stamina, bleeding, broken bones, sickness and
     the infection, each with its effects; a pack with a weight limit; ammunition that is
-    your guns' reserve, where any rounds fit any gun (whatever you pick up or are handed goes to the
-    gun shortest of rounds, and a gun that runs dry draws on the rounds you carry for the other one);
-    found guns to swap in. Rooms are searched for what that kind
+    your guns' reserve, where any rounds fit any gun (every round in your pack is the reserve of
+    both your guns, whatever it was found as); found guns to swap in. Rooms are searched for what that kind
     of room holds. Crafting by hand and at a workbench (dressings, splints, molotovs, pipe bombs,
     noisemakers, barricade kits, ammunition, meals).
   - **The infected:** walkers, runners, armoured brutes, screamers that call the rest, spitters

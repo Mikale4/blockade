@@ -62,6 +62,7 @@
   GAD.MESH_FN = {};
   GAD.mesh = function (model) {
     if (GAD.MESH_FN[model]) return GAD.MESH_FN[model]();
+    if (typeof model === 'string' && model.startsWith('gun:')) return MD.floorGun(model.slice(4));   // a gun on the floor (City Z)
     if (!EXTRA[model]) return MD.gadget(model);
     if (!extraGeo.has(model)) { const g = new MD.Grid(); EXTRA[model](g); extraGeo.set(model, MD.mesh(g, 1 / 32)); }
     return new THREE.Mesh(extraGeo.get(model), new THREE.MeshBasicMaterial({ vertexColors: true }));

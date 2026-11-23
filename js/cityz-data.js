@@ -216,7 +216,9 @@
 
   /* ------------------------------------------------------------------ survivors */
   /* people met in the world: some are story characters (cityz-story.js), the rest come from here */
-  CZ.SURVIVOR_NAMES = ['Ada Kowal', 'Teo Baines', 'Mina Hale', 'Ruben Ostrow', 'Jun Park', 'Leila Haddad', 'Marta Quist', 'Callum Reyes', 'Ines Varga', 'Sol Abara', 'Petra Lind', 'Hugo Marsh', 'Dara Finch', 'Omar Sadiq', 'Bea Thorne', 'Nils Ekberg'];
+  // (never the story's own people: Teo Baines, Mina Hale, Ruben Ostrow, Petra Lind, Dr Halvard Mara)
+  CZ.STORY_NAMES = ['Teo Baines', 'Mina Hale', 'Ruben Ostrow', 'Petra Lind', 'Dr Halvard Mara'];
+  CZ.SURVIVOR_NAMES = ['Ada Kowal', 'Rosa Elling', 'Kofi Mensah', 'Wren Calloway', 'Jun Park', 'Leila Haddad', 'Marta Quist', 'Callum Reyes', 'Ines Varga', 'Sol Abara', 'Ivo Brandt', 'Hugo Marsh', 'Dara Finch', 'Omar Sadiq', 'Bea Thorne', 'Nils Ekberg'];
   CZ.SURVIVOR_SKILLS = {
     medic: { name: 'Medic', desc: 'Treats the squad at the safehouse: everyone heals there twice as fast.' },
     mechanic: { name: 'Mechanic', desc: 'Keeps vehicles running: repairs them at the safehouse, and finds more fuel.' },

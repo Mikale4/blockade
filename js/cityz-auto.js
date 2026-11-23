@@ -118,8 +118,8 @@
     return v === 0 ? 0 : v === 2 ? 1 : base;
   }
   /* can it be spared? (keep one for yourself unless you have plenty) */
-  /* everything someone has of one calibre: the pack, and the magazines of the guns that take it */
-  function calRounds(a, c) { let n = a.cz.m.inv[c] || 0; for (const w of a.w) if (CZ.calOf(w.id) === c) n += w.mag || 0; return n; }
+  /* every round someone has: the whole pack (any rounds fit any gun) and every magazine */
+  function calRounds(a) { let n = CZ.ammoPool(a.cz.m); for (const w of a.w) n += w.mag || 0; return n; }
   CZ.calRounds = calRounds;
   function spare(m, id, giver, need, t) {
     const n = m.inv[id] || 0; if (!n) return 0;
@@ -139,11 +139,10 @@
     }
     if ((need === 'bleed' || need === 'hurt') && NEED.bleed.ids.includes(id)) return giver.cz.m.st.bleed > 0 && n < 2 ? 0 : 1;
     if (CZ.ITEMS[id] && CZ.ITEMS[id].cat === 'ammo') {
-      const uses = giver.w.some(w => CZ.calOf(w.id) === id);
-      if (!uses) return Math.min(n, 150);
-      const gm = (giver.w.find(w => CZ.calOf(w.id) === id) || {}).def, keep = (gm && gm.mag) || 20;
-      const give = Math.floor((calRounds(giver, id) - (t ? calRounds(t, calOf(t)) : 0)) / 2);
-      return give >= 5 ? Math.max(0, Math.min(give, n - keep)) : 0;
+      // half the difference, keeping a magazine's worth back (any rounds fit any gun)
+      const keep = (giver.w[0] && giver.w[0].def.mag) || 20;
+      const give = Math.floor((calRounds(giver) - (t ? calRounds(t) : 0)) / 2);
+      return give >= 5 ? Math.max(0, Math.min(give, n, CZ.ammoPool(m) - keep)) : 0;
     }
     return n > 1 || !needsOf(giver).length ? 1 : 0;
   }
@@ -220,6 +219,8 @@
     const m = a.cz.m, needs = needsOf(a), hot = fighting(a);
     // a dry gun: the other one
     if (a.w[a.cur] && a.w[a.cur].mag <= 0 && a.w[a.cur].reserve <= 0) { const o = a.w.findIndex((w, i) => i !== a.cur && (w.mag > 0 || w.reserve > 0)); if (o >= 0) WPN.swap(a, o); }
+    // quiet: back to the main gun, and a full magazine
+    else if (!hot) topUp(a);
     a.czNeed = null;
     if (!hot && G.time > (a.czGunT || 0)) { a.czGunT = G.time + 6; if (betterGun(a)) return; }
     restTick(a, hot);
@@ -325,6 +326,16 @@
   };
 
   /* ================================================================ guns */
+  /* with rounds in the pack and nothing close: back to the main gun (they went to the other one when it
+     ran dry) and a full magazine, so rounds just picked up are in the gun, not only in the pack */
+  function topUp(a) {
+    if (!a || a.state !== 'alive' || a.busy > 0 || !a.w || !a.w.length || fighting(a)) return;
+    const main = a.w[0];
+    if (a.cur !== 0 && main && (main.mag > 0 || main.reserve > 0) && !(main.def.heat)) { WPN.swap(a, 0); return; }
+    const w = a.w[a.cur];
+    if (w && !w.def.heat && w.mag < (w.def.mag || 0) && w.reserve > 0 && !(w.reload > 0)) WPN.reload(a);
+  }
+  CZ.topUp = topUp;
   /* how good a gun is to this person: its damage over time, its reach, who they are (a sharpshooter
      likes a long gun, a hothead a loud one), and whether they have rounds for it */
   function gunScore(a, id, inHand) {
@@ -334,11 +345,19 @@
     const p = P(a); let like = 1;
     if (p && p.perks.includes('sharpshooter') && (d.type === 'DMR' || d.type === 'SR')) like = 1.25;
     if (p && p.t.temper > 0.7 && (d.type === 'SG' || d.type === 'LMG')) like = 1.2;
-    const c = CZ.calOf(id), n = inHand ? calRounds(a, c) : (a.cz.m.inv[c] || 0), mag = d.mag || 20;
+    const n = inHand ? calRounds(a) : CZ.ammoPool(a.cz.m), mag = d.mag || 20;   // (any rounds fit any gun)
     const ammo = n >= mag * 2 ? 1 : n >= mag ? 0.7 : n > 0 ? 0.4 : 0.05;
     return dps * reach * like * ammo;
   }
   const isSide = id => { const d = DATA.WEAPONS[id]; return !!d && (d.sec || d.type === 'PISTOL' || d.type === 'MP'); };
+  /* a gun on the floor that beats the one in that hand */
+  CZ.wantsGun = function (a, gid) {
+    if (!DATA.WEAPONS[gid] || !a.w) return false;
+    const slot = isSide(gid) ? 1 : 0, cur = a.w[slot];
+    if (cur && cur.id === gid) return false;
+    if ((a.cz.m.inv['gun:' + gid] || 0) > 0) return false;
+    return gunScore(a, gid, false) > (cur ? gunScore(a, cur.id, true) : 0) * 1.2;
+  };
   /* a gun in the pack that beats the one in that hand: swap (the clever and the bold sooner); one they
      can't use and can't carry gets left behind */
   function betterGun(a) {
@@ -473,13 +492,19 @@
   const skipped = key => !!(CZ.Z && CZ.Z.skip && CZ.Z.skip[key] > G.time);
   function lootGoal(a, e, then) {
     a.bot.loot = e;
+    // (searching takes 1.2 s on the game's clock, then it's done: no timer left running behind)
     return { key: 'loot:' + e.cid, pos: e.pos.clone(), kind: 'loot', r: 1.1, look: e.pos.clone().setY(e.pos.y + 0.5), act: x => {
-      if (x.busy > 0 || !e.alive) { if (!e.alive) x.bot.loot = null; return; }
-      x.busy = 1.3; x.busyLabel = 'SEARCHING';
-      setTimeout(() => {
-        if (x.state === 'alive' && e.alive && CZ.on()) { CZ.loot(x, e); if (e.alive) (e.czFullFor || (e.czFullFor = {}))[x.id] = CZ.weight(x.cz.m); }
-        if (x.bot) x.bot.loot = null; x.czCareT = 0; x.czGunT = 0; if (then) then(x);
-      }, 1200);
+      if (!e.alive) { x.bot.loot = null; x.czSearch = null; return; }
+      const s = x.czSearch;
+      if (s && s.e === e && G.time - s.t < 4) {
+        if (G.time - s.t < 1.2) return;
+        x.czSearch = null;
+        if (x.state === 'alive' && CZ.on()) { CZ.loot(x, e); if (e.alive) (e.czFullFor || (e.czFullFor = {}))[x.id] = CZ.weight(x.cz.m); }
+        if (x.bot) x.bot.loot = null; x.czCareT = 0; x.czGunT = 0; topUp(x); if (then) then(x);
+        return;
+      }
+      if (x.busy > 0) return;
+      x.busy = 1.3; x.busyLabel = 'SEARCHING'; x.czSearch = { e, t: G.time };
     } };
   }
   /* in the follow order: go and find what is missing, or pick over what is close when it is quiet */

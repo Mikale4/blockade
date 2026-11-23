@@ -476,5 +476,14 @@
   /* a voxel cube instance geometry for debris */
   function cubeGeo() { return cached('cube', () => { const g = new Grid(); g.set(0, 0, 0, 0xffffff); return mesh(g, 1, 0); }); }
 
-  window.MD = { Grid, mesh, glow, operator, setRigGun, addShield, viewGun, viewShield, viewArms, gadget, drone, cubeGeo, HOSTAGE_OP, S };
+  /* a gun put down (City Z's dropped guns): the gun the operators carry, on its side on the floor,
+     a shade brighter so it reads against the boards */
+  function floorGun(wid) {
+    const m = part(gunGeo3P(DATA.WEAPONS[wid] ? wid : 'vkr5'), mat()); m.material.color.setScalar(1.45);
+    m.rotation.z = Math.PI / 2; m.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(m);
+    m.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y + 0.01, -(bb.min.z + bb.max.z) / 2);
+    const g = new THREE.Group(); g.add(m); return g;
+  }
+  window.MD = { Grid, mesh, glow, operator, setRigGun, addShield, viewGun, viewShield, viewArms, gadget, drone, cubeGeo, floorGun, HOSTAGE_OP, S };
 })();

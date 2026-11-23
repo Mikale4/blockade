@@ -157,7 +157,7 @@
     const m = a.cz.m, old = a.w[slot];
     if (old && old.id === gid) return;
     CZ.take(m, 'gun:' + gid, 1);
-    if (old) m.inv['gun:' + old.id] = (m.inv['gun:' + old.id] || 0) + 1;
+    if (old) { m.inv['gun:' + old.id] = (m.inv['gun:' + old.id] || 0) + 1; if (old.mag > 0) CZ.add(m, CZ.calOf(old.id), old.mag); }
     const lo = Object.assign({}, a.loadout); if (slot === 0) lo.primary = gid; else lo.secondary = gid;
     const keep = a.w.map(w => ({ id: w.id, mag: w.mag }));
     a.loadout = lo; a.resetKit();

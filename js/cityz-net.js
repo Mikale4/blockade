@@ -98,7 +98,7 @@
   CZ.netAct = function (a, d) {
     if (!a || !a.cz || !a.cz.m) return;
     const m = a.cz.m, op = d.op;
-    if (op === 'ammo') { CZ.take(m, String(d.c), Math.max(0, d.n | 0)); return; }
+    if (op === 'ammo') { CZ.spendAmmo(m, String(d.c), Math.max(0, d.n | 0)); return; }   // (any rounds, any gun)
     if (op === 'use') return CZ.use(a, String(d.id));
     if (op === 'heal') return CZ.quickHeal(a);
     if (op === 'throw') return CZ.throwItem(a);
@@ -185,15 +185,16 @@
     }
     return false;
   });
-  // the guest's own guns: the reserve is their pack's rounds; what they fire is reported
+  // the guest's own guns: the reserve is all their pack's rounds (any rounds fit any gun); what they load is reported
   CZ.guestTick = function (dt) {
     const a = G.player; if (!a || !a.cz || a.ghost) return;
     const m = a.cz.m, last = a.cz.res || (a.cz.res = []);
     for (let i = 0; i < a.w.length; i++) {
       const w = a.w[i], c = CZ.calOf(w.id);
-      if (last[i] != null && w.reserve < last[i]) { const n = last[i] - w.reserve; m.inv[c] = Math.max(0, (m.inv[c] || 0) - n); Online.toHost({ t: 'np.cz', op: 'ammo', c, n }); }
+      if (last[i] != null && w.reserve < last[i]) { const n = last[i] - w.reserve; CZ.spendAmmo(m, c, n); Online.toHost({ t: 'np.cz', op: 'ammo', c, n }); }
     }
-    for (let i = 0; i < a.w.length; i++) { const w = a.w[i]; w.reserve = m.inv[CZ.calOf(w.id)] || 0; last[i] = w.reserve; }
+    const P = CZ.ammoPool(m);
+    for (let i = 0; i < a.w.length; i++) { a.w[i].reserve = P; last[i] = P; }
   };
   /* a guest's actions on their own pack: asked of the host */
   CZ.ask = (op, extra) => Online.toHost(Object.assign({ t: 'np.cz', op }, extra || {}));

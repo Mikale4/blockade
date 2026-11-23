@@ -67,10 +67,23 @@
   });
   CZ.listen('kill', v => { const o = v.cz && v.cz.person; if (!o) return; HUD.toast(v.name + ' was killed', 'warn'); if (o.sid) { const s = S().survivors.find(x => x.id === o.sid); if (s) s.state = 'dead'; } if (o.onDeath) o.onDeath(v); });
 
+  /* an older save: a survivor met on the way (or a teammate recruited from them) named after one of
+     the story's people the story hasn't reached yet gets a name of their own, so the objective's
+     marker and the squad's leader go to the real one */
+  const STORY_FLAG = { 'Teo Baines': f => f.teo, 'Mina Hale': f => f.school, 'Ruben Ostrow': f => f.school, 'Petra Lind': f => f.school, 'Dr Halvard Mara': f => f.mara };
+  function renameClashes(s) {
+    if (!s || !s.story) return;
+    const f = s.story.flags || {}, taken = new Set(s.survivors.map(x => x.name).concat(s.squad.map(m => m.name)));
+    const fresh = () => { const n = CZ.SURVIVOR_NAMES.find(x => !taken.has(x)) || ('Survivor ' + (taken.size + 1)); taken.add(n); return n; };
+    for (const x of s.survivors.concat(s.squad.filter(m => m.recruit))) if (STORY_FLAG[x.name] && !STORY_FLAG[x.name](f)) x.name = fresh();
+  }
+  const oLoadS = CZ.load;
+  CZ.load = function () { const s = oLoadS.apply(this, arguments); try { renameClashes(s); } catch (e) { } return s; };
+
   /* ---- survivors: met, rescued, sent home */
   const SKILLS = Object.keys(CZ.SURVIVOR_SKILLS);
   CZ.newSurvivor = function (zone, why) {
-    const s = S(), used = new Set(s.survivors.map(x => x.name));
+    const s = S(), used = new Set(s.survivors.map(x => x.name).concat(s.squad.map(m => m.name), CZ.STORY_NAMES));
     const name = CZ.SURVIVOR_NAMES.find(n => !used.has(n)) || ('Survivor ' + (s.survivors.length + 1));
     const sv = { id: 's' + Date.now().toString(36) + Math.floor(Math.random() * 99), name, skill: SKILLS[Math.floor(Math.random() * SKILLS.length)], zone, state: 'waiting', why: why || 'trapped', day: s.day };
     s.survivors.push(sv); return sv;
@@ -129,7 +142,8 @@
   /* ---- what the current step points at, in this place: things, people, or the road toward its place */
   function haveCounts(needs) { const h = {}, src = CZ.sources(CZ.leader ? CZ.leader() : G.player); for (const k of Object.keys(needs)) { h[k] = 0; for (const s of src) h[k] += s[k] || 0; } return h; }
   const fixes = (kind, label) => G.ents.filter(e => e.alive && (e.czFix === kind)).map(e => ({ p: e.pos, label }));
-  const person = (name, label) => G.actors.filter(a => a.name === name && a.state === 'alive').map(a => ({ p: a.pos, label, up: 2 }));
+  // (the story's own person: never a survivor met on the way, nor a teammate, who happens to share the name)
+  const person = (name, label) => G.actors.filter(a => a.name === name && a.state === 'alive' && a.cz && a.cz.person && !a.cz.person.sid && !a.cz.m).map(a => ({ p: a.pos, label, up: 2 }));
   const finds = () => G.ents.filter(e => e.alive && e.type === 'czloot' && /important/.test(String(e.label))).map(e => ({ p: e.pos, label: String(e.label).replace(' (something important)', '').toUpperCase() }));
   /* the first road to take from one place toward another (fewest minutes) */
   CZ.routeTo = function (from, to) {

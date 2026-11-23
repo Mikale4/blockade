@@ -302,6 +302,8 @@
   });
   /* the squad's goals: a crate that's theirs (or anyone's, if it's just lying there), a fallen teammate a field medic can bring back */
   const hasAmmo = e => !!e.items && Object.keys(e.items).some(k => e.items[k] > 0 && CZ.ITEMS[k] && CZ.ITEMS[k].cat === 'ammo');
+  // rounds, or a gun on the floor better than the one they hold
+  const worth = (a, e) => hasAmmo(e) || (!!e.czGun && e.items && e.items['gun:' + e.czGun] > 0 && CZ.wantsGun && CZ.wantsGun(a, e.czGun));
   const oGoal = CZ.squadGoal;
   CZ.squadGoal = function (a) {
     if (a.cz && a.cz.m && !fighting(a)) {
@@ -323,12 +325,12 @@
         // one they're already on the way to stays theirs (the way round a wall can be longer than 18 m),
         // unless it's taking too long: then it's left for a minute
         let cur = a.czAmmoGrab;
-        if (cur && (!cur.alive || !hasAmmo(cur) || U.dist3(cur.pos, a.pos) > 45 || (lead && lead !== a && U.dist3(cur.pos, lead.pos) > 45))) cur = null;
+        if (cur && (!cur.alive || !worth(a, cur) || U.dist3(cur.pos, a.pos) > 45 || (lead && lead !== a && U.dist3(cur.pos, lead.pos) > 45))) cur = null;
         if (cur && G.time - (a.czAmmoGrabSince || G.time) > 30) { skip[cur.cid] = G.time + 60; cur = null; }
         if (kg < CZ.capacity(m) * 1.25) {
           let best = cur, bd = cur ? Math.min(18, U.dist3(cur.pos, a.pos) - 3) : 18;
           for (const e of G.ents) {
-            if (e === cur || !e.alive || e.type !== 'czloot' || !hasAmmo(e) || skip[e.cid] > G.time) continue;
+            if (e === cur || !e.alive || e.type !== 'czloot' || !worth(a, e) || skip[e.cid] > G.time) continue;
             if (e.czFullFor && e.czFullFor[a.id] != null && kg >= e.czFullFor[a.id] - 0.3) continue;
             if (G.actors.some(b => b !== a && b.bot && b.bot.loot === e)) continue;
             const d = U.dist3(e.pos, a.pos); if (d > bd || Math.abs(e.pos.y - a.pos.y) > 2.5) continue;
@@ -337,13 +339,13 @@
           }
           if (best !== a.czAmmoGrab) {
             if (a.czAmmoGrab && a.bot.loot === a.czAmmoGrab) a.bot.loot = null;
-            if (best) { a.czAmmoGrabSince = G.time; if (Math.random() < 0.4) say(a, 'grab', ['Ammo here, grabbing it.', 'Rounds. Mine now.', "Somebody's leftovers. Thanks."], 1); }
+            if (best) { a.czAmmoGrabSince = G.time; if (Math.random() < 0.4) say(a, 'grab', best.czGun ? ["That's a better gun. Mine.", 'Grabbing that ' + DATA.WEAPONS[best.czGun].name + '.'] : ['Ammo here, grabbing it.', 'Rounds. Mine now.', "Somebody's leftovers. Thanks."], 1); }
             a.czAmmoGrab = best;
           }
         } else if (a.czAmmoGrab) { if (a.bot.loot === a.czAmmoGrab) a.bot.loot = null; a.czAmmoGrab = null; }
       }
       const g = a.czAmmoGrab;
-      if (a.bot && g && g.alive && hasAmmo(g)) return CZ.lootGoal(a, g, x => { x.czAmmoGrab = null; });
+      if (a.bot && g && g.alive && worth(a, g)) return CZ.lootGoal(a, g, x => { x.czAmmoGrab = null; });
       if (g && a.bot && a.bot.loot === g) a.bot.loot = null;
       a.czAmmoGrab = null;
     }
